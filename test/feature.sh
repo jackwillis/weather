@@ -100,6 +100,49 @@ expect "bad config" 78 -c "$CFG"
 contains "config line number" "line 2"
 expect "missing explicit config" 78 -c /nonexistent/weatherrc
 
+echo "attempts = 1" > "$CFG"
+# Ctrl-C / SIGTERM during a fetch: clean cancel, exit 130, promptly (server never answers)
+for sig in INT TERM; do
+	t0=$(date +%s)
+	"$BIN" $W -t 30 -H 127.0.0.1:$P_SLOW >/dev/null 2>"$CFG.sig" &
+	wp=$!
+	sleep 1
+	kill -$sig $wp
+	wait $wp; got=$?
+	t1=$(date +%s)
+	if [ "$got" = 130 ] && [ $((t1 - t0)) -lt 6 ]; then ok; else bad "SIG$sig during fetch: exit $got after $((t1 - t0))s"; fi
+	grep -q "cancelled" "$CFG.sig" && ok || bad "SIG$sig: no 'cancelled' message ($(cat $CFG.sig))"
+done
+rm -f "$CFG.sig"
+
+# -S saves location/name/units into the config file, keeping everything else
+RC=$(mktemp)
+printf '# my weather\nattempts = 1  # fast\nlatitude = 1.0\n' > "$RC"
+expect "-S saves" 0 -c "$RC" -l 59.91,10.75 -n Bergen -u metric -S
+case "$(cat "$RC")" in
+	"# my weather
+attempts = 1  # fast
+latitude = 59.9100
+longitude = 10.7500
+name = Bergen
+units = metric") ok;;
+	*) bad "-S file contents: $(cat "$RC")";;
+esac
+expect "-S result is used" 0 -c "$RC" -d -1 -H 127.0.0.1:$P_OK
+contains "saved latitude used" "latitude=59.9100&longitude=10.7500"
+contains "saved units used" "temperature_unit=celsius"
+expect "-S twice is stable" 0 -c "$RC" -l 59.91,10.75 -n Bergen -u metric -S
+case "$(cat "$RC" | grep -c 'latitude')" in 1) ok;; *) bad "-S duplicated keys";; esac
+if [ "$(id -u)" != 0 ]; then
+	RO=$(mktemp -d)
+	chmod 555 "$RO"
+	expect "-S into read-only dir" 74 -c "$RO/new-rc-file" -n X -S
+	chmod 755 "$RO"; rmdir "$RO"
+fi
+expect "-S with a bad name" 64 -c "$RC" -n 'a#b' -S
+HOME= expect "-S with no HOME and no -c" 78 -S
+rm -f "$RC"
+
 # stdout must carry only the result; diagnostics go to stderr
 echo "attempts = 1" > "$CFG"
 SOUT=$("$BIN" -c "$CFG" -1 -H 127.0.0.1:$P_OK 2>/dev/null)
@@ -108,6 +151,13 @@ case "$SOUT" in *weather:*) bad "log text on stdout";; *) ok;; esac
 
 if [ -n "$ONLINE" ]; then
 	expect "online live fetch" 0 -1
+	# the TLS layer must judge certificates by the platform clock (seam), not its own idea of time
+	WEATHER_NOW=4102444800 "$BIN" -1 >/dev/null 2>"$CFG.err"; got=$?
+	if [ "$got" = 76 ] && grep -q "expired or not yet valid" "$CFG.err"; then ok; else bad "year-2100 clock: exit $got $(cat $CFG.err)"; fi
+	WEATHER_NOW=1735689700 "$BIN" -1 >/dev/null 2>"$CFG.err"; got=$?
+	if [ "$got" = 76 ] && grep -q "expired or not yet valid" "$CFG.err"; then ok; else bad "early-2025 clock: exit $got $(cat $CFG.err)"; fi
+	WEATHER_NOW=100 "$BIN" -1 >/dev/null 2>"$CFG.err"; got=$?
+	if [ "$got" = 71 ]; then ok; else bad "1970 clock: exit $got (wanted 71, clock)"; fi
 	WEATHER_NO_TA=1 "$BIN" -1 >/dev/null 2>"$CFG.err"; got=$?
 	if [ "$got" = 76 ] && grep -q "cert" "$CFG.err"; then ok; else bad "no-anchor run: exit $got $(cat $CFG.err)"; fi
 	rm -f "$CFG.err"

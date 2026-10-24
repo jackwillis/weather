@@ -3,7 +3,10 @@
 #include "core/log.hpp"
 #include <bearssl.h>
 #include "anchors.h"
+#include "timeconv.hpp"
 #include <cstdlib>
+#include <cstring>
+#include <cstdint>
 
 namespace wx {
 
@@ -73,7 +76,7 @@ static long tls_write(Io &io, const void *buf, size_t len)
 	return static_cast<long>(len);
 }
 
-static Status tls_open(Net &, Io &raw, const char *host, Io *out)
+static Status tls_open(Net &net, Io &raw, const char *host, Io *out)
 {
 	TlsState *t = &g_tls;
 	t->raw = &raw;
@@ -81,6 +84,19 @@ static Status tls_open(Net &, Io &raw, const char *host, Io *out)
 	size_t nta = getenv("WEATHER_NO_TA") ? 0 : TAs_NUM;
 	br_ssl_client_init_full(&t->sc, &t->xc, TAs, nta);
 	br_ssl_engine_set_buffer(&t->sc.eng, t->iobuf, sizeof t->iobuf, 1);
+
+	// Certificate validity is judged against the platform clock, not whatever BearSSL guesses.
+	if (!net.now) return make(Err::Tls, "no clock available");
+	BrTime bt = unix_to_br_time(net.now(net));
+	br_x509_minimal_set_time(&t->xc, static_cast<uint32_t>(bt.days), static_cast<uint32_t>(bt.secs));
+
+	// Seed the random generator from the platform. Never run TLS with a missing source.
+	unsigned char seed[32];
+	if (!net.entropy || !net.entropy(net, seed, sizeof seed))
+		return make(Err::Tls, "no source of random numbers");
+	br_ssl_engine_inject_entropy(&t->sc.eng, seed, sizeof seed);
+	memset(seed, 0, sizeof seed);
+
 	if (!br_ssl_client_reset(&t->sc, host, 0))
 		return map_engine_error(br_ssl_engine_last_error(&t->sc.eng), raw);
 	br_sslio_init(&t->ioc, &t->sc.eng, raw_read, &raw, raw_write, &raw);

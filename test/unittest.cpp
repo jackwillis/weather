@@ -7,8 +7,21 @@
 #include "core/log.hpp"
 #include "core/openmeteo.hpp"
 #include "core/version.hpp"
+#include "app/model.hpp"
+#include "core/settings.hpp"
+#include "platform/posix/net_posix.hpp"
+#include "platform/posix/settings_posix.hpp"
+#include "tls/timeconv.hpp"
+#include <arpa/inet.h>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <ctime>
+#include <dirent.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 using namespace wx;
 
@@ -133,6 +146,7 @@ static void test_config()
 	CHECK(s.err == Err::Config);
 	s = config_parse("name = Oslo, Norway\n", &c);
 	CHECK(s.ok() && !strcmp(c.name, "Oslo, Norway"));
+	CHECK(config_set(&c, "name", "a#b", 1).err == Err::Config);   // '#' could never be read back
 	s = config_parse("name = abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz\n", &c);
 	CHECK(s.err == Err::Config);                            // too long
 	CHECK(config_parse("", &c).ok());
@@ -150,7 +164,8 @@ struct Fake {
 	Step steps[8];
 	int nsteps = 0, next = 0, connects = 0, closes = 0, nsleeps = 0;
 	long sleeps[8] = {};
-	long clock = 1790000000;
+	long long clock = 1790000000LL;
+	bool cancel_sleep = false;
 	const char *cur = ""; size_t pos = 0; Err cur_err = Err::Ok;
 	char request[512] = {};
 };
@@ -190,8 +205,8 @@ static Status fk_connect(Net &n, const char *, const char *, int, Io *out)
 	return okay();
 }
 static void fk_close(Net &n, Io &) { F(n)->closes++; }
-static void fk_sleep(Net &n, long ms) { Fake *f = F(n); if (f->nsleeps < 8) f->sleeps[f->nsleeps++] = ms; }
-static long fk_now(Net &n) { return F(n)->clock; }
+static bool fk_sleep(Net &n, long ms) { Fake *f = F(n); if (f->nsleeps < 8) f->sleeps[f->nsleeps++] = ms; return !f->cancel_sleep; }
+static long long fk_now(Net &n) { return F(n)->clock; }
 
 static Net make_net(Fake *f)
 {
@@ -331,6 +346,422 @@ static void test_fallback()
 	CHECK(!retryable(make(Err::CertUntrusted, "")) && !retryable(make(Err::Clock, "")));
 }
 
+
+static void test_cancel()
+{
+	char buf[4096];
+	sv body;
+	FetchOpts o; o.attempts = 3; o.backoff_ms = 100; o.timeout_s = 1;
+	{ // a read that reports Cancelled is final: no retry, no sleep, socket closed
+		Fake f; f.steps[0] = {okay(), "HTTP/1.0 200 OK\r\n", Err::Cancelled}; f.nsteps = 1;
+		Net n = make_net(&f);
+		Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
+		CHECK(s.err == Err::Cancelled && f.connects == 1 && f.closes == 1 && f.nsleeps == 0);
+	}
+	{ // cancelled while backing off between attempts
+		Fake f; f.steps[0] = {okay(), k500, Err::Ok}; f.nsteps = 1; f.cancel_sleep = true;
+		Net n = make_net(&f);
+		Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
+		CHECK(s.err == Err::Cancelled && f.connects == 1 && f.nsleeps == 1);
+	}
+	{ // a cancel does not fall through to the next data source
+		Provider second = kOpenMeteo; second.name = "second";
+		const Provider *two[] = { &kOpenMeteo, &second };
+		FetchOpts po; po.attempts = 1; po.force_host = "fake"; po.force_port = "80";
+		Fake f; f.steps[0] = {make(Err::Cancelled, "cancelled"), "", Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f);
+		Forecast out; Query q;
+		Status s = fetch_forecast(n, two, 2, q, po, buf, sizeof buf, &out);
+		CHECK(s.err == Err::Cancelled && f.connects == 1);
+	}
+	CHECK(exit_code(Err::Cancelled) == 130 && !retryable(make(Err::Cancelled, "")));
+}
+
+// ---- the real POSIX network layer, against a local socket that never answers
+static int listen_local(int *port)
+{
+	int ls = socket(AF_INET, SOCK_STREAM, 0);
+	struct sockaddr_in a;
+	memset(&a, 0, sizeof a);
+	a.sin_family = AF_INET;
+	a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+	if (ls < 0 || bind(ls, reinterpret_cast<struct sockaddr *>(&a), sizeof a) != 0 || listen(ls, 4) != 0) return -1;
+	socklen_t len = sizeof a;
+	getsockname(ls, reinterpret_cast<struct sockaddr *>(&a), &len);
+	*port = ntohs(a.sin_port);
+	return ls;
+}
+static long long now_ms()
+{
+	struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+	return static_cast<long long>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
+}
+static int g_yields, g_cancel_at;
+static bool count_yield(Net &) { g_yields++; return !(g_cancel_at && g_yields >= g_cancel_at); }
+
+static void test_posix_net()
+{
+	int port = 0;
+	int ls = listen_local(&port);
+	CHECK(ls >= 0);
+	if (ls < 0) return;
+	char portstr[16];
+	snprintf(portstr, sizeof portstr, "%d", port);
+	char buf[64];
+	{ // yield can cancel a blocked read quickly
+		Net n; posix_net_init(&n);
+		n.yield = count_yield; g_yields = 0; g_cancel_at = 3;
+		Io io;
+		Status s = n.connect(n, "127.0.0.1", portstr, 10, &io);
+		CHECK(s.ok());
+		long long t0 = now_ms();
+		long r = io.read(io, buf, sizeof buf);
+		long long took = now_ms() - t0;
+		CHECK(r < 0 && io.err == Err::Cancelled);
+		CHECK(g_yields == 3 && took >= 90 && took < 1000);    // ~50 ms slices
+		n.close(n, io);
+	}
+	{ // without a yield hook a silent server ends in Timeout, after about the timeout
+		Net n; posix_net_init(&n);
+		Io io;
+		CHECK(n.connect(n, "127.0.0.1", portstr, 1, &io).ok());
+		long long t0 = now_ms();
+		long r = io.read(io, buf, sizeof buf);
+		long long took = now_ms() - t0;
+		CHECK(r < 0 && io.err == Err::Timeout && took >= 900 && took < 3000);
+		n.close(n, io);
+	}
+	{ // yield keeps running while we wait, and a yield that says yes does not disturb the read
+		Net n; posix_net_init(&n);
+		n.yield = count_yield; g_yields = 0; g_cancel_at = 0;
+		Io io;
+		CHECK(n.connect(n, "127.0.0.1", portstr, 1, &io).ok());
+		long r = io.read(io, buf, sizeof buf);
+		CHECK(r < 0 && io.err == Err::Timeout && g_yields >= 10);
+		n.close(n, io);
+	}
+	{ // sleep: completes, or stops when yield cancels
+		Net n; posix_net_init(&n);
+		long long t0 = now_ms();
+		CHECK(n.sleep_ms(n, 120));
+		CHECK(now_ms() - t0 >= 110);
+		n.yield = count_yield; g_yields = 0; g_cancel_at = 1;
+		t0 = now_ms();
+		CHECK(!n.sleep_ms(n, 5000));
+		CHECK(now_ms() - t0 < 500);
+	}
+	{ // connection refused after the listener is gone
+		close(ls);
+		Net n; posix_net_init(&n);
+		Io io;
+		Status s = n.connect(n, "127.0.0.1", portstr, 2, &io);
+		CHECK(s.err == Err::Connect);
+	}
+	{ // entropy: fills the buffer, and two draws differ
+		Net n; posix_net_init(&n);
+		unsigned char a[16] = {}, b[16] = {};
+		CHECK(n.entropy(n, a, sizeof a) && n.entropy(n, b, sizeof b));
+		CHECK(memcmp(a, b, sizeof a) != 0);
+		unsigned char zero[16] = {};
+		CHECK(memcmp(a, zero, sizeof a) != 0);
+	}
+	{ // clock: sane, and WEATHER_NOW overrides it for tests
+		Net n; posix_net_init(&n);
+		unsetenv("WEATHER_NOW");
+		CHECK(n.now(n) > kMinSaneTime);
+		setenv("WEATHER_NOW", "4102444800", 1);
+		CHECK(n.now(n) == 4102444800LL);
+		unsetenv("WEATHER_NOW");
+	}
+	CHECK(unix_to_br_time(1790000000LL).days == 719528 + 1790000000LL / 86400);
+}
+
+// ---- settings: text editing
+static bool upd(const char *in, const KeyVal *kv, size_t n, char *out, size_t cap, Status *st = nullptr)
+{
+	size_t on = 0;
+	Status s = settings_update(in, kv, n, out, cap, &on);
+	if (st) *st = s;
+	return s.ok();
+}
+
+static void test_settings_text()
+{
+	char out[1024];
+	const KeyVal loc[] = { {"latitude", "59.9100"}, {"longitude", "10.7500"}, {"name", "Oslo"} };
+	{ // comments, blanks, order and unrelated settings survive; inline comment kept; absent keys appended
+		const char *in = "# my weather setup\nlatitude = 1.0000   # home\n\nunits = metric\nlog = info\n";
+		CHECK(upd(in, loc, 3, out, sizeof out));
+		CHECK(sv(out) == sv("# my weather setup\nlatitude = 59.9100  # home\n\nunits = metric\nlog = info\n"
+		    "longitude = 10.7500\nname = Oslo\n"));
+	}
+	{ // no trailing newline in the original
+		CHECK(upd("units = metric", loc, 3, out, sizeof out));
+		CHECK(sv(out) == sv("units = metric\nlatitude = 59.9100\nlongitude = 10.7500\nname = Oslo\n"));
+	}
+	{ // every duplicate is updated (the parser lets the last one win)
+		CHECK(upd("name = A\nname = B\n", loc + 2, 1, out, sizeof out));
+		CHECK(sv(out) == sv("name = Oslo\nname = Oslo\n"));
+	}
+	{ // CRLF line endings are kept
+		CHECK(upd("name = A\r\nunits = metric\r\n", loc + 2, 1, out, sizeof out));
+		CHECK(sv(out) == sv("name = Oslo\r\nunits = metric\r\n"));
+	}
+	{ // a commented-out key is not the key
+		CHECK(upd("# latitude = 5\n", loc, 1, out, sizeof out));
+		CHECK(sv(out) == sv("# latitude = 5\nlatitude = 59.9100\n"));
+	}
+	{ // empty file, and a key with spaces around it
+		CHECK(upd("", loc, 3, out, sizeof out));
+		CHECK(sv(out) == sv("latitude = 59.9100\nlongitude = 10.7500\nname = Oslo\n"));
+		CHECK(upd("   name   =   A  \n", loc + 2, 1, out, sizeof out));
+		CHECK(sv(out) == sv("name = Oslo\n"));
+	}
+	{ // result still parses and says what we wrote
+		CHECK(upd("# c\nunits=metric\n", loc, 3, out, sizeof out));
+		Config c;
+		CHECK(config_parse(out, &c).ok() && c.lat_e4 == 599100 && c.lon_e4 == 107500 && c.metric && !strcmp(c.name, "Oslo"));
+	}
+	{ // refusals
+		Status st;
+		const KeyVal hash[] = { {"name", "Oslo # home"} };
+		CHECK(!upd("", hash, 1, out, sizeof out, &st) && st.err == Err::Config);
+		const KeyVal nl[] = { {"name", "a\nb"} };
+		CHECK(!upd("", nl, 1, out, sizeof out, &st) && st.err == Err::Config);
+		const KeyVal sp[] = { {"name", " lead"} };
+		CHECK(!upd("", sp, 1, out, sizeof out, &st) && st.err == Err::Config);
+		const KeyVal badkey[] = { {"a=b", "x"} };
+		CHECK(!upd("", badkey, 1, out, sizeof out, &st) && st.err == Err::Config);
+		const KeyVal badlat[] = { {"latitude", "999"} };
+		CHECK(!upd("", badlat, 1, out, sizeof out, &st) && st.err == Err::Config);   // would not read back
+		const KeyVal longname[] = { {"name", "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"} };
+		CHECK(!upd("", longname, 1, out, sizeof out, &st) && st.err == Err::Config);
+		char tiny[16];
+		CHECK(!upd("", loc, 3, tiny, sizeof tiny, &st) && st.err == Err::Config);   // output too small
+	}
+}
+
+// ---- settings: the dotfile store (temp directory)
+static int count_entries(const char *dir)
+{
+	DIR *d = opendir(dir);
+	int n = 0;
+	while (d) { struct dirent *e = readdir(d); if (!e) break; if (e->d_name[0] != '.') n++; }
+	if (d) closedir(d);
+	return n;
+}
+static bool slurp(const char *path, char *buf, size_t cap)
+{
+	FILE *f = fopen(path, "rb");
+	if (!f) return false;
+	size_t n = fread(buf, 1, cap - 1, f);
+	buf[n] = 0; fclose(f);
+	return true;
+}
+
+static void test_settings_store()
+{
+	char dir[] = "/tmp/weather-test-XXXXXX";
+	CHECK(mkdtemp(dir) != nullptr);
+	char path[300], text[1024];
+	snprintf(path, sizeof path, "%s/rc", dir);
+	Config c;
+	c.lat_e4 = 599100; c.lon_e4 = 107500; c.metric = true;
+	snprintf(c.name, sizeof c.name, "Oslo");
+
+	PosixStore st;
+	CHECK(posix_settings_init(&st, path, false).ok());
+	size_t n = 99;
+	CHECK(st.base.load(st.base, text, sizeof text, &n).ok() && n == 0);          // missing = empty
+	PosixStore strict;
+	CHECK(posix_settings_init(&strict, path, true).ok());
+	CHECK(strict.base.load(strict.base, text, sizeof text, &n).err == Err::Config);   // explicit file must exist
+
+	CHECK(settings_save(st.base, c).ok());                                      // creates it
+	CHECK(slurp(path, text, sizeof text) && sv(text) == sv("latitude = 59.9100\nlongitude = 10.7500\nname = Oslo\nunits = metric\n"));
+	CHECK(count_entries(dir) == 1);                                             // no temp files left behind
+	CHECK(settings_save(st.base, c).ok());                                      // idempotent
+	char again[1024];
+	CHECK(slurp(path, again, sizeof again) && !strcmp(again, text));
+
+	// user edits survive; mode is kept
+	FILE *f = fopen(path, "wb"); fputs("# mine\nlog = info\nname = Old\n", f); fclose(f);
+	chmod(path, 0600);
+	CHECK(settings_save(st.base, c).ok());
+	CHECK(slurp(path, text, sizeof text) && strstr(text, "# mine\nlog = info\nname = Oslo\n") == text);
+	struct stat sb;
+	CHECK(stat(path, &sb) == 0 && (sb.st_mode & 0777) == 0600);
+
+	// a symlinked dotfile stays a symlink and the real file is updated
+	char real[300], link[300];
+	snprintf(real, sizeof real, "%s/real", dir);
+	snprintf(link, sizeof link, "%s/link", dir);
+	f = fopen(real, "wb"); fputs("name = Old\n", f); fclose(f);
+	CHECK(symlink("real", link) == 0);
+	PosixStore ls;
+	CHECK(posix_settings_init(&ls, link, true).ok());
+	CHECK(settings_save(ls.base, c).ok());
+	struct stat lsb;
+	CHECK(lstat(link, &lsb) == 0 && S_ISLNK(lsb.st_mode));
+	CHECK(slurp(real, text, sizeof text) && strstr(text, "name = Oslo") != nullptr);
+
+	// a directory we cannot write to: a clean Io error, original untouched
+	if (geteuid() != 0) {
+		char sub[300], subrc[320];
+		snprintf(sub, sizeof sub, "%s/ro", dir);
+		snprintf(subrc, sizeof subrc, "%s/rc", sub);
+		CHECK(mkdir(sub, 0700) == 0);
+		PosixStore ro;
+		CHECK(posix_settings_init(&ro, subrc, false).ok());
+		chmod(sub, 0500);
+		Status s = settings_save(ro.base, c);
+		CHECK(s.err == Err::Io);
+		chmod(sub, 0700);
+		unlink(subrc); rmdir(sub);
+	}
+	// cleanup (files only: we made them)
+	unlink(path); unlink(real); unlink(link);
+	CHECK(rmdir(dir) == 0);
+}
+
+// ---- app model
+static Status fail_dns() { return make(Err::Dns, "cannot resolve host name"); }
+static Forecast some_forecast(long t10)
+{
+	Forecast f; f.source = "open-meteo"; f.temp_t10 = t10; f.code = 2; f.humidity = 50;
+	strcpy(f.time, "2026-10-24T05:00");
+	return f;
+}
+
+static void test_model()
+{
+	ModelConfig mc;                    // 15 min interval, 60 s backoff base
+	{ // first tick fetches; no second fetch while one is running; refresh during a fetch is ignored
+		Model m(mc, 0);
+		CHECK(m.phase() == Phase::Idle && !m.has_forecast());
+		CHECK(m.tick(0) && m.phase() == Phase::Fetching);
+		CHECK(!m.tick(1));
+		m.request_refresh();
+		CHECK(!m.tick(2));
+		Forecast f = some_forecast(548);
+		m.finish(5, okay(), &f);
+		CHECK(m.phase() == Phase::Ok && m.has_forecast() && m.forecast().temp_t10 == 548);
+		CHECK(!m.tick(6));             // the ignored refresh did not queue another fetch
+		CHECK(m.age(65) == 60 && !m.stale(65));
+		CHECK(!m.tick(904) && m.tick(905));            // 5 + 900
+	}
+	{ // failures back off 60, 120, 240 ... capped at the interval; success resets
+		Model m(mc, 0);
+		long long t = 0;
+		long expect[] = {60, 120, 240, 480, 900, 900};
+		for (long e : expect) {
+			CHECK(m.tick(t));
+			m.finish(t, fail_dns(), nullptr);
+			CHECK(m.phase() == Phase::Failed && m.next_refresh_at() == t + e);
+			CHECK(!m.tick(t + e - 1));
+			t += e;
+		}
+		CHECK(m.failures() == 6);
+		CHECK(m.tick(t));
+		Forecast f = some_forecast(500);
+		m.finish(t, okay(), &f);
+		CHECK(m.failures() == 0 && m.next_refresh_at() == t + 900);
+	}
+	{ // a failure keeps the last good data, marked stale
+		Model m(mc, 0);
+		m.tick(0);
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		CHECK(m.tick(900));
+		m.finish(900, fail_dns(), nullptr);
+		CHECK(m.phase() == Phase::Failed && m.has_forecast() && m.forecast().temp_t10 == 548 && m.stale(900));
+		Buf<200> b; m.status_line(b, 930);     // data is from t=0, retry due at 960
+		CHECK(b.view() == sv("Update failed: cannot resolve host name. Showing data from 16 min ago. Next update in 30 s"));
+	}
+	{ // a permanent error (bad certificate) is not retried faster than the normal interval
+		Model m(mc, 0);
+		m.tick(0);
+		m.finish(0, make(Err::CertUntrusted, "certificate expired or not yet valid"), nullptr);
+		CHECK(m.next_refresh_at() == 900);
+	}
+	{ // cancel is not a failure and does not back off
+		Model m(mc, 0);
+		m.tick(0);
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		m.request_refresh();
+		CHECK(m.tick(10));
+		m.finish(12, make(Err::Cancelled, "cancelled"), nullptr);
+		CHECK(m.phase() == Phase::Ok && m.failures() == 0 && m.has_forecast());
+		Model first(mc, 0);
+		first.tick(0);
+		first.finish(1, make(Err::Cancelled, "cancelled"), nullptr);
+		CHECK(first.phase() == Phase::Idle && first.failures() == 0);
+	}
+	{ // auto-refresh off: only manual refresh fetches; no countdown
+		Model m(mc, 0);
+		m.tick(0);
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		m.set_auto_refresh(false, 1);
+		CHECK(!m.tick(100000) && m.seconds_until_refresh(100) == -1);
+		Buf<120> b; m.status_line(b, 300);
+		CHECK(b.view() == sv("Updated 5 min ago"));
+		m.request_refresh();
+		CHECK(m.tick(100001));
+		m.finish(100002, okay(), &f);
+		m.set_auto_refresh(true, 100003);
+		CHECK(m.seconds_until_refresh(100003) == 900);
+	}
+	{ // the clock jumped back by years: the next refresh is not postponed that long
+		Model m(mc, 1000000);
+		m.tick(1000000);
+		Forecast f = some_forecast(548);
+		m.finish(1000000, okay(), &f);
+		CHECK(!m.tick(500));
+		CHECK(m.next_refresh_at() <= 500 + 900);
+		CHECK(m.tick(500 + 900));
+		CHECK(m.age(100) == 0);          // never a negative age
+	}
+	{ // location changes while a fetch runs: its answer is dropped and a new fetch is queued
+		Model m(mc, 0);
+		m.tick(0);
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		CHECK(m.tick(900));
+		m.location_changed();
+		Forecast old = some_forecast(999);
+		m.finish(901, okay(), &old);
+		CHECK(!m.has_forecast() && m.phase() == Phase::Idle);
+		CHECK(m.tick(901));              // refetch for the new place right away
+	}
+	{ // location changes while idle
+		Model m(mc, 0);
+		m.tick(0);
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		m.location_changed();
+		CHECK(!m.has_forecast() && m.tick(1));
+	}
+	{ // status text
+		Model m(mc, 0);
+		Buf<160> b;
+		m.status_line(b, 0);
+		CHECK(b.view() == sv("Waiting to load"));
+		m.tick(0);
+		Buf<160> b2; m.status_line(b2, 1);
+		CHECK(b2.view() == sv("Fetching..."));
+		Forecast f = some_forecast(548);
+		m.finish(2, okay(), &f);
+		Buf<160> b3; m.status_line(b3, 2);
+		CHECK(b3.view() == sv("Updated just now. Next update in 15 min"));
+		Buf<160> b4; m.status_line(b4, 2 + 300);
+		CHECK(b4.view() == sv("Updated 5 min ago. Next update in 10 min"));
+		Buf<160> b5; m.status_line(b5, 2 + 3 * 3600 + 120);
+		CHECK(b5.view() == sv("Updated 3 h 2 min ago. Next update in 0 s"));   // overdue until tick() fires
+	}
+}
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -338,6 +769,11 @@ int main()
 	test_config();
 	test_fetch();
 	test_fallback();
+	test_cancel();
+	test_posix_net();
+	test_settings_text();
+	test_settings_store();
+	test_model();
 	printf("%d checks, %d failed\n", g_run, g_fail);
 	return g_fail ? 1 : 0;
 }

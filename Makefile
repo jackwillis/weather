@@ -4,6 +4,7 @@
 #   make TARGET=netbsd-macppc cross-build for NetBSD/macppc    -> build/netbsd-macppc/
 #   make check                unit + feature tests (host), see mk/host.mk
 #   make lint                 portable layers must not include OS headers
+#   make check-maul           cross-build the unit tests and run them on maul (big-endian ground truth)
 #   make smoke-maul           cross-build, push to maul, test the real binary there
 #   make clean
 # Shortcut: `make ppc` = make TARGET=netbsd-macppc.
@@ -27,10 +28,11 @@ PLATFORM     = posix
 CORE_SRCS    = src/core/fetch.cpp
 TLS_SRCS     = src/tls/tls.cpp
 PLAT_SRCS    = src/platform/$(PLATFORM)/net_posix.cpp src/platform/$(PLATFORM)/log_posix.cpp \
-               src/platform/$(PLATFORM)/nocxx.cpp
+               src/platform/$(PLATFORM)/settings_posix.cpp src/platform/$(PLATFORM)/nocxx.cpp
 CLI_SRCS     = src/cli/main.cpp
 WEATHER_OBJS = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(CLI_SRCS))
-TEST_OBJS    = $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o
+TEST_OBJS    = $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o \
+               $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/settings_posix.o
 
 all: $(BUILD)/weather
 ppc:
@@ -64,6 +66,10 @@ check-native: lint $(BUILD)/unittest $(BUILD)/weather
 check-cross:
 	@echo "TARGET=$(TARGET) cannot run here: use 'make smoke-maul' (and later 'make check-maul')"; false
 
+check-maul:
+	$(MAKE) TARGET=netbsd-macppc build/netbsd-macppc/unittest
+	sh test/check-maul.sh build/netbsd-macppc/unittest
+
 smoke-maul:
 	$(MAKE) TARGET=netbsd-macppc all
 	sh test/smoke-maul.sh build/netbsd-macppc/weather
@@ -81,4 +87,4 @@ clean:
 
 -include $(wildcard $(OBJ)/*.d $(OBJ)/*/*.d $(OBJ)/*/*/*.d)
 
-.PHONY: all ppc check check-native check-cross smoke-maul lint clean
+.PHONY: all ppc check check-native check-cross check-maul smoke-maul lint clean

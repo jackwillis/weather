@@ -86,7 +86,7 @@ Status fetch_retry(Net &net, const char *host, const char *port, bool tls, const
 		logf(LogWarn, "%s: attempt %d/%d failed: %s: %s (detail %d)", host, attempt, o.attempts,
 		    err_name(s.err), s.msg, s.detail);
 		if (!retryable(s) || attempt == o.attempts) break;
-		if (net.sleep_ms) net.sleep_ms(net, delay);
+		if (net.sleep_ms && !net.sleep_ms(net, delay)) return make(Err::Cancelled, "cancelled while waiting to retry");
 		delay *= 2;
 	}
 	return s;
@@ -119,6 +119,7 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 			logf(LogWarn, "%s failed: %s: %s (detail %d)", p.name, err_name(s.err), s.msg, s.detail);
 		}
 		last = s;
+		if (s.err == Err::Cancelled) return s;   // do not fall back after a cancel
 	}
 	if (n > 1) return make(Err::NoSource, "all data sources failed", static_cast<int>(n));
 	return last;

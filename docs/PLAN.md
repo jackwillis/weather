@@ -89,6 +89,13 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   (UNVERIFIED that Classic works there), then on real OS 9. Tiger-native parked (needs a modern cross-GCC and the
   Apple SDK; options recorded in ARCHITECTURE.md).
 
+- 2026-10-24 M3b done. Findings worth keeping: (1) `Net::now` was `long`, 32-bit on ppc32 and dead in 2038:
+  epoch seconds are `long long` everywhere. (2) BearSSL seeds from the OS once, else needs injected entropy; we
+  inject 32 bytes from the platform and refuse TLS without a source. (3) Certificate time comes from the platform
+  clock (`br_x509_minimal_set_time`), proven by tests with WEATHER_NOW (year 2100 and early 2025 are rejected, 1970 gives
+  the clock error). (4) `-c FILE` means the file must exist, except with `-S` which may create it. (5) A name containing
+  '#' is rejected everywhere, since the file format could never read it back. (6) The unit tests now run on maul too.
+
 ## Open questions
 - Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.
 - Whether Retro68's GCC accepts this C++17 for OS 9; Open Transport usability.

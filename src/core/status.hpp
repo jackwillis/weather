@@ -20,6 +20,7 @@ enum class Err {
 	Parse,         // malformed HTTP or JSON
 	BadData,       // well-formed but missing/implausible fields
 	NoSource,      // every data source failed
+	Cancelled,     // the caller (user, signal) asked us to stop
 };
 
 struct Status {
@@ -50,6 +51,7 @@ constexpr const char *err_name(Err e)
 	case Err::Parse: return "parse";
 	case Err::BadData: return "baddata";
 	case Err::NoSource: return "nosource";
+	case Err::Cancelled: return "cancelled";
 	}
 	return "?";
 }
@@ -73,6 +75,7 @@ constexpr int exit_code(Err e)
 	case Err::Parse: return 65;       // EX_DATAERR
 	case Err::BadData: return 65;
 	case Err::NoSource: return 69;
+	case Err::Cancelled: return 130;  // 128 + SIGINT, the shell convention
 	}
 	return 70;                        // EX_SOFTWARE
 }

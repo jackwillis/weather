@@ -7,7 +7,7 @@
 namespace wx {
 
 // Certificates are not checked against a clock earlier than this (2025-01-01).
-constexpr long kMinSaneTime = 1735689600L;
+constexpr long long kMinSaneTime = 1735689600LL;
 
 struct FetchOpts {
 	int timeout_s = 15;

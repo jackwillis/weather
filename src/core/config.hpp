@@ -28,8 +28,8 @@ inline Status config_set(Config *c, sv key, sv val, int line)
 	} else if (key == "name") {
 		if (val.size() >= sizeof c->name) return make(Err::Config, "name too long (max 47)", line);
 		for (size_t i = 0; i < val.size(); i++) {
-			if (static_cast<unsigned char>(val[i]) < 32 || static_cast<unsigned char>(val[i]) > 126)
-				return make(Err::Config, "name must be printable ASCII", line);
+			if (static_cast<unsigned char>(val[i]) < 32 || static_cast<unsigned char>(val[i]) > 126 || val[i] == '#')
+				return make(Err::Config, "name must be printable ASCII without '#'", line);
 			c->name[i] = val[i];
 		}
 		c->name[val.size()] = 0;

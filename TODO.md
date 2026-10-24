@@ -1,10 +1,8 @@
 # TODO
 
 ## Now
-- [ ] M3b seams: Net::yield (+ Err::Cancelled), Net::entropy, TLS time/entropy from the platform; portable settings
-      text update (keep comments) + tests; app/Model (refresh timers, stale data, backoff) + tests with fake clock
 - [ ] M3c xweather: CDE-look Xlib window using the Model (auto-refresh 15 min + Refresh button, location dialog)
-- [ ] `make check-maul` (cross-built unit tests run on maul = big-endian proof); sanitizer target; pin BearSSL
+- [ ] sanitizer target (`-fsanitize=address,undefined` on the host unit tests); pin BearSSL (submodule or vendored)
 
 ## Next
 - [ ] OS 9 gates: Retro68 probe (C++17 core builds, Open Transport usable); check Classic works on maul's Tiger side
@@ -24,6 +22,7 @@
 - [ ] Mac OS 9 (Retro68), CI with big-endian check
 
 ## Done
+- [x] M3b seams and model (2026-10-24): Net::yield + Err::Cancelled (SIGINT/SIGTERM cancel a fetch, exit 130), TLS time and entropy from the platform (64-bit clock), portable settings editor + atomic posix store + `weather -S`, app/Model with refresh timers, backoff and stale data. 168 unit checks (also run on maul via `make check-maul`), 65 feature checks (70 online), maul smoke test
 - [x] M3a restructure: src/{core,app,tls,platform/posix,cli}, mk/<target>.mk, per-file objects with dep tracking, `make lint` (verified it fails on a planted violation), BearSSL built by the Makefile for each target (2026-10-24)
 - [x] M2 core + CLI: errors-as-values, retry/backoff, provider fallback, logging, config, sysexits; 42 unit + 42 feature checks; runs on maul (2026-10-24)
 - [x] M1 TLS spike: BearSSL handshake + Open-Meteo fetch works on maul (2026-10-23)

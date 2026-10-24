@@ -13,11 +13,11 @@ Status: M1 (TLS) and M2 (core + CLI) work. Running on maul: `weather -1` prints 
 See `docs/PLAN.md` (goals, milestones, decision log), `docs/ARCHITECTURE.md` (layers, seams, targets, build, tests, releases) and `TODO.md`.
 
 ## Use
-    weather [-1dhqsV] [-c file] [-l lat,lon] [-p sources] [-t secs] [-u metric|imperial] [-v]
+    weather [-1dhqsSV] [-c file] [-l lat,lon] [-n name] [-p sources] [-t secs] [-u metric|imperial] [-v]
 Config: `~/.weatherrc` (`latitude`, `longitude`, `units`, `timeout`, `attempts`, `providers`, `log`),
 flags override it. The default location is Madison, WI 53703 (Capitol Square 43.0747,-89.3841); set `name`, `latitude`, `longitude` or use -l/-n. Exit codes follow BSD sysexits
 (68 dns, 69 connect/no source, 74 io, 75 timeout, 76 http/tls/cert, 65 bad data, 64 usage, 78 config).
-Diagnostics go to stderr (or syslog with -s); stdout carries only the result. `-d` dumps the traffic.
+`-S` saves location, name and units into the config file (comments and other settings are kept; the write is atomic) and exits. Ctrl-C or SIGTERM during a fetch cancels cleanly (exit 130). Diagnostics go to stderr (or syslog with -s); stdout carries only the result. `-d` dumps the traffic.
 
 ## Build and test
 GNU make is required (`gmake` on BSD). One fragment per target in `mk/`.
@@ -27,6 +27,7 @@ GNU make is required (`gmake` on BSD). One fragment per target in `mk/`.
     make lint                     # portable layers (src/core, src/app) may include only freestanding headers
     make TARGET=netbsd-macppc     # cross-build for NetBSD/macppc (build/netbsd-macppc/weather, stripped; .debug keeps symbols)
     make ppc                      # same as TARGET=netbsd-macppc
+    make check-maul               # cross-build the unit tests and run them on maul (big-endian ground truth)
     make smoke-maul               # cross-build, push to maul, test the real binary there
     ONLINE=1 sh test/feature.sh build/host/weather   # also test against the real server
 
@@ -38,9 +39,9 @@ a release task.
 
 ## Layout (dependencies point down only; see docs/ARCHITECTURE.md)
 - `src/core/` portable, constexpr, no OS headers: status, text, json, http, forecast, provider, openmeteo, fetch, config, log/net interfaces
-- `src/app/` portable app model (M3b)
+- `src/app/` portable app model: phases, 15 min auto-refresh, backoff, stale data, status line
 - `src/tls/` BearSSL glue + trust anchors
-- `src/platform/posix/` sockets, clock, syslog/stderr log sink, libstdc++ shim
+- `src/platform/posix/` sockets with yield/cancel, clock, entropy, settings dotfile store, syslog/stderr log sink, libstdc++ shim
 - `src/cli/` the `weather` command
 - `mk/` per-target build fragments; `test/` unit tests, fixtures, fixture server, feature and maul smoke scripts; `spike/` experiments
 

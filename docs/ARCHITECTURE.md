@@ -21,17 +21,18 @@ build on a hit, so the rule is enforced, not hoped for. No heap in `core/`; no e
 - **Io**: read / write on a stream. Errors carry an `Err` kind, `errno`-style detail and a static message.
 - **yield (new)**: `bool (*yield)(Net&)` called whenever the code would block (poll slices of ~50 ms,
   backoff sleeps). A UI uses it to pump its event loop (redraw "Fetching...", handle expose/close); returning
-  false cancels the operation (`Err::Cancelled`, to add). This keeps the core blocking and simple, needs no
+  false cancels the operation (`Err::Cancelled`, exit status 130, never retried, no fallback to another source). This keeps the core blocking and simple, needs no
   threads or fork (OS 9 has neither), and works the same on X and the Toolbox. Re-entrancy rule: while a
   fetch runs, the UI only repaints and records "refresh requested"/"quit"; it never starts a second fetch.
-- **Entropy and time**: TLS takes both from the platform (`Net::now`, new `Net::entropy`), not from `time()`
-  and `/dev/urandom` directly. Needed for OS 9 (no /dev/urandom) and testable with a fake clock.
-- **Settings store**: `load(Config*)` and `save_location(lat, lon, name)` per OS (rc file on Unix, Preferences
+- **Entropy and time** (done): TLS takes both from the platform (`Net::now`, `Net::entropy`), not from `time()`
+  and `/dev/urandom` directly; no entropy source means TLS refuses to start. Epoch times are 64-bit (`long` is 32-bit on ppc32).
+  Known limit: `getaddrinfo()` is a blocking call and cannot yield, so a UI can freeze for the resolver's timeout. Needed for OS 9 (no /dev/urandom) and testable with a fake clock.
+- **Settings store** (done: `SettingsStore`, posix dotfile): load/save of the raw text per OS, atomic save, follows a symlinked dotfile; the text editor `settings_update` is portable and refuses anything that would not read back (rc file on Unix, Preferences
   folder on OS 9). The *text* handling (parse, and "replace these keys but keep every other
   line and comment") is portable and tested; only reading/writing the bytes is per-OS.
 - **Log sink**: stderr/syslog on Unix; a log file or window on OS 9.
 
-## 3. The Model (portable, drives every UI)
+## 3. The Model (portable, drives every UI; implemented in src/app/model.hpp)
 State: Idle, Fetching, Ok(forecast, fetched_at), Error(status, last good forecast kept as Stale).
 Inputs: `refresh()`, `tick(now)`, `settings_changed()`. Output: what to draw. Rules: auto-refresh every
 15 min (Open-Meteo's update interval) when enabled; manual refresh always; failure backs off (1, 2, 4... up to
