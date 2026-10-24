@@ -93,13 +93,22 @@ inline Status settings_update(sv text, const KeyVal *kvs, size_t nkv, char *out,
 	return okay();
 }
 
-// Persist location, name and units: load, edit, save (atomically, via the store).
-inline Status settings_save(SettingsStore &st, const Config &c)
+// Persist some keys: load, edit, save (atomically, via the store).
+inline Status settings_save_kv(SettingsStore &st, const KeyVal *kv, size_t nkv)
 {
 	static char in[4096], out[4096];                         // single-threaded app; keeps stack small
 	size_t n = 0;
 	Status s = st.load(st, in, sizeof in, &n);
 	if (!s.ok()) return s;
+	size_t on = 0;
+	s = settings_update(sv(in, n), kv, nkv, out, sizeof out, &on);
+	if (!s.ok()) return s;
+	return st.save(st, out, on);
+}
+
+// Persist location, name and units.
+inline Status settings_save(SettingsStore &st, const Config &c)
+{
 	Buf<16> lat, lon;
 	lat.add_fixed(c.lat_e4, 4);
 	lon.add_fixed(c.lon_e4, 4);
@@ -107,10 +116,7 @@ inline Status settings_save(SettingsStore &st, const Config &c)
 		{"latitude", lat.view()}, {"longitude", lon.view()},
 		{"name", c.name}, {"units", c.metric ? "metric" : "imperial"},
 	};
-	size_t on = 0;
-	s = settings_update(sv(in, n), kv, 4, out, sizeof out, &on);
-	if (!s.ok()) return s;
-	return st.save(st, out, on);
+	return settings_save_kv(st, kv, 4);
 }
 
 } // namespace wx

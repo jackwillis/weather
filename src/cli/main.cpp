@@ -166,15 +166,8 @@ int main(int argc, char **argv)
 	const Provider *chosen[8];
 	size_t nchosen = 0;
 	{
-		char list[sizeof cfg.providers];
-		memcpy(list, cfg.providers, sizeof list);
-		for (char *tok = strtok(list, ","); tok; tok = strtok(nullptr, ",")) {
-			const Provider *p = nullptr;
-			for (const Provider *c : kAll)
-				if (!strcmp(c->name, tok)) p = c;
-			if (!p) { fprintf(stderr, "weather: unknown source '%s'\n", tok); return exit_code(Err::Usage); }
-			if (nchosen < 8) chosen[nchosen++] = p;
-		}
+		Status s = resolve_providers(cfg.providers, kAll, sizeof kAll / sizeof kAll[0], chosen, 8, &nchosen);
+		if (!s.ok()) { fprintf(stderr, "weather: %s '%s'\n", s.msg, cfg.providers); return exit_code(s.err); }
 	}
 
 	Net net;

@@ -18,7 +18,7 @@ include mk/$(TARGET).mk
 BUILD = build/$(TARGET)
 OBJ   = $(BUILD)/obj
 WARN  = -Wall -Wextra -Wno-unused-parameter
-CXXFLAGS_ALL = -std=c++17 -O2 -g $(WARN) $(EXTRA_CXXFLAGS) -fno-exceptions -fno-rtti \
+CXXFLAGS_ALL = -std=c++17 -O2 -g $(WARN) $(EXTRA_CXXFLAGS) $(X11_CXXFLAGS) -fno-exceptions -fno-rtti \
     -MMD -MP -DWEATHER_VERSION='"$(VERSION)"' -Isrc -I$(BEARSSL)/inc $(CXXFLAGS)
 
 BEARSSL_LIB = $(BEARSSL)/$(BEARSSL_BUILD)/libbearssl.a
@@ -30,11 +30,13 @@ TLS_SRCS     = src/tls/tls.cpp
 PLAT_SRCS    = src/platform/$(PLATFORM)/net_posix.cpp src/platform/$(PLATFORM)/log_posix.cpp \
                src/platform/$(PLATFORM)/settings_posix.cpp src/platform/$(PLATFORM)/nocxx.cpp
 CLI_SRCS     = src/cli/main.cpp
+XW_SRCS      = src/ui/xweather/main.cpp src/ui/xweather/cde.cpp
 WEATHER_OBJS = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(CLI_SRCS))
+XW_OBJS      = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(XW_SRCS))
 TEST_OBJS    = $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o \
                $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/settings_posix.o
 
-all: $(BUILD)/weather
+all: $(BUILD)/weather $(XWEATHER_TARGETS)
 ppc:
 	$(MAKE) TARGET=netbsd-macppc all
 
@@ -43,6 +45,16 @@ $(BUILD)/weather.debug: $(WEATHER_OBJS) $(BEARSSL_LIB)
 
 $(BUILD)/weather: $(BUILD)/weather.debug
 	$(STRIP)
+
+$(BUILD)/xweather.debug: $(XW_OBJS) $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(XW_OBJS) $(BEARSSL_LIB) $(X11_LIBS)
+
+$(BUILD)/xweather: $(BUILD)/xweather.debug
+	$(STRIP)
+
+$(BUILD)/xdrive: test/xdrive.cpp
+	@mkdir -p $(BUILD)
+	$(CXX) -std=c++17 -O1 -Wall $(X11_CXXFLAGS) -o $@ test/xdrive.cpp $(EXTRA_LDFLAGS) $(X11_LIBS)
 
 $(BUILD)/unittest: $(TEST_OBJS)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(TEST_OBJS)

@@ -1,7 +1,10 @@
 # TODO
 
 ## Now
-- [ ] M3c xweather: CDE-look Xlib window using the Model (auto-refresh 15 min + Refresh button, location dialog)
+- [ ] M3c xweather (code written, cross-builds, first screenshot looks right on maul; interactive GUI test NOT yet passing)
+      next: boot maul into NetBSD, rerun `sh test/gui-maul.sh` (Xvfb on maul + xdrive clicks/keys + screenshots in build/gui/),
+      fix what it finds, look at the weather-art gallery (rain/snow/storm/fog/partly/day), then jack runs it on the real X display.
+      also: host build of xweather needs libX11-devel (+ Xvfb for local GUI tests); `make check` skips it without the headers
 - [ ] sanitizer target (`-fsanitize=address,undefined` on the host unit tests); pin BearSSL (submodule or vendored)
 
 ## Next

@@ -7,7 +7,9 @@
 #include "core/log.hpp"
 #include "core/openmeteo.hpp"
 #include "core/version.hpp"
+#include "app/locform.hpp"
 #include "app/model.hpp"
+#include "app/textedit.hpp"
 #include "core/settings.hpp"
 #include "platform/posix/net_posix.hpp"
 #include "platform/posix/settings_posix.hpp"
@@ -762,6 +764,81 @@ static void test_model()
 	}
 }
 
+static void test_forms()
+{
+	{ // text editing: insert at the cursor, delete both ways, cursor limits, capacity, non-printables refused
+		TextEdit<8> t;
+		CHECK(t.insert('a') && t.insert('c') && t.view() == sv("ac"));
+		t.left();
+		CHECK(t.insert('b') && t.view() == sv("abc") && t.cur == 2);
+		CHECK(t.del() && t.view() == sv("ab"));
+		CHECK(t.backspace() && t.view() == sv("a") && t.cur == 1);
+		t.home(); CHECK(!t.backspace() && t.cur == 0);
+		t.end(); CHECK(!t.del() && t.cur == 1);
+		t.right(); CHECK(t.cur == 1);
+		CHECK(!t.insert('\n') && !t.insert('\t') && !t.insert(static_cast<char>(200)));
+		t.set("0123456789");                       // longer than capacity: cut, stays terminated
+		CHECK(t.n == 7 && t.s[7] == 0 && !t.insert('x'));
+		t.set("a\tb");
+		CHECK(t.view() == sv("ab"));
+		t.set_cursor(99); CHECK(t.cur == t.n);
+	}
+	{ // location form: load, edit, validate
+		Config c;
+		LocationForm f;
+		f.load(c);
+		CHECK(f.lat.view() == sv("43.0747") && f.lon.view() == sv("-89.3841") && f.name.view() == sv("Madison, WI") && !f.metric);
+		f.lat.set("59.91"); f.lon.set("10.75"); f.name.set("  Oslo ");
+		f.metric = true;
+		CHECK(f.read(&c).ok() && c.lat_e4 == 599100 && c.lon_e4 == 107500 && !strcmp(c.name, "Oslo") && c.metric);
+		Config before = c;
+		f.lat.set("91");
+		CHECK(f.read(&c).err == Err::Config && f.focus == LocationForm::Lat && f.error[0] != 0);
+		CHECK(c.lat_e4 == before.lat_e4);                         // untouched on failure
+		f.lat.set("12"); f.lon.set("abc");
+		CHECK(!f.read(&c).ok() && f.focus == LocationForm::Lon);
+		f.lon.set(""); CHECK(!f.read(&c).ok());
+		f.lon.set("-0.1278"); f.name.set("a#b");
+		CHECK(!f.read(&c).ok() && f.focus == LocationForm::Name);
+		f.name.set("");                                            // an empty name is allowed (no label)
+		CHECK(f.read(&c).ok() && c.name[0] == 0);
+		f.focus = 0; f.next(); f.next(); f.next(); f.next();
+		CHECK(f.focus == 0);
+		f.prev(); CHECK(f.focus == LocationForm::Units);
+	}
+	{ // autorefresh key, and saving single keys without touching the rest
+		Config c;
+		CHECK(config_parse("autorefresh = off\n", &c).ok() && !c.auto_refresh);
+		CHECK(config_parse("autorefresh = on\n", &c).ok() && c.auto_refresh);
+		CHECK(config_parse("autorefresh = maybe\n", &c).err == Err::Config);
+		char dir[] = "/tmp/weather-test-XXXXXX";
+		CHECK(mkdtemp(dir) != nullptr);
+		char path[300];
+		snprintf(path, sizeof path, "%s/rc", dir);
+		FILE *fp = fopen(path, "wb"); fputs("# hi\nname = X\n", fp); fclose(fp);
+		PosixStore st;
+		CHECK(posix_settings_init(&st, path, true).ok());
+		KeyVal kv[] = { {"autorefresh", "off"} };
+		CHECK(settings_save_kv(st.base, kv, 1).ok());
+		char text[256];
+		CHECK(slurp(path, text, sizeof text) && sv(text) == sv("# hi\nname = X\nautorefresh = off\n"));
+		unlink(path);
+		CHECK(rmdir(dir) == 0);
+	}
+	{ // provider lists
+		Provider second = kOpenMeteo; second.name = "second";
+		const Provider *all[] = { &kOpenMeteo, &second };
+		const Provider *out[4];
+		size_t n = 0;
+		CHECK(resolve_providers("open-meteo", all, 2, out, 4, &n).ok() && n == 1 && out[0] == &kOpenMeteo);
+		CHECK(resolve_providers("second, open-meteo", all, 2, out, 4, &n).ok() && n == 2 && out[0] == &second && out[1] == &kOpenMeteo);
+		CHECK(resolve_providers("open-meteo,,", all, 2, out, 4, &n).ok() && n == 1);
+		CHECK(resolve_providers("nope", all, 2, out, 4, &n).err == Err::Usage);
+		CHECK(resolve_providers("", all, 2, out, 4, &n).err == Err::Usage);
+		CHECK(resolve_providers("open-meteo,second", all, 2, out, 1, &n).err == Err::Usage);   // too many
+	}
+}
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -774,6 +851,7 @@ int main()
 	test_settings_text();
 	test_settings_store();
 	test_model();
+	test_forms();
 	printf("%d checks, %d failed\n", g_run, g_fail);
 	return g_fail ? 1 : 0;
 }
