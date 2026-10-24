@@ -49,6 +49,12 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
 - 2026-10-23 Real Motif (OpenMotif/LessTif) not installed on maul; draw the look in Xlib instead.
 - 2026-10-23 Host builds of NetBSD tools on Fedora need gcc -std=gnu17 (see netbsd-xc README).
 
+- 2026-10-23 M1 done: tlsfetch (PowerPC, 117 KB stripped, needs only libc+libgcc_s) completes a TLS 1.2
+  handshake (cipher 0xcca8, ChaCha20-Poly1305) and fetches JSON on maul. Anchors: ISRG Root X1 and X2,
+  generated with brssl from Fedora's CA bundle (spike/ta.h). With no anchors it fails with err 62
+  (not trusted), so verification is real. Server cert type seems to vary by client (openssl saw ECDSA,
+  BearSSL got an RSA suite); X1 covers both.
+
 ## Open questions
 - User's location (placeholder coordinates until given).
 - Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.

@@ -7,3 +7,7 @@
 *.log
 # third-party sources fetched for experiments
 /spike/bearssl/
+/spike/bearssl
+/spike/tlsfetch-*
+/spike/cxx
+/spike/cxx2
