@@ -1,6 +1,6 @@
 // BearSSL TLS client over an Io stream. Portable: needs no OS headers beyond getenv.
 #include "tls.hpp"
-#include "log.hpp"
+#include "core/log.hpp"
 #include <bearssl.h>
 #include "anchors.h"
 #include <cstdlib>

@@ -1,59 +1,84 @@
-# Portable between BSD make and GNU make: plain variables and explicit rules only.
-# make            build for this machine into build/host/
-# make ppc        cross-build for NetBSD/macppc into build/macppc/ (needs toolchain, see README)
-# make check      unit tests + feature tests on this machine
-# make smoke-maul  cross-build, push to maul and test the real binary there
-# make clean
+# GNU make required (BSD hosts: gmake). One fragment per target in mk/.
+#
+#   make                      build for this machine           -> build/host/
+#   make TARGET=netbsd-macppc cross-build for NetBSD/macppc    -> build/netbsd-macppc/
+#   make check                unit + feature tests (host), see mk/host.mk
+#   make lint                 portable layers must not include OS headers
+#   make smoke-maul           cross-build, push to maul, test the real binary there
+#   make clean
+# Shortcut: `make ppc` = make TARGET=netbsd-macppc.
 
-VERSION = 0.1.0
-BEARSSL = spike/bearssl
+TARGET  ?= host
+VERSION  = 0.1.0
+BEARSSL ?= spike/bearssl
 
-# cross toolchain (see ~/scratch/netbsd-xc/README-repro.md)
-XROOT   = $(HOME)/scratch/netbsd-xc
-XPFX    = $(XROOT)/tools2/bin/powerpc--netbsd
-SYSROOT = $(XROOT)/sysroot
+include mk/$(TARGET).mk
 
-WARN    = -Wall -Wextra -Wno-unused-parameter
-CXXFLAGS_COMMON = -std=c++17 -O2 -g $(WARN) -fno-exceptions -fno-rtti -DWEATHER_VERSION='"$(VERSION)"' -Isrc -I$(BEARSSL)/inc
+BUILD = build/$(TARGET)
+OBJ   = $(BUILD)/obj
+WARN  = -Wall -Wextra -Wno-unused-parameter
+CXXFLAGS_ALL = -std=c++17 -O2 -g $(WARN) $(EXTRA_CXXFLAGS) -fno-exceptions -fno-rtti \
+    -MMD -MP -DWEATHER_VERSION='"$(VERSION)"' -Isrc -I$(BEARSSL)/inc $(CXXFLAGS)
 
-SRCS = src/log.cpp src/fetch.cpp src/net_posix.cpp src/tls.cpp src/nocxx.cpp
-CORE_HDRS = src/status.hpp src/text.hpp src/json.hpp src/http.hpp src/forecast.hpp src/provider.hpp \
-    src/openmeteo.hpp src/net.hpp src/log.hpp src/fetch.hpp src/config.hpp src/version.hpp
+BEARSSL_LIB = $(BEARSSL)/$(BEARSSL_BUILD)/libbearssl.a
 
-all: host
-host: build/host/weather
-ppc: build/macppc/weather build/macppc/weather.debug
+# Layers (see docs/ARCHITECTURE.md). Platform is chosen by the target; only posix exists so far.
+PLATFORM     = posix
+CORE_SRCS    = src/core/fetch.cpp
+TLS_SRCS     = src/tls/tls.cpp
+PLAT_SRCS    = src/platform/$(PLATFORM)/net_posix.cpp src/platform/$(PLATFORM)/log_posix.cpp \
+               src/platform/$(PLATFORM)/nocxx.cpp
+CLI_SRCS     = src/cli/main.cpp
+WEATHER_OBJS = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(CLI_SRCS))
+TEST_OBJS    = $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o
 
-build/host/weather: src/main.cpp $(SRCS) $(CORE_HDRS) src/anchors.h $(BEARSSL)/buildhost/libbearssl.a
-	@mkdir -p build/host
-	$(CXX) $(CXXFLAGS_COMMON) -o $@ src/main.cpp $(SRCS) $(BEARSSL)/buildhost/libbearssl.a
+all: $(BUILD)/weather
+ppc:
+	$(MAKE) TARGET=netbsd-macppc all
 
-build/macppc/weather.debug: src/main.cpp $(SRCS) $(CORE_HDRS) src/anchors.h $(BEARSSL)/buildppc/libbearssl.a
-	@mkdir -p build/macppc
-	$(XPFX)-g++ --sysroot=$(SYSROOT) $(CXXFLAGS_COMMON) -Wl,--as-needed -o $@ src/main.cpp $(SRCS) $(BEARSSL)/buildppc/libbearssl.a
+$(BUILD)/weather.debug: $(WEATHER_OBJS) $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(WEATHER_OBJS) $(BEARSSL_LIB)
 
-build/macppc/weather: build/macppc/weather.debug
-	$(XPFX)-strip -o $@ build/macppc/weather.debug
+$(BUILD)/weather: $(BUILD)/weather.debug
+	$(STRIP)
 
-build/host/unittest: test/unittest.cpp src/log.cpp src/fetch.cpp $(CORE_HDRS)
-	@mkdir -p build/host
-	$(CXX) $(CXXFLAGS_COMMON) -DFIXTURE_DIR='"test/fixtures"' -o $@ test/unittest.cpp src/log.cpp src/fetch.cpp
+$(BUILD)/unittest: $(TEST_OBJS)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(TEST_OBJS)
 
-$(BEARSSL)/buildhost/libbearssl.a:
-	$(MAKE) -C $(BEARSSL) BUILD=buildhost CONF=Unix lib
+$(OBJ)/%.o: src/%.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS_ALL) -c -o $@ $<
 
-$(BEARSSL)/buildppc/libbearssl.a:
-	$(MAKE) -C $(BEARSSL) BUILD=buildppc CONF=Unix CC="$(XPFX)-gcc --sysroot=$(SYSROOT)" \
-	    LD="$(XPFX)-gcc --sysroot=$(SYSROOT)" AR=$(XPFX)-ar CFLAGS="-W -Wall -Os -fPIC" LDFLAGS="" lib
+$(OBJ)/test/unittest.o: test/unittest.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS_ALL) -DFIXTURE_DIR='"test/fixtures"' -c -o $@ $<
 
-check: build/host/unittest build/host/weather
-	build/host/unittest
-	sh test/feature.sh build/host/weather
+$(BEARSSL_LIB):
+	$(MAKE) -C $(BEARSSL) BUILD=$(BEARSSL_BUILD) CONF=Unix $(BEARSSL_MAKEVARS) lib
 
-smoke-maul: ppc
-	sh test/smoke-maul.sh build/macppc/weather
+# ---- tests
+check: $(CHECK_TARGET)
+check-native: lint $(BUILD)/unittest $(BUILD)/weather
+	$(BUILD)/unittest
+	sh test/feature.sh $(BUILD)/weather
+check-cross:
+	@echo "TARGET=$(TARGET) cannot run here: use 'make smoke-maul' (and later 'make check-maul')"; false
+
+smoke-maul:
+	$(MAKE) TARGET=netbsd-macppc all
+	sh test/smoke-maul.sh build/netbsd-macppc/weather
+
+# Layering rule: core/ and app/ may include only freestanding headers.
+ALLOWED_INCLUDES = cstddef|cstdint|cstring|cstdarg|string_view|utility|type_traits|limits
+lint:
+	@bad=$$(grep -rn --include='*.hpp' --include='*.cpp' --include='*.h' '#include <' src/core src/app 2>/dev/null \
+	    | grep -v -E '#include <($(ALLOWED_INCLUDES))>' || true); \
+	if [ -n "$$bad" ]; then echo "lint: OS/hosted headers in portable layers:"; echo "$$bad"; exit 1; fi; \
+	echo "lint: core/ and app/ include only freestanding headers"
 
 clean:
 	rm -rf build
 
-.PHONY: all host ppc check smoke-maul clean
+-include $(wildcard $(OBJ)/*.d $(OBJ)/*/*.d $(OBJ)/*/*/*.d)
+
+.PHONY: all ppc check check-native check-cross smoke-maul lint clean

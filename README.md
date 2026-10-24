@@ -20,22 +20,29 @@ flags override it. The default location is Madison, WI 53703 (Capitol Square 43.
 Diagnostics go to stderr (or syslog with -s); stdout carries only the result. `-d` dumps the traffic.
 
 ## Build and test
-    make              # native build (build/host/weather)
-    make check        # unit tests (build-time static_assert + runtime) and feature tests (fixture server)
-    make ppc          # cross-build for NetBSD/macppc (build/macppc/weather, stripped; .debug keeps symbols)
-    make smoke-maul   # cross-build, push to maul, test the real binary there
+GNU make is required (`gmake` on BSD). One fragment per target in `mk/`.
+
+    make                          # native build (build/host/weather), -Werror
+    make check                    # lint + unit tests (static_assert + runtime) + feature tests (fixture server)
+    make lint                     # portable layers (src/core, src/app) may include only freestanding headers
+    make TARGET=netbsd-macppc     # cross-build for NetBSD/macppc (build/netbsd-macppc/weather, stripped; .debug keeps symbols)
+    make ppc                      # same as TARGET=netbsd-macppc
+    make smoke-maul               # cross-build, push to maul, test the real binary there
     ONLINE=1 sh test/feature.sh build/host/weather   # also test against the real server
 
-Needs: a BearSSL checkout at `spike/bearssl` (git clone https://www.bearssl.org/git/BearSSL; gitignored,
-a pinned copy comes later), python3 (fixture server only), and for `ppc` the cross toolchain from
-`~/scratch/netbsd-xc` (see its README-repro.md; paths are Makefile variables).
-Trust anchors (`src/anchors.h`) are generated with `brssl ta`; refreshing them is a release task.
+Needs: a BearSSL checkout at `spike/bearssl` (git clone https://www.bearssl.org/git/BearSSL; gitignored, a
+pinned copy comes later; the Makefile builds its library per target), python3 (fixture server only), and for
+the cross target the toolchain from `~/scratch/netbsd-xc` (see its README-repro.md; paths are variables in
+`mk/netbsd-macppc.mk`). Trust anchors (`src/tls/anchors.h`) are generated with `brssl ta`; refreshing them is
+a release task.
 
-## Layout
-- `src/` core (`status`, `text`, `json`, `http`, `forecast`, `provider`, `openmeteo`, `fetch`, `config`),
-  OS seam (`net.hpp`; `net_posix.cpp` sockets), `tls.cpp` BearSSL, `log.cpp`, `main.cpp`, `nocxx.cpp`
-- `test/` unit tests, fixtures from real responses, fixture server, feature and maul smoke scripts
-- `spike/` experiments
+## Layout (dependencies point down only; see docs/ARCHITECTURE.md)
+- `src/core/` portable, constexpr, no OS headers: status, text, json, http, forecast, provider, openmeteo, fetch, config, log/net interfaces
+- `src/app/` portable app model (M3b)
+- `src/tls/` BearSSL glue + trust anchors
+- `src/platform/posix/` sockets, clock, syslog/stderr log sink, libstdc++ shim
+- `src/cli/` the `weather` command
+- `mk/` per-target build fragments; `test/` unit tests, fixtures, fixture server, feature and maul smoke scripts; `spike/` experiments
 
 ## License
 BSD 2-clause (`LICENSE`). BearSSL (MIT) is linked statically; its notice is in `THIRD_PARTY.md`.

@@ -97,9 +97,9 @@ Red/green rule: a bug found by any test or by hand gets a failing test first (js
 - Warnings are errors for `core/` and `app/` on the host build; other code is warning-clean but not gated.
 - Packaging: see PLAN (hand-built pkgin binary package first, pkgsrc source package later).
 
-## 8. Source layout to move to (M3a, before xweather)
-    src/core/      status text json http forecast provider openmeteo fetch config format
-    src/app/       model
+## 8. Source layout (done in M3a, 2026-10-24)
+    src/core/      status text json http forecast provider openmeteo fetch config net log version (format is in forecast.hpp)
+    src/app/       model (M3b)
     src/tls/       tls.cpp anchors.h
     src/platform/posix/   net_posix.cpp log_posix.cpp settings_posix.cpp
     src/cli/       main.cpp

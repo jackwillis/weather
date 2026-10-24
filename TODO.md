@@ -1,7 +1,6 @@
 # TODO
 
 ## Now
-- [ ] M3a restructure into src/core, app, tls, platform/posix, cli; mk/<target>.mk; `make lint` (portable-core check)
 - [ ] M3b seams: Net::yield (+ Err::Cancelled), Net::entropy, TLS time/entropy from the platform; portable settings
       text update (keep comments) + tests; app/Model (refresh timers, stale data, backoff) + tests with fake clock
 - [ ] M3c xweather: CDE-look Xlib window using the Model (auto-refresh 15 min + Refresh button, location dialog)
@@ -25,6 +24,7 @@
 - [ ] Mac OS 9 (Retro68), CI with big-endian check
 
 ## Done
+- [x] M3a restructure: src/{core,app,tls,platform/posix,cli}, mk/<target>.mk, per-file objects with dep tracking, `make lint` (verified it fails on a planted violation), BearSSL built by the Makefile for each target (2026-10-24)
 - [x] M2 core + CLI: errors-as-values, retry/backoff, provider fallback, logging, config, sysexits; 42 unit + 42 feature checks; runs on maul (2026-10-24)
 - [x] M1 TLS spike: BearSSL handshake + Open-Meteo fetch works on maul (2026-10-23)
 - [x] Cross-toolchain for NetBSD 11.0 macppc, hello + Xlib app run on maul

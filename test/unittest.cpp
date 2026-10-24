@@ -1,12 +1,12 @@
 // Unit tests: plain C++, no framework. Build-time checks (static_assert) come first:
 // if the core is wrong, this file does not compile.
-#include "../src/config.hpp"
-#include "../src/fetch.hpp"
-#include "../src/http.hpp"
-#include "../src/json.hpp"
-#include "../src/log.hpp"
-#include "../src/openmeteo.hpp"
-#include "../src/version.hpp"
+#include "core/config.hpp"
+#include "core/fetch.hpp"
+#include "core/http.hpp"
+#include "core/json.hpp"
+#include "core/log.hpp"
+#include "core/openmeteo.hpp"
+#include "core/version.hpp"
 #include <cstdio>
 #include <cstring>
 

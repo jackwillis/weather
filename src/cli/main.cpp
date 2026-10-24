@@ -1,11 +1,11 @@
 // weather: print current conditions. See weather.1 for usage.
-#include "config.hpp"
-#include "fetch.hpp"
-#include "log.hpp"
-#include "net_posix.hpp"
-#include "openmeteo.hpp"
-#include "tls.hpp"
-#include "version.hpp"
+#include "core/config.hpp"
+#include "core/fetch.hpp"
+#include "core/log.hpp"
+#include "platform/posix/net_posix.hpp"
+#include "core/openmeteo.hpp"
+#include "tls/tls.hpp"
+#include "core/version.hpp"
 #include <cerrno>
 #include <csignal>
 #include <cstdio>

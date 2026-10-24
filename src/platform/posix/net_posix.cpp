@@ -1,6 +1,6 @@
 // BSD sockets backend: getaddrinfo, non-blocking connect with timeout, poll() I/O.
 #include "net_posix.hpp"
-#include "log.hpp"
+#include "core/log.hpp"
 #include <cerrno>
 #include <cstring>
 #include <ctime>
