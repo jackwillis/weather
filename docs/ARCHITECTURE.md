@@ -70,9 +70,27 @@ Tier 1 is gated by `make check` and `make smoke-maul`. Tier 2 may lag.
   If a native build is ever wanted: a modern GCC cross-compiler targeting powerpc-apple-darwin8 (old ld64/cctools that
   still support PPC, plus the 10.4u SDK from Xcode 2.5, Apple-licensed, never committed), feasibility UNVERIFIED; the
   alternatives (C++98 or C core, or a prebuilt modern GCC running on Tiger) were judged worse. Not on the roadmap.
-- OS 9: check that Retro68's GCC accepts the core (C++17, `-fno-exceptions`) and that Open Transport is usable from it.
+- OS 9, compile gate: PASSED 2026-10-24. Retro68's container image (`ghcr.io/autc04/retro68`, image id 7522dbcdad17) has
+  GCC 16.1.0; it compiles the whole portable core, the app model and all compile-time tests with `-std=c++17
+  -fno-exceptions -fno-rtti` for PowerPC *and* 68k, no warnings (`make probe-os9`). The link step works too.
+- OS 9, networking gate: OPEN. Retro68's free "Multiversal Interfaces" do not include Open Transport or MacTCP (README and
+  several projects agree); real OT builds use Apple's proprietary Universal Interfaces 3.4.x. Options: (a) jack supplies
+  Universal Interfaces from his own copy of CodeWarrior/MPW (never committed); (b) declare the small OT subset we need
+  (init, open endpoint, connect, send, receive, close, DNS lookup) by hand and generate import stubs with Retro68's
+  MakeImport, then test in Classic on maul; (c) a MacTCP route via third-party code. Decide after a probe that links a PEF
+  calling OTInitOpenTransport and runs in Classic.
   A 20-line probe goes first. OS 9 memory is a fixed partition, so budget RAM (static buffers today: ~64 KB response,
   ~33 KB TLS) and set the SIZE resource deliberately.
+
+## Language level policy (decided 2026-10-24)
+The core is C++17 and stays that way. The limiting factor for old systems is the compiler *available for them*, not the
+OS: Retro68 gives GCC 16 for Mac OS 9 and even 68k System 7, and NetBSD/macppc has GCC 12.5, so every target in scope
+accepts C++17 (probed, see above). Dropping to C++98 would cost the `constexpr` parsers and `static_assert` tests (the best
+part of the test strategy), `string_view`, `enum class` and default member initialisers, and would be a near rewrite of
+`core/` and `app/`. It would only be worth it for a target whose *only* compiler is old and which has no modern
+cross-compiler (e.g. building natively on Tiger with Xcode 2.5's GCC 4.0.1, BeOS' gcc 2.95, IRIX/NeXT). If that day comes,
+the layering makes a backport possible (the portable layers are lint-checked to be free of OS headers), but it would be a
+second copy to maintain, so prefer finding or building a modern cross-compiler first.
 
 ## 5. Build system
 - **GNU make is required** (reverses the earlier "BSD make too" goal: `include`/pattern rules differ and pkgsrc

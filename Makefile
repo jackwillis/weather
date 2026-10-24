@@ -133,6 +133,10 @@ dist:
 package-netbsd:
 	sh tools/mkpkg-netbsd.sh
 
+# OS 9 compiler probe (needs podman/docker; pulls Retro68's image once): does the portable core compile there?
+probe-os9:
+	sh tools/probe-os9.sh
+
 # Prove the tarball is complete and reproducible: unpack it elsewhere, build, run the tests, rebuild the tarball.
 distcheck: dist
 	@rm -rf build/distcheck && mkdir -p build/distcheck

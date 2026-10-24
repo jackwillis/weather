@@ -5,14 +5,13 @@
 - [ ] AddressSanitizer needs `sudo dnf install libasan libubsan` (jack); `make check-san` currently runs UBSan in trap mode only
 
 ## Next
-- [ ] OS 9 gates: Retro68 probe (C++17 core builds, Open Transport usable); check Classic works on maul's Tiger side
+- [ ] OS 9 networking gate: Open Transport from Retro68 (headers: Apple's Universal Interfaces from jack, or hand-declared subset + MakeImport stubs); check Classic works on maul's Tiger side (compile gate passed, `make probe-os9`)
 - [ ] M4 second provider (check MET Norway / NWS TLS), on-disk stale cache, man page, `make dist` tarball + SHA-512
 - [ ] Location by place name (geocoding), default location prompt
 - [ ] SIGHUP config reload / daemon mode (only if the window needs it)
 
 ## Packaging (M5, after xweather)
 - [ ] app-defaults file for xweather resources (optional)
-- [ ] pkgin repo on lubulgi (pkg_summary.gz via FTP share); test `pkgin install weather` on maul
 - [ ] pkgsrc source package (Makefile, DESCR, PLIST, distinfo), verified in a NetBSD VM
 - [ ] Verify Open-Meteo terms/attribution; create the GitHub repo and push (jack's call)
 
@@ -20,6 +19,7 @@
 - [ ] Mac OS 9 (Retro68), CI with big-endian check
 
 ## Done
+- [x] OS 9 compile gate (Retro68 GCC 16.1 builds the core + compile-time tests for PowerPC and 68k); xweather resource use measured; ctwm integration scripts tested on copies (2026-10-24)
 - [x] Man pages (weather.1, xweather.1, weatherrc.5; groff -mdoc -ww clean), `make install/plist/dist/distcheck` (tarball reproducible, builds and tests from a clean unpack), example config, CHANGELOG (2026-10-24)
 - [x] NetBSD binary package via `tools/mkpkg-netbsd.sh`: pkg_create on maul; contents, build info and packing list inspected with pkg_info; install/uninstall test script ready (`runlog pkgtest-weather`), awaiting jack
 - [x] `make check-san` (UBSan trap mode + fortify + libstdc++ assertions; ASan automatically once libasan exists) and test/robust.cpp: 108k mutated inputs through every parser with invariants, also run on maul (big-endian); verified it catches a planted off-by-one (26k failures). Makefile fix: test programs now track header changes (a stale robust binary had hidden the planted bug) and objects rebuild when compiler flags change (2026-10-24)

@@ -109,6 +109,12 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   libs). pkg_install on maul is 20260227 (PKGTOOLS_VERSION field 20091115 as in real packages). Still to do: a pkgin
   repository on lubulgi, and a real pkgsrc source package.
 
+- 2026-10-24 OS 9 gates: compile PASSED (Retro68 GCC 16.1.0 builds the portable core + compile-time tests for PowerPC and
+  68k, C++17); networking OPEN (Retro68's headers lack Open Transport and MacTCP; see ARCHITECTURE.md for the options).
+  Language level stays C++17 (policy in ARCHITECTURE.md). xweather measured on maul: ~3 MB resident, ~0 idle CPU.
+  ctwm: weather added to the root menu and OccupyAll by tools/ctwm-weather.sh (marker blocks, backup, undo); optional
+  autostart via tools/xinitrc-weather.sh. The pkgin repository on lubulgi is not needed: the .tgz is enough.
+
 ## Open questions
 - Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.
 - Whether Retro68's GCC accepts this C++17 for OS 9; Open Transport usability.
