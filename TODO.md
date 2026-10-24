@@ -5,6 +5,7 @@
 - [ ] AddressSanitizer needs `sudo dnf install libasan libubsan` (jack); `make check-san` currently runs UBSan in trap mode only
 
 ## Next
+- [ ] OS 9: Probe1 (spike/os9, Retro68 PEF) delivered to MacOS9Lives:weather-dev; Classic starts and asks to update the System Folder (jack's call). Next: read probe1.log, then an Open Transport probe (declare the OT subset by hand + MakeImport stubs, or use Apple's Universal Interfaces from jack)
 - [ ] OS 9 networking gate: Open Transport from Retro68 (headers: Apple's Universal Interfaces from jack, or hand-declared subset + MakeImport stubs); check Classic works on maul's Tiger side (compile gate passed, `make probe-os9`)
 - [ ] On-disk stale cache (serve the last good forecast when every source is down)
 - [ ] Third source: api.weather.gov (NWS, US only; TLS verified: chains to ISRG X1) needs multi-step requests (points -> stations -> observation) so the Provider interface must grow a step mechanism
