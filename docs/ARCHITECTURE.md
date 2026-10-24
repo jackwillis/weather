@@ -5,7 +5,7 @@ Items marked UNVERIFIED are beliefs to check before relying on them.
 
 ## 1. Layers and the dependency rule
 
-    ui/<os>     xweather (CDE look, Xlib), os9, tiger     one UI per OS, deliberately different
+    ui/<os>     xweather (CDE look, Xlib), os9            one UI per OS, deliberately different
     app/        Model: state machine + refresh timers      portable, unit tested
     core/       status text json http forecast provider    portable, constexpr, no OS headers
                 openmeteo fetch config format
@@ -27,7 +27,7 @@ build on a hit, so the rule is enforced, not hoped for. No heap in `core/`; no e
 - **Entropy and time**: TLS takes both from the platform (`Net::now`, new `Net::entropy`), not from `time()`
   and `/dev/urandom` directly. Needed for OS 9 (no /dev/urandom) and testable with a fake clock.
 - **Settings store**: `load(Config*)` and `save_location(lat, lon, name)` per OS (rc file on Unix, Preferences
-  folder on OS 9, prefs on Tiger). The *text* handling (parse, and "replace these keys but keep every other
+  folder on OS 9). The *text* handling (parse, and "replace these keys but keep every other
   line and comment") is portable and tested; only reading/writing the bytes is per-OS.
 - **Log sink**: stderr/syslog on Unix; a log file or window on OS 9.
 

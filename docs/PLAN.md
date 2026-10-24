@@ -66,7 +66,7 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   Persistence: ~/.weatherrc is the single source of truth for settings shared by CLI and xweather; the
   window rewrites only the latitude/longitude/name lines (temp file + rename, other lines and comments kept).
   Appearance (fonts, colours, geometry) goes in X resources, optional. Each OS gets its own settings
-  store behind a small interface (OS 9 Preferences folder, Tiger prefs); the core assumes no dotfile.
+  store behind a small interface (OS 9 Preferences folder); the core assumes no dotfile.
 
 - 2026-10-24 License: BSD 2-clause (matches NetBSD/pkgsrc culture, pkgsrc name `2-clause-bsd`; compatible
   with BearSSL's MIT). Source hosted on GitHub (not created or pushed yet). Distribution goal: a personal
@@ -83,7 +83,7 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   every 15 min plus a Refresh button. Every OS gets its own UI. Full architecture, seams, target matrix, build
   system, test and release decisions: `docs/ARCHITECTURE.md`. Notable changes it makes: GNU make required;
   cooperative `yield` hook on the network seam so a UI never freezes during a fetch (no threads/fork);
-  TLS gets time and entropy from the platform; Tiger needs a modern cross-compiler (GCC 4.0 is C++98, UNVERIFIED).
+  TLS gets time and entropy from the platform.
 
 - 2026-10-24 Scope narrowed to NetBSD and Mac OS 9. OS 9 app is tested first in Classic on maul's Tiger side
   (UNVERIFIED that Classic works there), then on real OS 9. Tiger-native parked (needs a modern cross-GCC and the
