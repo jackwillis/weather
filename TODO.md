@@ -2,7 +2,7 @@
 
 ## Now
 - [ ] M3c last step: jack runs `xweather` once on maul's real X display (window manager, depth, feel); fix what that shows
-- [ ] sanitizer target (`-fsanitize=address,undefined` on the host unit tests) and parser robustness tests
+- [ ] AddressSanitizer needs `sudo dnf install libasan libubsan` (jack); `make check-san` currently runs UBSan in trap mode only
 
 ## Next
 - [ ] OS 9 gates: Retro68 probe (C++17 core builds, Open Transport usable); check Classic works on maul's Tiger side
@@ -21,6 +21,7 @@
 - [ ] Mac OS 9 (Retro68), CI with big-endian check
 
 ## Done
+- [x] `make check-san` (UBSan trap mode + fortify + libstdc++ assertions; ASan automatically once libasan exists) and test/robust.cpp: 108k mutated inputs through every parser with invariants, also run on maul (big-endian); verified it catches a planted off-by-one (26k failures). Makefile fix: test programs now track header changes (a stale robust binary had hidden the planted bug) and objects rebuild when compiler flags change (2026-10-24)
 - [x] BearSSL pinned and vendored (third_party/bearssl, commit recorded); built out-of-tree per target; anchors.h reproducible from the PEM with a check (2026-10-24)
 - [x] M3c xweather (2026-10-24): CDE-look Xlib window, menus, Location dialog (validation, atomic save), auto-refresh + Refresh button, weather pictures, About; GUI scenario with 21 assertions passes in Xvfb on the laptop and on maul (real PowerPC binary); screenshots reviewed. Not yet seen on a real display.
 - [x] M3b seams and model (2026-10-24): Net::yield + Err::Cancelled (SIGINT/SIGTERM cancel a fetch, exit 130), TLS time and entropy from the platform (64-bit clock), portable settings editor + atomic posix store + `weather -S`, app/Model with refresh timers, backoff and stale data. 168 unit checks (also run on maul via `make check-maul`), 65 feature checks (70 online), maul smoke test

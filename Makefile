@@ -5,6 +5,7 @@
 #   make check                unit + feature tests (host), see mk/host.mk
 #   make lint                 portable layers must not include OS headers
 #   make check-maul           cross-build the unit tests and run them on maul (big-endian ground truth)
+#   make check-san            unit + robustness + feature tests under ASan/UBSan (mk/host-san.mk)
 #   make smoke-maul           cross-build, push to maul, test the real binary there
 #   make clean
 # Shortcut: `make ppc` = make TARGET=netbsd-macppc.
@@ -53,18 +54,26 @@ $(BUILD)/xweather.debug: $(XW_OBJS) $(BEARSSL_LIB)
 $(BUILD)/xweather: $(BUILD)/xweather.debug
 	$(STRIP)
 
-$(BUILD)/xdrive: test/xdrive.cpp
-	@mkdir -p $(BUILD)
-	$(CXX) -std=c++17 -O1 -Wall $(X11_CXXFLAGS) -o $@ test/xdrive.cpp $(EXTRA_LDFLAGS) $(X11_LIBS)
+$(BUILD)/xdrive: $(OBJ)/test/xdrive.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(X11_LIBS)
+
+$(BUILD)/robust: $(OBJ)/test/robust.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $<
 
 $(BUILD)/unittest: $(TEST_OBJS)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(TEST_OBJS)
 
-$(OBJ)/%.o: src/%.cpp
+# Objects depend on the exact compiler command: change a flag (or the toolchain) and everything rebuilds.
+$(OBJ)/.flags: FORCE
+	@$(shell mkdir -p $(OBJ))$(file >$@.new,$(CXX) $(CXXFLAGS_ALL))
+	@if cmp -s $@.new $@; then rm -f $@.new; else mv $@.new $@; fi
+FORCE:
+
+$(OBJ)/%.o: src/%.cpp $(OBJ)/.flags
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS_ALL) -c -o $@ $<
 
-$(OBJ)/test/unittest.o: test/unittest.cpp
+$(OBJ)/test/%.o: test/%.cpp $(OBJ)/.flags
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS_ALL) -DFIXTURE_DIR='"test/fixtures"' -c -o $@ $<
 
@@ -85,9 +94,21 @@ check-anchors:
 
 # ---- tests
 check: $(CHECK_TARGET)
-check-native: lint check-anchors $(BUILD)/unittest $(BUILD)/weather
+check-native: lint check-anchors $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather
 	$(BUILD)/unittest
+	$(BUILD)/robust
 	sh test/feature.sh $(BUILD)/weather
+# Everything again under AddressSanitizer + UBSan: unit tests, parser robustness, the CLI's feature tests.
+check-san:
+	@$(MAKE) -s TARGET=host-san san-note
+	$(MAKE) TARGET=host-san build/host-san/unittest build/host-san/robust build/host-san/weather
+	build/host-san/unittest
+	build/host-san/robust
+	sh test/feature.sh build/host-san/weather
+
+san-note:
+	@echo "check-san: $(SAN_NOTE)"
+
 check-gui: $(BUILD)/xweather $(BUILD)/xdrive
 	sh test/gui-host.sh
 
@@ -99,8 +120,8 @@ check-cross:
 	@echo "TARGET=$(TARGET) cannot run here: use 'make smoke-maul' (and later 'make check-maul')"; false
 
 check-maul:
-	$(MAKE) TARGET=netbsd-macppc build/netbsd-macppc/unittest
-	sh test/check-maul.sh build/netbsd-macppc/unittest
+	$(MAKE) TARGET=netbsd-macppc build/netbsd-macppc/unittest build/netbsd-macppc/robust
+	sh test/check-maul.sh build/netbsd-macppc/unittest build/netbsd-macppc/robust
 
 smoke-maul:
 	$(MAKE) TARGET=netbsd-macppc all
@@ -119,4 +140,4 @@ clean:
 
 -include $(wildcard $(OBJ)/*.d $(OBJ)/*/*.d $(OBJ)/*/*/*.d)
 
-.PHONY: anchors check-anchors all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
+.PHONY: FORCE san-note check-san anchors check-anchors all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean

@@ -36,8 +36,9 @@ GNU make is required (`gmake` on BSD). One fragment per target in `mk/`.
     make lint                     # portable layers (src/core, src/app) may include only freestanding headers
     make TARGET=netbsd-macppc     # cross-build for NetBSD/macppc (build/netbsd-macppc/weather, stripped; .debug keeps symbols)
     make ppc                      # same as TARGET=netbsd-macppc
-    make check-maul               # cross-build the unit tests and run them on maul (big-endian ground truth)
+    make check-maul               # cross-build the unit and robustness tests and run them on maul (big-endian ground truth)
     make smoke-maul               # cross-build, push to maul, test the real binary there
+    make check-san                # unit + robustness + feature tests with UBSan (trap mode; ASan too if libasan is installed)
     make check-gui                # xweather in a private Xvfb on this machine, with screenshots in build/gui-host/
     make check-gui-maul           # the same scenario with the real PowerPC xweather in Xvfb on maul (build/gui/)
     ONLINE=1 sh test/feature.sh build/host/weather   # also test against the real server
