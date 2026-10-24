@@ -7,6 +7,7 @@
 #   make check-maul           cross-build the unit tests and run them on maul (big-endian ground truth)
 #   make check-san            unit + robustness + feature tests under ASan/UBSan (mk/host-san.mk)
 #   make install              DESTDIR/PREFIX/MANDIR honoured; `make plist` lists the files; `make dist`, `make distcheck`
+#   make package-netbsd       binary package for maul (pkg_create runs on maul): build/pkg/weather-VERSION.tgz
 #   make smoke-maul           cross-build, push to maul, test the real binary there
 #   make clean
 # Shortcut: `make ppc` = make TARGET=netbsd-macppc.
@@ -127,6 +128,10 @@ dist:
 	    echo "SHA512 ($(DISTNAME).tar.gz) = $$h" > $(DISTNAME).tar.gz.sha512 && \
 	    echo "Size ($(DISTNAME).tar.gz) = $$(wc -c < $(DISTNAME).tar.gz) bytes" >> $(DISTNAME).tar.gz.sha512 && \
 	    cat $(DISTNAME).tar.gz.sha512
+
+# NetBSD binary package for maul: cross-build, stage, pkg_create on maul -> build/pkg/weather-VERSION.tgz
+package-netbsd:
+	sh tools/mkpkg-netbsd.sh
 
 # Prove the tarball is complete and reproducible: unpack it elsewhere, build, run the tests, rebuild the tarball.
 distcheck: dist

@@ -103,6 +103,12 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
 
 - 2026-10-24 BearSSL is vendored at a pinned commit (third_party/README.md), not fetched: a fresh clone builds with no network. Anchors are generated from a PEM in the tree and checked.
 
+- 2026-10-24 Packaging, first version: pkgsrc cannot cross-compile from Linux, so the binary package is assembled by
+  `tools/mkpkg-netbsd.sh`: cross-build, stage with `make install` (PREFIX=/usr/pkg, MANDIR=/usr/pkg/man), then `pkg_create`
+  runs on maul (only archives). BUILD_INFO mimics real packages (OPSYS/OS_VERSION/MACHINE_ARCH, REQUIRES for the base
+  libs). pkg_install on maul is 20260227 (PKGTOOLS_VERSION field 20091115 as in real packages). Still to do: a pkgin
+  repository on lubulgi, and a real pkgsrc source package.
+
 ## Open questions
 - Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.
 - Whether Retro68's GCC accepts this C++17 for OS 9; Open Transport usability.

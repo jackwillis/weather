@@ -49,6 +49,16 @@ the cross target the toolchain from `~/scratch/netbsd-xc` (see its README-repro.
 `mk/netbsd-macppc.mk`). Trust anchors: `src/tls/anchors.h` is generated from `src/tls/isrg-roots.pem` (`make anchors`) and `make check` verifies
 the header matches the PEM and that the PEM holds exactly ISRG Root X1 and X2. Refreshing them is a release task.
 
+## Install and packages
+    make install DESTDIR=/stage PREFIX=/usr/pkg MANDIR=/usr/pkg/man   # bin/weather, bin/xweather, man pages, example config
+    make plist PREFIX=/usr/pkg MANDIR=/usr/pkg/man                    # the file list (a package PLIST)
+    make dist                                                         # build/dist/weather-VERSION.tar.gz + SHA-512 (clean tree, reproducible)
+    make distcheck                                                    # unpack the tarball elsewhere, build, test, rebuild it and compare bytes
+    make package-netbsd                                               # build/pkg/weather-VERSION.tgz, a pkg_add-able NetBSD package
+NetBSD package: `tools/mkpkg-netbsd.sh` cross-builds, stages `make install`, and runs `pkg_create` on maul (it only archives
+files). Install on maul with `doas pkg_add weather-0.1.0.tgz`; remove with `pkg_delete weather`. No install script is needed:
+pkg_add installs exactly the PLIST and settings are a per-user dotfile.
+
 ## Layout (dependencies point down only; see docs/ARCHITECTURE.md)
 - `src/core/` portable, constexpr, no OS headers: status, text, json, http, forecast, provider, openmeteo, fetch, config, log/net interfaces
 - `src/app/` portable app logic: Model (phases, 15 min auto-refresh, backoff, stale data, status line), TextEdit, LocationForm

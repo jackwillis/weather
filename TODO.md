@@ -11,8 +11,7 @@
 - [ ] SIGHUP config reload / daemon mode (only if the window needs it)
 
 ## Packaging (M5, after xweather)
-- [ ] `make install` (DESTDIR/PREFIX/MANDIR) and `make dist` (tarball + SHA-512); man pages; app-defaults
-- [ ] Hand-built NetBSD binary package (pkg_create, or manual tar) from the cross-built install tree
+- [ ] app-defaults file for xweather resources (optional)
 - [ ] pkgin repo on lubulgi (pkg_summary.gz via FTP share); test `pkgin install weather` on maul
 - [ ] pkgsrc source package (Makefile, DESCR, PLIST, distinfo), verified in a NetBSD VM
 - [ ] Verify Open-Meteo terms/attribution; create the GitHub repo and push (jack's call)
@@ -21,6 +20,8 @@
 - [ ] Mac OS 9 (Retro68), CI with big-endian check
 
 ## Done
+- [x] Man pages (weather.1, xweather.1, weatherrc.5; groff -mdoc -ww clean), `make install/plist/dist/distcheck` (tarball reproducible, builds and tests from a clean unpack), example config, CHANGELOG (2026-10-24)
+- [x] NetBSD binary package via `tools/mkpkg-netbsd.sh`: pkg_create on maul; contents, build info and packing list inspected with pkg_info; install/uninstall test script ready (`runlog pkgtest-weather`), awaiting jack
 - [x] `make check-san` (UBSan trap mode + fortify + libstdc++ assertions; ASan automatically once libasan exists) and test/robust.cpp: 108k mutated inputs through every parser with invariants, also run on maul (big-endian); verified it catches a planted off-by-one (26k failures). Makefile fix: test programs now track header changes (a stale robust binary had hidden the planted bug) and objects rebuild when compiler flags change (2026-10-24)
 - [x] BearSSL pinned and vendored (third_party/bearssl, commit recorded); built out-of-tree per target; anchors.h reproducible from the PEM with a check (2026-10-24)
 - [x] M3c xweather (2026-10-24): CDE-look Xlib window, menus, Location dialog (validation, atomic save), auto-refresh + Refresh button, weather pictures, About; GUI scenario with 21 assertions passes in Xvfb on the laptop and on maul (real PowerPC binary); screenshots reviewed. Not yet seen on a real display.
