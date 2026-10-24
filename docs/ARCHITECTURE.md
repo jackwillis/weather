@@ -45,15 +45,19 @@ The UI is a thin renderer on top, so all refresh behaviour is tested natively wi
 | host            | Fedora            | g++ 16, c++17                     | posix; CLI (+ X11 if available)  | none               | dev  |
 | netbsd-macppc   | Fedora (cross)    | powerpc--netbsd-g++ 12.5, c++17   | posix; CLI + xweather (CDE look) | pkgin binary pkg   | 1    |
 | macos9-ppc      | Fedora (Retro68)  | Retro68 GCC (version UNVERIFIED)  | Open Transport; Toolbox UI       | disk image / BinHex | 2    |
-| tiger-ppc       | Fedora cross or maul | see gate below                 | posix; Cocoa/Carbon or X11       | .pkg / dmg         | 3    |
+| tiger-ppc       | (parked)          | not planned                       |                                  |                    | -    |
 
-Tier 1 is gated by `make check` and `make smoke-maul`. Lower tiers may lag.
+**Scope (decided 2026-10-24): NetBSD and Mac OS 9 only.** Tiger is parked: the OS 9 app is expected to run in the
+Classic environment on Tiger/PPC (UNVERIFIED that Classic is installed and working on maul's Tiger), which is also
+the first place we test it before booting real OS 9. A native Tiger build is a possible later option (see below).
+
+Tier 1 is gated by `make check` and `make smoke-maul`. Tier 2 may lag.
 
 **Compiler gates (decide before starting each port):**
-- Tiger: Xcode 2.5's GCC is 4.0.1 (UNVERIFIED), which is C++98 and cannot build a C++17 `constexpr` core. Options:
-  (a) a modern GCC cross-compiler targeting powerpc-apple-darwin8 with cctools/ld64 and the 10.4u SDK (Apple-licensed,
-  never committed), feasibility UNVERIFIED; (b) a C++98-compatible core, which would give up constexpr tests.
-  We pick (a) if it can be built; otherwise this target waits.
+- Tiger (parked): Xcode 2.5's GCC is 4.0.1 (UNVERIFIED), which is C++98 and cannot build a C++17 `constexpr` core.
+  If a native build is ever wanted: a modern GCC cross-compiler targeting powerpc-apple-darwin8 (old ld64/cctools that
+  still support PPC, plus the 10.4u SDK from Xcode 2.5, Apple-licensed, never committed), feasibility UNVERIFIED; the
+  alternatives (C++98 or C core, or a prebuilt modern GCC running on Tiger) were judged worse. Not on the roadmap.
 - OS 9: check that Retro68's GCC accepts the core (C++17, `-fno-exceptions`) and that Open Transport is usable from it.
   A 20-line probe goes first. OS 9 memory is a fixed partition, so budget RAM (static buffers today: ~64 KB response,
   ~33 KB TLS) and set the SIZE resource deliberately.
@@ -100,5 +104,5 @@ Red/green rule: a bug found by any test or by hand gets a failing test first (js
     src/platform/posix/   net_posix.cpp log_posix.cpp settings_posix.cpp
     src/cli/       main.cpp
     src/ui/xweather/      CDE-look Xlib widgets + main
-    mk/            host.mk netbsd-macppc.mk (macos9.mk tiger.mk later)
+    mk/            host.mk netbsd-macppc.mk (macos9.mk later)
     test/ docs/ spike/

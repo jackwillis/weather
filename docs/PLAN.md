@@ -4,7 +4,7 @@ Last updated: 2026-10-23. Keep this to a page or two; details go in the decision
 
 ## Goal
 A small, well-behaved Unix weather tool for old big-endian machines, with a UI that looks like
-its own era. Order of targets: NetBSD/macppc (maul), then Mac OS 9 (Retro68), then Tiger.
+its own era. Order of targets: NetBSD/macppc (maul), then Mac OS 9 (Retro68). Tiger-native is parked.
 One portable core, one UI layer per OS. NetBSD gets a Motif-style window drawn in plain Xlib
 behind a small Motif-shaped API ("Motif stub") so real Motif could replace it.
 
@@ -35,7 +35,7 @@ behind a small Motif-shaped API ("Motif stub") so real Motif could replace it.
    Exit: native tests pass; the PowerPC binary prints a live forecast on maul.
 3. Motif-style Xlib window on the core. Exit: window shows live data on maul's X.
 4. More providers, cache, man page, release tarball.
-5. Later: Mac OS 9 (Retro68, Open Transport layer), Tiger, CI with a big-endian check.
+5. Later: Mac OS 9 (Retro68, Open Transport layer), tested first in Classic on Tiger, then on real OS 9; CI with a big-endian check.
 
 ## Working method
 Small verified steps; commit at each green milestone with the exact commands recorded.
@@ -84,6 +84,10 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   system, test and release decisions: `docs/ARCHITECTURE.md`. Notable changes it makes: GNU make required;
   cooperative `yield` hook on the network seam so a UI never freezes during a fetch (no threads/fork);
   TLS gets time and entropy from the platform; Tiger needs a modern cross-compiler (GCC 4.0 is C++98, UNVERIFIED).
+
+- 2026-10-24 Scope narrowed to NetBSD and Mac OS 9. OS 9 app is tested first in Classic on maul's Tiger side
+  (UNVERIFIED that Classic works there), then on real OS 9. Tiger-native parked (needs a modern cross-GCC and the
+  Apple SDK; options recorded in ARCHITECTURE.md).
 
 ## Open questions
 - Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.

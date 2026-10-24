@@ -8,7 +8,7 @@
 - [ ] `make check-maul` (cross-built unit tests run on maul = big-endian proof); sanitizer target; pin BearSSL
 
 ## Next
-- [ ] Compiler gates before ports: Retro68 probe (C++17, Open Transport); Tiger modern cross-GCC feasibility
+- [ ] OS 9 gates: Retro68 probe (C++17 core builds, Open Transport usable); check Classic works on maul's Tiger side
 - [ ] M4 second provider (check MET Norway / NWS TLS), on-disk stale cache, man page, `make dist` tarball + SHA-512
 - [ ] Pin BearSSL (submodule or vendored) so a fresh clone builds
 - [ ] Location by place name (geocoding), default location prompt
@@ -22,7 +22,7 @@
 - [ ] Verify Open-Meteo terms/attribution; create the GitHub repo and push (jack's call)
 
 ## Later
-- [ ] Mac OS 9 (Retro68), Tiger, CI with big-endian check
+- [ ] Mac OS 9 (Retro68), CI with big-endian check
 
 ## Done
 - [x] M2 core + CLI: errors-as-values, retry/backoff, provider fallback, logging, config, sysexits; 42 unit + 42 feature checks; runs on maul (2026-10-24)

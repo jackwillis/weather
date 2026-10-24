@@ -1,7 +1,7 @@
 # weather
 
 A small Unix weather tool for old big-endian machines. It reads forecasts over TLS (BearSSL),
-works without a proxy, and is cross-built from Linux for NetBSD/macppc first, then Mac OS 9 and Tiger.
+works without a proxy, and is cross-built from Linux for NetBSD/macppc first, then Mac OS 9.
 The portable core (`src/`, no OS headers except in `net_posix.cpp`/`log.cpp`) is separate from the
 per-OS UI layer. NetBSD will get a Motif-style window drawn in plain Xlib (milestone 3).
 
