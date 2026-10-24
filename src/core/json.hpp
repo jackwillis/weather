@@ -100,6 +100,19 @@ constexpr JsonLookup json_get(sv obj, sv key)
 	}
 }
 
+// The first element of the array `arr` (the whole array must be well formed).
+constexpr JsonLookup json_first(sv arr)
+{
+	size_t i = json_ws(arr, 0);
+	if (i >= arr.size() || arr[i] != '[') return {JsonFind::Malformed, {}};
+	size_t end = json_skip(arr, i);
+	if (end == sv::npos || json_ws(arr, end) != arr.size()) return {JsonFind::Malformed, {}};
+	i = json_ws(arr, i + 1);
+	if (arr[i] == ']') return {JsonFind::Absent, {}};
+	size_t ve = json_skip(arr, i);
+	return {JsonFind::Found, arr.substr(i, ve - i)};
+}
+
 // Contents of a string value without quotes (escapes left as written).
 constexpr bool json_str(sv v, sv *out)
 {

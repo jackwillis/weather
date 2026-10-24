@@ -19,6 +19,8 @@ struct Provider {
 	bool (*path)(const Query &, char *out, size_t cap);
 	// Turn a response body into a Forecast.
 	Status (*parse)(sv body, const Query &, Forecast *);
+	// The service's terms require identifying ourselves: we refuse to ask until 'contact' is set.
+	bool needs_contact = false;
 };
 
 // "open-meteo,other" -> pointers into `all`, in order. Unknown names are a usage error.

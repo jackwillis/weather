@@ -8,6 +8,7 @@ units     = imperial       # imperial (F, mph) or metric (C, km/h)
 
 #timeout   = 15            # seconds per network step
 #attempts  = 3             # tries per data source
-#providers = open-meteo    # data sources in the order to try them
+#providers = open-meteo    # data sources in the order to try them: open-meteo, met-no
+#contact   = you@example.org   # required by met-no (their terms ask clients to identify themselves)
 #log       = warn          # error, warn, info or debug
 #autorefresh = on          # xweather: refresh every 15 minutes

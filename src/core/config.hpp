@@ -16,6 +16,7 @@ struct Config {
 	int timeout_s = 15;
 	int attempts = 3;
 	char providers[64] = "open-meteo";   // comma separated, in fallback order
+	char contact[80] = "";               // e-mail or URL: sent in the User-Agent, required by some services
 	Level level = LogWarn;
 };
 
@@ -46,6 +47,14 @@ inline Status config_set(Config *c, sv key, sv val, int line)
 		Num n = parse_fixed(val, 0);
 		if (!n.ok || n.v < 1 || n.v > 300) return make(Err::Config, "value must be 1..300", line);
 		(key == "timeout" ? c->timeout_s : c->attempts) = static_cast<int>(n.v);
+	} else if (key == "contact") {
+		if (val.size() >= sizeof c->contact) return make(Err::Config, "contact too long (max 79)", line);
+		for (size_t i = 0; i < val.size(); i++) {
+			if (static_cast<unsigned char>(val[i]) < 32 || static_cast<unsigned char>(val[i]) > 126 || val[i] == '#' || val[i] == '(' || val[i] == ')')
+				return make(Err::Config, "contact must be printable ASCII without '#', '(' or ')'", line);
+			c->contact[i] = val[i];
+		}
+		c->contact[val.size()] = 0;
 	} else if (key == "providers") {
 		if (val.empty() || val.size() >= sizeof c->providers) return make(Err::Config, "bad providers list", line);
 		for (size_t i = 0; i < val.size(); i++) c->providers[i] = val[i];

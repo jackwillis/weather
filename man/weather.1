@@ -58,8 +58,15 @@ Name of the place, shown in the full output (printable ASCII, no
 .Ql # ) .
 .It Fl p Ar sources
 Comma separated list of data sources, tried in order until one answers.
-The only source at present is
-.Ql open-meteo .
+The sources are
+.Ql open-meteo
+(the default) and
+.Ql met-no
+(MET Norway, worldwide).
+.Ql met-no
+needs a
+.Ic contact
+in the settings file, because its terms of use require clients to identify themselves; without one it is skipped.
 .It Fl q
 Log errors only.
 .It Fl s
@@ -157,6 +164,6 @@ if line=$(weather -1 -q); then echo "$line"; else echo "weather unavailable"; fi
 .An Jack Willis
 .Sh BUGS
 Only TLS 1.2 is supported by the built-in TLS library.
-The trust anchors are compiled in (ISRG Root X1 and X2), so a data source whose certificates chain to another
+The trust anchors are compiled in (ISRG Root X1 and X2, and HARICA TLS RSA Root CA 2021), so a data source whose certificates chain to another
 root cannot be used until the program is rebuilt with that root.
 Name lookups cannot be interrupted, so cancelling during one takes effect when the lookup ends.

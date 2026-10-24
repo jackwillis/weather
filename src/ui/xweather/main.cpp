@@ -7,7 +7,7 @@
 #include "core/config.hpp"
 #include "core/fetch.hpp"
 #include "core/log.hpp"
-#include "core/openmeteo.hpp"
+#include "core/providers.hpp"
 #include "core/settings.hpp"
 #include "core/version.hpp"
 #include "platform/posix/net_posix.hpp"
@@ -41,8 +41,6 @@ const MenuItem kFile[] = {{"Refresh", "F5", CmdRefresh, 0}, {"Location...", "Ctr
 const MenuItem kOptions[] = {{"Auto-refresh", "", CmdAuto, 1}, {"Imperial (F, mph)", "", CmdImperial, 2}, {"Metric (C, km/h)", "", CmdMetric, 2}};
 const MenuItem kHelp[] = {{"About xweather...", "", CmdAbout, 0}};
 struct Menu { const char *title; const MenuItem *items; int n; Rect bar; Rect drop; };
-
-const Provider *const kAll[] = { &kOpenMeteo };
 
 struct App {
 	Display *dpy = nullptr;
@@ -626,8 +624,9 @@ int main(int argc, char **argv)
 	g.fo.timeout_s = g.cfg.timeout_s;
 	g.fo.attempts = g.cfg.attempts;
 	g.fo.dump = dump;
+	g.fo.contact = g.cfg.contact;
 	{
-		Status ps = resolve_providers(g.cfg.providers, kAll, 1, g.providers, 8, &g.nprov);
+		Status ps = resolve_providers(g.cfg.providers, kProviders, kNumProviders, g.providers, 8, &g.nprov);
 		if (!ps.ok()) { fprintf(stderr, "xweather: %s '%s'\n", ps.msg, g.cfg.providers); return exit_code(ps.err); }
 	}
 

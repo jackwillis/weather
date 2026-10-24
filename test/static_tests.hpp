@@ -5,6 +5,7 @@
 #include "core/forecast.hpp"
 #include "core/http.hpp"
 #include "core/json.hpp"
+#include "core/metno.hpp"
 #include "core/openmeteo.hpp"
 #include "core/settings.hpp"
 #include "app/locform.hpp"
@@ -61,5 +62,36 @@ static_assert(http_parse("HTTP/1.1 503 x\r\n\r\n").code == 503, "status code");
 static_assert(compass(0) == sv("N") && compass(90) == sv("E") && compass(138) == sv("SE") &&
     compass(350) == sv("N") && compass(-45) == sv("NW"), "compass");
 
+
+// MET Norway: conversions, symbol mapping, and a whole parse, all evaluated by the compiler.
+static_assert(c_to_f_t10(125) == 545 && c_to_f_t10(-30) == 266 && c_to_f_t10(0) == 320 && c_to_f_t10(-400) == -400, "C to F");
+static_assert(ms_to_mph_t10(35) == 78 && ms_to_kmh_t10(35) == 126 && ms_to_mph_t10(0) == 0, "m/s conversions");
+static_assert(met_symbol("clearsky_day").code == 0 && met_symbol("clearsky_day").is_day == 1, "symbol day");
+static_assert(met_symbol("partlycloudy_night").code == 2 && met_symbol("partlycloudy_night").is_day == 0, "symbol night");
+static_assert(met_symbol("heavyrainandthunder").code == 95 && met_symbol("heavyrainandthunder").is_day == -1, "symbol thunder");
+static_assert(met_symbol("snow_polartwilight").code == 73 && met_symbol("snow_polartwilight").is_day == -1, "symbol twilight");
+static_assert(met_symbol("bogus").code == -1 && met_symbol("").code == -1, "unknown symbol");
+static_assert(json_first("[1,2]").value == sv("1") && json_first("[ ]").r == JsonFind::Absent &&
+    json_first("[1,").r == JsonFind::Malformed && json_first("{}").r == JsonFind::Malformed, "json_first");
+
+constexpr bool metno_parse_ok()
+{
+	constexpr sv doc = R"({"properties":{"timeseries":[{"time":"2026-10-24T06:00:00Z","data":{"instant":{"details":{"air_temperature":12.5,)"
+	    R"("relative_humidity":76.7,"wind_from_direction":161.4,"wind_speed":3.5}},"next_1_hours":{"summary":{"symbol_code":"partlycloudy_night"}}}}]}})";
+	Forecast f;
+	Query q;
+	Status s = metno_parse(doc, q, &f);
+	return s.ok() && f.temp_t10 == 545 && f.wind_t10 == 78 && f.humidity == 77 && f.wind_dir == 161 && f.code == 2 && f.is_day == 0 &&
+	    sv(f.time) == sv("2026-10-24T06:00") && !f.metric;
+}
+static_assert(metno_parse_ok(), "a whole MET Norway response parses at compile time");
+constexpr bool metno_rejects()
+{
+	Forecast f;
+	Query q;
+	return metno_parse("{}", q, &f).err == Err::BadData && metno_parse(R"({"properties":{"timeseries":[]}})", q, &f).err == Err::BadData &&
+	    metno_parse(R"({"properties":{"timeseries":[{"data":)", q, &f).err == Err::Parse;
+}
+static_assert(metno_rejects(), "bad MET Norway documents are refused");
 
 } // namespace wx_static_tests

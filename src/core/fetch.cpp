@@ -46,8 +46,11 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 		io = &tio;
 	}
 
-	Buf<512> req;
-	if (!http_request(req, host, path, "weather/" WEATHER_VERSION)) {
+	Buf<160> agent;
+	agent.add("weather/" WEATHER_VERSION);
+	if (o.contact && o.contact[0]) agent.add(" (contact: ").add(o.contact).add(")");
+	Buf<640> req;
+	if (!http_request(req, host, path, agent.view())) {
 		s = make(Err::BadData, "request too long");
 	} else {
 		dump_text("request", req.s, req.n);
@@ -101,6 +104,11 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 		char path[320];
 		if (!p.path(q, path, sizeof path)) {
 			last = make(Err::BadData, "request path too long");
+			continue;
+		}
+		if (p.needs_contact && !(o.contact && o.contact[0])) {
+			last = make(Err::Config, "this data source requires 'contact' in the config file (see weatherrc(5))");
+			logf(LogWarn, "%s skipped: %s", p.name, last.msg);
 			continue;
 		}
 		const char *host = o.force_host ? o.force_host : p.host;

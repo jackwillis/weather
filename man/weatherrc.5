@@ -58,9 +58,24 @@ Default 15.
 Tries per data source before giving up on it, 1 to 300.
 Default 3.
 .It Ic providers
-Comma separated data sources in the order to try them.
+Comma separated data sources in the order to try them:
+.Ql open-meteo
+and
+.Ql met-no .
 Default
 .Ql open-meteo .
+.It Ic contact
+An e-mail address or web address that identifies you, sent in the User-Agent as
+.Ql weather/VERSION (contact: ...) .
+Printable ASCII, up to 79 characters, without
+.Ql # ,
+.Ql \&( 
+or
+.Ql \&) .
+Required by the
+.Ql met-no
+source, whose terms of use ask every client to identify itself; that source is skipped while this is empty.
+Default empty.
 .It Ic log
 Log level:
 .Ql error ,

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Plain-HTTP fixture server for feature tests: fixture_server.py MODE PORT
 
-Modes: ok 500 404 slow chunked trunc garbage hangup badjson, and w:CODE:ISDAY:TEMP (a forecast with that WMO code)
+Modes: ok metno fallback 500 404 slow chunked trunc garbage hangup badjson, and w:CODE:ISDAY:TEMP (a forecast with that WMO code)
 Not shipped to maul; it only runs on the build machine."""
 import socketserver, sys, time
 
-FIX = open(__file__.rsplit('/', 1)[0] + '/fixtures/openmeteo-ok.json', 'rb').read()
+FIXDIR = __file__.rsplit('/', 1)[0] + '/fixtures/'
+FIX = open(FIXDIR + 'openmeteo-ok.json', 'rb').read()
+MET = open(FIXDIR + 'metno-ok.json', 'rb').read()
 mode, port = sys.argv[1], int(sys.argv[2])
 
 def weather(code, is_day, temp):
@@ -16,11 +18,20 @@ def weather(code, is_day, temp):
 
 class H(socketserver.StreamRequestHandler):
     def handle(self):
+        request_line = self.rfile.readline().decode('latin-1')
+        path = request_line.split(' ')[1] if request_line.count(' ') >= 2 else ''
         while self.rfile.readline().strip():   # discard the request headers
             pass
         w = self.wfile.write
         if mode == 'ok':
             w(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n' % len(FIX) + FIX)
+        elif mode == 'metno':
+            w(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n' % len(MET) + MET)
+        elif mode == 'fallback':    # Open-Meteo's path is broken, MET Norway's works
+            if path.startswith('/v1/forecast'):
+                w(b'HTTP/1.0 500 Internal Server Error\r\n\r\noops')
+            else:
+                w(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n' % len(MET) + MET)
         elif mode.startswith('w:'):
             _, code, day, temp = mode.split(':')
             body = weather(code, day, temp)

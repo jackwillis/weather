@@ -5,7 +5,7 @@
 #include "core/settings.hpp"
 #include "platform/posix/net_posix.hpp"
 #include "platform/posix/settings_posix.hpp"
-#include "core/openmeteo.hpp"
+#include "core/providers.hpp"
 #include "tls/tls.hpp"
 #include "core/version.hpp"
 #include <cerrno>
@@ -17,8 +17,6 @@
 #include <unistd.h>
 
 using namespace wx;
-
-static const Provider *const kAll[] = { &kOpenMeteo };
 
 static void usage(FILE *f)
 {
@@ -33,7 +31,7 @@ static void usage(FILE *f)
 	      "  -t  network timeout, secs    -u  units\n"
 	      "  -v  more logging (repeat)    -V  print version\n"
 	      "  -H host:port  (testing) plain HTTP to host:port instead of the provider\n"
-	      "sources: open-meteo\n", f);
+	      "sources: open-meteo, met-no (met-no needs 'contact' in the config file)\n", f);
 }
 
 static volatile sig_atomic_t g_stop;
@@ -150,6 +148,7 @@ int main(int argc, char **argv)
 	fo.timeout_s = cfg.timeout_s;
 	fo.attempts = cfg.attempts;
 	fo.dump = dump;
+	fo.contact = cfg.contact;
 	if (force) {
 		char *colon = strrchr(const_cast<char *>(force), ':');
 		if (!colon) return fail(make(Err::Usage, "-H wants host:port"));
@@ -166,7 +165,7 @@ int main(int argc, char **argv)
 	const Provider *chosen[8];
 	size_t nchosen = 0;
 	{
-		Status s = resolve_providers(cfg.providers, kAll, sizeof kAll / sizeof kAll[0], chosen, 8, &nchosen);
+		Status s = resolve_providers(cfg.providers, kProviders, kNumProviders, chosen, 8, &nchosen);
 		if (!s.ok()) { fprintf(stderr, "weather: %s '%s'\n", s.msg, cfg.providers); return exit_code(s.err); }
 	}
 

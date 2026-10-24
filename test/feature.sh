@@ -34,6 +34,8 @@ serve trunc; P_TRUNC=$P
 serve garbage; P_GARB=$P
 serve hangup; P_HANG=$P
 serve badjson; P_BADJ=$P
+serve metno; P_MET=$P
+serve fallback; P_FALL=$P
 sleep 1
 
 CFG=$(mktemp); echo "attempts = 1" > "$CFG"
@@ -84,6 +86,23 @@ contains "-n shown" "Weather for Bergen from"
 expect "-l reaches the request" 0 $W -d -l 59.91,10.75 -1 -H 127.0.0.1:$P_OK
 contains "-l in request" "latitude=59.9100&longitude=10.7500"
 echo "attempts = 3" > "$CFG"
+
+# second data source: MET Norway needs a contact (its terms), is skipped without one, and is the fallback
+printf 'attempts = 1\ncontact = tester@example.org\n' > "$CFG.met"
+expect "met-no without contact is refused" 78 -c "$CFG" -p met-no -H 127.0.0.1:$P_MET
+contains "contact explained" "requires 'contact'"
+expect "met-no with contact" 0 -c "$CFG.met" -1 -p met-no -H 127.0.0.1:$P_MET
+contains "met-no output" "54.5F Partly cloudy, wind 7.8mph S, humidity 77% (met-no 2026-10-24T06:00)"
+expect "met-no metric" 0 -c "$CFG.met" -1 -u metric -p met-no -H 127.0.0.1:$P_MET
+contains "met-no metric output" "12.5C Partly cloudy, wind 12.6km/h S"
+expect "contact is sent in the User-Agent" 0 -c "$CFG.met" -d -1 -p met-no -H 127.0.0.1:$P_MET
+contains "user agent" "User-Agent: weather/0.1.0 (contact: tester@example.org)"
+expect "met-no is skipped without contact, next source used" 0 -c "$CFG" -1 -p met-no,open-meteo -H 127.0.0.1:$P_OK
+contains "fell back to open-meteo" "(open-meteo "
+expect "falls back when the first source is broken" 0 -c "$CFG.met" -1 -p open-meteo,met-no -H 127.0.0.1:$P_FALL
+contains "fell back to met-no" "(met-no "
+expect "unknown source" 64 -p open-meteo,nope -H 127.0.0.1:$P_OK
+rm -f "$CFG.met"
 
 # usage and config errors
 expect "version" 0 -V

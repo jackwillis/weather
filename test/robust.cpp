@@ -7,6 +7,7 @@
 #include "core/config.hpp"
 #include "core/http.hpp"
 #include "core/json.hpp"
+#include "core/metno.hpp"
 #include "core/openmeteo.hpp"
 #include "core/settings.hpp"
 #include "core/version.hpp"
@@ -65,6 +66,13 @@ static void exercise(const char *p, size_t n)
 		Buf<400> full; format_full(full, f, "Madison, WI");
 	}
 	(void)openmeteo_parse(in, Query{0, 0, true}, &f);
+	Forecast mf;                                                  // MET Norway: same rules
+	Status ms = metno_parse(in, q, &mf);
+	if (ms.ok()) {
+		EXPECT(plausible_temp_t10(mf.temp_t10, false) && mf.code != kUnset && std::strlen(mf.time) < sizeof mf.time);
+		Buf<300> one; format_oneline(one, mf);
+	}
+	(void)metno_parse(in, Query{0, 0, true}, &mf);
 
 	// numbers
 	for (int d = 0; d <= 4; d++) { Num x = parse_fixed(in.substr(0, 40), d); if (x.ok) EXPECT(x.v > -2000000000L && x.v < 2000000000L); }
@@ -161,7 +169,7 @@ int main(int argc, char **argv)
 	static char seed[8192];
 	size_t n = 0;
 	char path[256];
-	const char *fixtures[] = {"openmeteo-ok.json", "openmeteo-400.json"};
+	const char *fixtures[] = {"openmeteo-ok.json", "openmeteo-400.json", "metno-ok.json"};
 	for (const char *fx : fixtures) {
 		snprintf(path, sizeof path, "%s/%s", FIXTURE_DIR, fx);
 		if (!slurp(path, seed, sizeof seed, &n)) { printf("cannot read %s\n", path); return 1; }

@@ -10,6 +10,7 @@
 #include "app/locform.hpp"
 #include "app/model.hpp"
 #include "app/textedit.hpp"
+#include "core/providers.hpp"
 #include "core/settings.hpp"
 #include "platform/posix/net_posix.hpp"
 #include "platform/posix/settings_posix.hpp"
@@ -793,6 +794,84 @@ static void test_forms()
 	}
 }
 
+static void test_metno()
+{
+	Query q;
+	Forecast f;
+	Status s = metno_parse(fixture(0, "metno-ok.json"), q, &f);
+	CHECK(s.ok() && f.temp_t10 == 545 && f.wind_t10 == 78 && f.humidity == 77 && f.wind_dir == 161 && f.code == 2 && f.is_day == 0);
+	CHECK(!strcmp(f.time, "2026-10-24T06:00") && !strcmp(f.source, "met-no") && !f.metric);
+	Buf<200> one;
+	format_oneline(one, f);
+	CHECK(one.view() == sv("54.5F Partly cloudy, wind 7.8mph S, humidity 77% (met-no 2026-10-24T06:00)"));
+	q.metric = true;
+	Forecast m;
+	CHECK(metno_parse(fixture(0, "metno-ok.json"), q, &m).ok() && m.temp_t10 == 125 && m.wind_t10 == 126 && m.metric);
+
+	Forecast g;
+	CHECK(metno_parse(R"({"properties":{"timeseries":[{"time":"t","data":{"instant":{"details":{"air_temperature":"warm"}}}}]}})", Query{}, &g).err == Err::BadData);
+	CHECK(metno_parse(R"({"properties":{"timeseries":[{"time":"t","data":{"instant":{"details":{"wind_speed":3.5}}}}]}})", Query{}, &g).err == Err::BadData);
+	CHECK(metno_parse(R"({"properties":{"timeseries":[{"data":{"instant":{"details":{"air_temperature":5.0}}}}]}})", Query{}, &g).err == Err::BadData);   // no symbol, no cloud cover
+	CHECK(metno_parse(R"({"properties":{"timeseries":[{"data":{"instant":{"details":{"air_temperature":5.0,"cloud_area_fraction":80.0}}}}]}})", Query{}, &g).ok() && g.code == 3);   // cloud fallback
+	CHECK(metno_parse(R"({"properties":{"timeseries":[{"data":{"instant":{"details":{"air_temperature":999}}}}]}})", Query{}, &g).err == Err::BadData);   // implausible
+	CHECK(metno_parse("<html>", Query{}, &g).err == Err::Parse);
+
+	char path[200];
+	Query lq; lq.lat_e4 = 430747; lq.lon_e4 = -893841;
+	CHECK(kMetNo.path(lq, path, sizeof path) && !strcmp(path, "/weatherapi/locationforecast/2.0/compact?lat=43.0747&lon=-89.3841"));
+	CHECK(kMetNo.needs_contact && !kOpenMeteo.needs_contact);
+
+	// contact: refused before touching the network; with one it goes into the User-Agent
+	char buf[4096];
+	FetchOpts o; o.attempts = 1; o.force_host = "fake"; o.force_port = "80";
+	const Provider *only[] = { &kMetNo };
+	Forecast out;
+	{
+		Fake fk; fk.steps[0] = {okay(), kGood, Err::Ok}; fk.nsteps = 1;
+		Net n = make_net(&fk);
+		Status r = fetch_forecast(n, only, 1, lq, o, buf, sizeof buf, &out);
+		CHECK(r.err == Err::Config && fk.connects == 0);
+	}
+	static char metresp[4096];
+	snprintf(metresp, sizeof metresp, "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n%s", fixture(1, "metno-ok.json"));
+	o.contact = "tester@example.org";
+	{
+		Fake fk; fk.steps[0] = {okay(), metresp, Err::Ok}; fk.nsteps = 1;
+		Net n = make_net(&fk);
+		Status r = fetch_forecast(n, only, 1, lq, o, buf, sizeof buf, &out);
+		CHECK(r.ok() && out.temp_t10 == 545);
+		CHECK(strstr(fk.request, "User-Agent: weather/0.1.0 (contact: tester@example.org)\r\n") != nullptr);
+		CHECK(strstr(fk.request, "Host: fake\r\n") != nullptr);
+	}
+	{ // Open-Meteo fails, MET Norway answers
+		const Provider *two[] = { &kOpenMeteo, &kMetNo };
+		Fake fk; fk.steps[0] = {okay(), k500, Err::Ok}; fk.steps[1] = {okay(), metresp, Err::Ok}; fk.nsteps = 2;
+		Net n = make_net(&fk);
+		Status r = fetch_forecast(n, two, 2, lq, o, buf, sizeof buf, &out);
+		CHECK(r.ok() && !strcmp(out.source, "met-no") && fk.connects == 2);
+	}
+	{ // MET Norway is skipped without a contact and the next source is used
+		const Provider *two[] = { &kMetNo, &kOpenMeteo };
+		FetchOpts o2; o2.attempts = 1; o2.force_host = "fake"; o2.force_port = "80";
+		static char omresp[4096];
+		snprintf(omresp, sizeof omresp, "HTTP/1.0 200 OK\r\n\r\n%s", fixture(0, "openmeteo-ok.json"));
+		Fake fk; fk.steps[0] = {okay(), omresp, Err::Ok}; fk.nsteps = 1;
+		Net n = make_net(&fk);
+		Status r = fetch_forecast(n, two, 2, lq, o2, buf, sizeof buf, &out);
+		CHECK(r.ok() && !strcmp(out.source, "open-meteo") && fk.connects == 1);
+	}
+	// config key
+	Config c;
+	CHECK(config_parse("contact = jack@example.org\n", &c).ok() && !strcmp(c.contact, "jack@example.org"));
+	CHECK(config_set(&c, "contact", "a#b", 1).err == Err::Config);        // (in a file, # starts a comment)
+	CHECK(config_parse("contact = a(b)\n", &c).err == Err::Config);
+	CHECK(config_parse("contact = abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz\n", &c).err == Err::Config);
+	// the registry
+	const Provider *res[4];
+	size_t nres = 0;
+	CHECK(resolve_providers("met-no,open-meteo", kProviders, kNumProviders, res, 4, &nres).ok() && nres == 2 && res[0] == &kMetNo);
+}
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -806,6 +885,7 @@ int main()
 	test_settings_store();
 	test_model();
 	test_forms();
+	test_metno();
 	printf("%d checks, %d failed\n", g_run, g_fail);
 	return g_fail ? 1 : 0;
 }

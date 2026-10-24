@@ -115,6 +115,14 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   ctwm: weather added to the root menu and OccupyAll by tools/ctwm-weather.sh (marker blocks, backup, undo); optional
   autostart via tools/xinitrc-weather.sh. The pkgin repository on lubulgi is not needed: the .tgz is enough.
 
+- 2026-10-24 Second data source: MET Norway (met-no). Chosen over api.weather.gov because it is one request and worldwide;
+  NWS chains to a root we already trust but needs three requests. MET's terms require a User-Agent with contact details, so
+  the provider is `needs_contact` and refuses (Err::Config, skipped in a fallback chain) until `contact` is set: no contact
+  is ever invented. TLS check: leaf <- GEANT TLS RSA 1 <- HARICA TLS RSA Root CA 2021 (the server also sends a cross-signed copy
+  of that root; BearSSL stops at the first certificate whose issuer is an anchor, so anchoring the self-signed root works,
+  verified live). Root fingerprint D9:5D:0E:8E... matched my independent recollection and Fedora's bundle.
+  macOS: jack logged into the Mac console as `claude`, so GUI apps can be launched over SSH and the screen read with `screencapture`.
+
 ## Open questions
 - Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.
 - Whether Retro68's GCC accepts this C++17 for OS 9; Open Transport usability.

@@ -29,10 +29,13 @@ SOFTWARE.
 
 ## Trust anchors
 
-`src/anchors.h` contains the public ISRG Root X1 and ISRG Root X2 certificates (Internet Security
-Research Group), converted with BearSSL's `brssl ta`. Certificates are public data, not licensed software.
+`src/tls/anchors.h` is generated from `src/tls/roots.pem`: the public ISRG Root X1 and X2 certificates (Internet Security
+Research Group; Open-Meteo, api.weather.gov) and HARICA TLS RSA Root CA 2021 (Hellenic Academic and Research
+Institutions CA; api.met.no), converted with BearSSL's `brssl ta`. Certificates are public data, not licensed software.
 
 ## Data
 
-Forecasts come from Open-Meteo (https://open-meteo.com). Check their terms of use and attribution
-requirements before distributing widely (TODO: verify; the output already names the source).
+Forecasts come from Open-Meteo (https://open-meteo.com) and, optionally, MET Norway (https://api.met.no, Locationforecast 2.0).
+Check both services' terms of use and attribution requirements before distributing widely (TODO: verify; the output already
+names the source). MET Norway's terms ask every client to identify itself with a contact: this is the `contact` setting, and
+the source is skipped until it is set.

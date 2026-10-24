@@ -16,6 +16,7 @@ struct FetchOpts {
 	bool dump = false;           // log request/response text at debug level
 	const char *force_host = nullptr;  // testing: plain HTTP to this host/port instead
 	const char *force_port = nullptr;
+	const char *contact = nullptr;     // e-mail or URL for the User-Agent (some services require it)
 };
 
 // GET one URL. On success body points into buf. Does not retry.
