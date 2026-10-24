@@ -1,0 +1,55 @@
+# Plan
+
+Last updated: 2026-10-23. Keep this to a page or two; details go in the decision log and TODO.md.
+
+## Goal
+A small, well-behaved Unix weather tool for old big-endian machines, with a UI that looks like
+its own era. Order of targets: NetBSD/macppc (maul), then Mac OS 9 (Retro68), then Tiger.
+One portable core, one UI layer per OS. NetBSD gets a Motif-style window drawn in plain Xlib
+behind a small Motif-shaped API ("Motif stub") so real Motif could replace it.
+
+## Constraints
+- Cross-compile only. maul has 256 MB RAM and is the test machine, never the build machine.
+- 32-bit big-endian PowerPC. No Go. No heavy runtime: C++17 with -fno-exceptions -fno-rtti,
+  header-only std (string_view etc.), no heap in the core where practical.
+- Built-in network layer with TLS (BearSSL). No proxy.
+
+## Quality bar ("old-school release engineering")
+- Errors are values: every fallible call returns a status with a distinct kind (DNS, connect,
+  TLS, certificate, timeout, HTTP status, parse, bad data). Bounded retries, timeouts everywhere.
+- Logging: levels to stderr or syslog, -v/-q, request/response and TLS trace dumps for debugging.
+- Unix behaviour: getopt, --version, usage, sysexits exit codes, config file with CLI overrides,
+  signal handling, script-friendly one-line mode, man page.
+- Multiple data sources behind one provider interface, configurable fallback, on-disk cache that
+  serves stale data (marked stale) instead of nothing.
+- Debuggability: symbols kept in a separate debug copy, offline fixtures, reproducible builds with
+  recorded toolchain versions.
+- Releases: BSD- and GNU-make compatible Makefile, check/dist/install (DESTDIR), versioned
+  tarball with SHA-512 sums, changelog. Tests: static_assert at build time, native runtime tests,
+  smoke test of the real PowerPC binary on maul.
+
+## Milestones (each has an exit test)
+1. TLS spike: BearSSL handshake and one JSON fetch from Open-Meteo, run on maul.
+   Exit: JSON body printed on maul with the certificate chain verified against pinned anchors.
+2. Core + CLI: provider interface, parsers, errors, logging, fixtures, `weather` prints a forecast.
+   Exit: native tests pass; the PowerPC binary prints a live forecast on maul.
+3. Motif-style Xlib window on the core. Exit: window shows live data on maul's X.
+4. More providers, cache, man page, release tarball.
+5. Later: Mac OS 9 (Retro68, Open Transport layer), Tiger, CI with a big-endian check.
+
+## Working method
+Small verified steps; commit at each green milestone with the exact commands recorded.
+A second agent (e.g. Codex) is optional, used as an independent reviewer of risky code.
+
+## Decision log
+- 2026-10-23 C++17 header-only, plain C fallback (C++17 cross-compiles with this GCC 12.5;
+  link with -Wl,--as-needed to avoid libstdc++).
+- 2026-10-23 BearSSL for TLS (portable, no malloc, big-endian clean; builds for macppc unmodified).
+  Risk: TLS 1.2 only. Fallbacks: mbedTLS or wolfSSL.
+- 2026-10-23 Real Motif (OpenMotif/LessTif) not installed on maul; draw the look in Xlib instead.
+- 2026-10-23 Host builds of NetBSD tools on Fedora need gcc -std=gnu17 (see netbsd-xc README).
+
+## Open questions
+- User's location (placeholder coordinates until given).
+- Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.
+- Whether Retro68's GCC accepts this C++17 for OS 9; Open Transport usability.

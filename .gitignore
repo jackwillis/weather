@@ -1,0 +1,9 @@
+# build output
+/build*/
+*.o
+*.a
+# local toolchain / sysroot live outside the repo (see README)
+*.core
+*.log
+# third-party sources fetched for experiments
+/spike/bearssl/
