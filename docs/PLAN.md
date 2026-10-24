@@ -55,6 +55,13 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   (not trusted), so verification is real. Server cert type seems to vary by client (openssl saw ECDSA,
   BearSSL got an RSA suite); X1 covers both.
 
+- 2026-10-24 M2 done. Layering: Net/Io function pointers (the OS seam) -> fetch (retry, fallback, clock check)
+  -> provider (path + parse). TLS is a wrapper Io, so the same fetch code runs plain (tests) or TLS.
+  json_get validates the whole document before trusting any key (a red test found a truncated doc
+  being half-accepted). libstdc++ avoided by defining std::__throw_out_of_range_fmt (src/nocxx.cpp).
+  A plain-HTTP testing flag (-H) exists and warns loudly; WEATHER_NO_TA=1 is a test hook that must make TLS fail.
+  Binary: 153 KB stripped, needs only libc + libgcc_s.
+
 ## Open questions
 - User's location (placeholder coordinates until given).
 - Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.

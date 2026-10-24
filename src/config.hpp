@@ -1,0 +1,74 @@
+// ~/.weatherrc: "key = value" lines, '#' comments. Command-line flags override it.
+#pragma once
+#include "log.hpp"
+#include "status.hpp"
+#include "text.hpp"
+
+namespace wx {
+
+struct Config {
+	// Placeholder location (Chicago) until the user sets one.
+	long lat_e4 = 418800;
+	long lon_e4 = -876300;
+	bool metric = false;
+	int timeout_s = 15;
+	int attempts = 3;
+	char providers[64] = "open-meteo";   // comma separated, in fallback order
+	Level level = LogWarn;
+};
+
+inline Status config_set(Config *c, sv key, sv val, int line)
+{
+	if (key == "latitude" || key == "longitude") {
+		Num n = parse_fixed(val, 4);
+		long lim = key == "latitude" ? 900000 : 1800000;
+		if (!n.ok || n.v > lim || n.v < -lim) return make(Err::Config, "bad latitude/longitude", line);
+		(key == "latitude" ? c->lat_e4 : c->lon_e4) = n.v;
+	} else if (key == "units") {
+		if (val == "metric") c->metric = true;
+		else if (val == "imperial") c->metric = false;
+		else return make(Err::Config, "units must be metric or imperial", line);
+	} else if (key == "timeout" || key == "attempts") {
+		Num n = parse_fixed(val, 0);
+		if (!n.ok || n.v < 1 || n.v > 300) return make(Err::Config, "value must be 1..300", line);
+		(key == "timeout" ? c->timeout_s : c->attempts) = static_cast<int>(n.v);
+	} else if (key == "providers") {
+		if (val.empty() || val.size() >= sizeof c->providers) return make(Err::Config, "bad providers list", line);
+		for (size_t i = 0; i < val.size(); i++) c->providers[i] = val[i];
+		c->providers[val.size()] = 0;
+	} else if (key == "log") {
+		if (val == "error") c->level = LogError;
+		else if (val == "warn") c->level = LogWarn;
+		else if (val == "info") c->level = LogInfo;
+		else if (val == "debug") c->level = LogDebug;
+		else return make(Err::Config, "log must be error, warn, info or debug", line);
+	} else {
+		return make(Err::Config, "unknown key", line);
+	}
+	return okay();
+}
+
+inline Status config_parse(sv text, Config *c)
+{
+	int line = 0;
+	size_t pos = 0;
+	while (pos <= text.size()) {
+		size_t nl = find(text, "\n", pos);
+		sv ln = nl == sv::npos ? text.substr(pos) : text.substr(pos, nl - pos);
+		line++;
+		size_t hash = find(ln, "#");
+		if (hash != sv::npos) ln = ln.substr(0, hash);
+		ln = trim(ln);
+		if (!ln.empty()) {
+			size_t eq = find(ln, "=");
+			if (eq == sv::npos) return make(Err::Config, "expected key = value", line);
+			Status s = config_set(c, trim(ln.substr(0, eq)), trim(ln.substr(eq + 1)), line);
+			if (!s.ok()) return s;
+		}
+		if (nl == sv::npos) break;
+		pos = nl + 1;
+	}
+	return okay();
+}
+
+} // namespace wx
