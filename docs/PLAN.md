@@ -68,6 +68,17 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   Appearance (fonts, colours, geometry) goes in X resources, optional. Each OS gets its own settings
   store behind a small interface (OS 9 Preferences folder, Tiger prefs); the core assumes no dotfile.
 
+- 2026-10-24 License: BSD 2-clause (matches NetBSD/pkgsrc culture, pkgsrc name `2-clause-bsd`; compatible
+  with BearSSL's MIT). Source hosted on GitHub (not created or pushed yet). Distribution goal: a personal
+  `pkgin` repository (hand-built binary package on lubulgi), not pkgsrc proper or pkgsrc-wip for now.
+- 2026-10-24 Packaging findings: pkgsrc cross-compilation works only from a NetBSD build host (not Fedora).
+  No install script needed: pkgsrc installs from PLIST and our settings are a per-user ~/.weatherrc.
+  Constraints for the build: `make install` with DESTDIR/PREFIX/MANDIR, honour CXX/CXXFLAGS/LDFLAGS, no
+  hard-coded paths, `make dist` tarball + SHA-512, BearSSL switchable between external and vendored.
+  maul's pkgin already uses the official repo https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/powerpc/11.0_2026Q2/All;
+  pkg_install there is 20260227. Unverified: building pkg_install/pkg_create on Fedora, and how pkgin
+  treats an unsigned second repository.
+
 ## Open questions
 - Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.
 - Whether Retro68's GCC accepts this C++17 for OS 9; Open Transport usability.

@@ -9,6 +9,13 @@
 - [ ] Location by place name (geocoding), default location prompt
 - [ ] SIGHUP config reload / daemon mode (only if the window needs it)
 
+## Packaging (M5, after xweather)
+- [ ] `make install` (DESTDIR/PREFIX/MANDIR) and `make dist` (tarball + SHA-512); man pages; app-defaults
+- [ ] Hand-built NetBSD binary package (pkg_create, or manual tar) from the cross-built install tree
+- [ ] pkgin repo on lubulgi (pkg_summary.gz via FTP share); test `pkgin install weather` on maul
+- [ ] pkgsrc source package (Makefile, DESCR, PLIST, distinfo), verified in a NetBSD VM
+- [ ] Verify Open-Meteo terms/attribution; create the GitHub repo and push (jack's call)
+
 ## Later
 - [ ] Mac OS 9 (Retro68), Tiger, CI with big-endian check
 

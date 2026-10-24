@@ -36,3 +36,6 @@ Trust anchors (`src/anchors.h`) are generated with `brssl ta`; refreshing them i
   OS seam (`net.hpp`; `net_posix.cpp` sockets), `tls.cpp` BearSSL, `log.cpp`, `main.cpp`, `nocxx.cpp`
 - `test/` unit tests, fixtures from real responses, fixture server, feature and maul smoke scripts
 - `spike/` experiments
+
+## License
+BSD 2-clause (`LICENSE`). BearSSL (MIT) is linked statically; its notice is in `THIRD_PARTY.md`.
