@@ -75,6 +75,13 @@ check: $(CHECK_TARGET)
 check-native: lint $(BUILD)/unittest $(BUILD)/weather
 	$(BUILD)/unittest
 	sh test/feature.sh $(BUILD)/weather
+check-gui: $(BUILD)/xweather $(BUILD)/xdrive
+	sh test/gui-host.sh
+
+check-gui-maul:
+	$(MAKE) TARGET=netbsd-macppc all build/netbsd-macppc/xdrive
+	sh test/gui-maul.sh
+
 check-cross:
 	@echo "TARGET=$(TARGET) cannot run here: use 'make smoke-maul' (and later 'make check-maul')"; false
 
@@ -99,4 +106,4 @@ clean:
 
 -include $(wildcard $(OBJ)/*.d $(OBJ)/*/*.d $(OBJ)/*/*/*.d)
 
-.PHONY: all ppc check check-native check-cross check-maul smoke-maul lint clean
+.PHONY: all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean

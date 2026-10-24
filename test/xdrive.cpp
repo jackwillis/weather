@@ -7,7 +7,9 @@
 //   xdrive key NAME [ctrl]     press a key by X keysym name (Return, Tab, BackSpace, F5, q, ...)
 //   xdrive type TEXT           type printable ASCII
 //   xdrive sleep MS
-//   xdrive snap FILE           xwd screenshot of the whole screen
+//   xdrive ping                succeed if the X server answers (used to wait for Xvfb)
+//   xdrive close               ask the window to close (WM_DELETE_WINDOW), like a window manager would
+//   xdrive snap FILE           screenshot of the whole screen: `xwd -root -out FILE`, or $XDRIVE_SNAPCMD FILE
 //   xdrive gone NAME [ms]      succeed once the window has disappeared (the app exited)
 // Several commands can be chained in one invocation. Exit status 1 on the first failure.
 #include <X11/Xlib.h>
@@ -23,6 +25,9 @@
 static Display *dpy;
 static Window win;
 static const char *default_title = "Weather";   // override with XDRIVE_WINDOW
+
+// The app may quit between our events (Ctrl-Q): a send to a vanished window is not an error.
+static int on_x_error(Display *, XErrorEvent *e) { return e->error_code == BadWindow ? 0 : (fprintf(stderr, "xdrive: X error %d\n", e->error_code), 0); }
 
 static void msleep(long ms) { struct timespec ts = {ms / 1000, (ms % 1000) * 1000000L}; nanosleep(&ts, nullptr); }
 
@@ -97,6 +102,7 @@ int main(int argc, char **argv)
 {
 	const char *dn = getenv("DISPLAY");
 	if (const char *t = getenv("XDRIVE_WINDOW")) default_title = t;
+	XSetErrorHandler(on_x_error);
 	dpy = XOpenDisplay(nullptr);
 	if (!dpy) { fprintf(stderr, "xdrive: cannot open display %s\n", dn ? dn : "(unset)"); return 1; }
 	for (int i = 1; i < argc; i++) {
@@ -126,11 +132,25 @@ int main(int argc, char **argv)
 			send_key(ks, st);
 		} else if (!strcmp(c, "type") && i + 1 < argc) {
 			for (const char *p = argv[++i]; *p; p++) send_key(static_cast<KeySym>(static_cast<unsigned char>(*p)), 0);
+		} else if (!strcmp(c, "ping")) {
+			// the display opened: that is the answer
+		} else if (!strcmp(c, "close")) {
+			need_win();
+			XEvent e;
+			memset(&e, 0, sizeof e);
+			e.xclient.type = ClientMessage; e.xclient.window = win;
+			e.xclient.message_type = XInternAtom(dpy, "WM_PROTOCOLS", False);
+			e.xclient.format = 32;
+			e.xclient.data.l[0] = static_cast<long>(XInternAtom(dpy, "WM_DELETE_WINDOW", False));
+			e.xclient.data.l[1] = CurrentTime;
+			XSendEvent(dpy, win, False, NoEventMask, &e);
+			XSync(dpy, False);
 		} else if (!strcmp(c, "sleep") && i + 1 < argc) {
 			msleep(atol(argv[++i]));
 		} else if (!strcmp(c, "snap") && i + 1 < argc) {
 			char cmd[512];
-			snprintf(cmd, sizeof cmd, "xwd -root -display '%s' -out '%s'", dn ? dn : ":0", argv[++i]);
+			if (const char *sc = getenv("XDRIVE_SNAPCMD")) snprintf(cmd, sizeof cmd, "%s '%s'", sc, argv[++i]);
+			else snprintf(cmd, sizeof cmd, "xwd -root -display '%s' -out '%s'", dn ? dn : ":0", argv[++i]);
 			if (system(cmd) != 0) { fprintf(stderr, "xdrive: snapshot failed\n"); return 1; }
 		} else {
 			fprintf(stderr, "xdrive: bad command '%s'\n", c);

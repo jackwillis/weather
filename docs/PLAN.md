@@ -96,6 +96,11 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   the clock error). (4) `-c FILE` means the file must exist, except with `-S` which may create it. (5) A name containing
   '#' is rejected everywhere, since the file format could never read it back. (6) The unit tests now run on maul too.
 
+- 2026-10-24 M3c done (pending a look on the real display). The "Motif stub" idea became plain CDE-look primitives (see
+  ARCHITECTURE.md). Found by GUI tests: hover-switching menus made the next click close the menu (now only a click that
+  opened a menu toggles it); Xlib's `Status` macro collides with wx::Status (`#undef` after the X headers); XSendEvent to
+  window 0 means "the window under the pointer" (the test driver now refuses to send without a window).
+
 ## Open questions
 - Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.
 - Whether Retro68's GCC accepts this C++17 for OS 9; Open Transport usability.

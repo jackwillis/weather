@@ -62,6 +62,7 @@ struct App {
 	Menu menus[3];
 	Mode mode = Normal;
 	int menu_open = -1, menu_hover = -1;
+	bool menu_by_press = false;   // opened by a click (a second click on its title closes it), not by hovering
 	Press pressed = PNone;
 	LocationForm form;
 	char notice[160] = "";
@@ -412,8 +413,8 @@ void on_button_press(const XButtonEvent &e)
 	if (g.mode == MenuOpen || (g.mode == Normal && e.y < MB_H)) {
 		int bar = menu_at_bar(e.x, e.y);
 		if (bar >= 0) {
-			if (g.mode == MenuOpen && g.menu_open == bar) { g.mode = Normal; g.menu_open = -1; }
-			else { g.mode = MenuOpen; g.menu_open = bar; g.menu_hover = -1; }
+			if (g.mode == MenuOpen && g.menu_open == bar && g.menu_by_press) { g.mode = Normal; g.menu_open = -1; }
+			else { g.mode = MenuOpen; g.menu_open = bar; g.menu_hover = -1; g.menu_by_press = true; }
 			return;
 		}
 		int k = item_at(e.x, e.y);
@@ -455,7 +456,7 @@ void on_motion(const XMotionEvent &e)
 {
 	if (g.mode != MenuOpen) return;
 	int bar = menu_at_bar(e.x, e.y);
-	if (bar >= 0 && bar != g.menu_open) { g.menu_open = bar; g.menu_hover = -1; g.dirty = true; return; }
+	if (bar >= 0 && bar != g.menu_open) { g.menu_open = bar; g.menu_hover = -1; g.menu_by_press = false; g.dirty = true; return; }
 	int k = item_at(e.x, e.y);
 	if (k != g.menu_hover) { g.menu_hover = k; g.dirty = true; }
 }
@@ -554,8 +555,6 @@ void do_fetch()
 	Status s = fetch_forecast(g.net, g.providers, g.nprov, q, g.fo, buf, sizeof buf, &f);
 	g.fetching = false;
 	g.model.finish(now_s(), s, &f);
-	if (!s.ok() && s.err != Err::Cancelled)
-		logf(LogWarn, "update failed: %s: %s (detail %d)", err_name(s.err), s.msg, s.detail);
 	g.dirty = true;
 }
 

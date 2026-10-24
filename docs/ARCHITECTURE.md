@@ -39,6 +39,17 @@ Inputs: `refresh()`, `tick(now)`, `settings_changed()`. Output: what to draw. Ru
 15 min) and keeps showing the last good data marked stale with its age; never fetches while one is running.
 The UI is a thin renderer on top, so all refresh behaviour is tested natively with a fake clock and fake Net.
 
+### xweather (NetBSD UI), decisions of 2026-10-24
+- Immediate-mode CDE-look primitives on plain Xlib (`ui/xweather/cde.*`), drawn into a Pixmap and copied to the window.
+  No Xt, no libXm, and not API-compatible with Motif: the earlier "Motif-shaped stub API" idea was dropped because a
+  read-only weather window needs about six primitives, and anything Motif-shaped would be a fiction we then had to maintain.
+- One window. Menus, the Location dialog and the About box are overlays drawn inside it (no pop-up windows, no pointer
+  grabs), so behaviour does not depend on the window manager and the same idea ports to OS 9.
+- Colours derive from one background colour (CDE-like blue-grey), overridable with X resources. Fonts are X core
+  fonts (Helvetica 12/24 from the 75dpi set, falling back to `fixed`).
+- Fixed 440x300 window. Input handling during a fetch: repaint and quit only (re-entrancy rule above).
+- GUI testing without a person: `xdrive` (synthetic events, screenshots) against a private Xvfb, on the laptop and on maul.
+
 ## 4. Targets and tiers
 
 | target          | built on          | compiler                          | net / UI                         | package            | tier |

@@ -1,10 +1,7 @@
 # TODO
 
 ## Now
-- [ ] M3c xweather (code written, cross-builds, first screenshot looks right on maul; interactive GUI test NOT yet passing)
-      next: boot maul into NetBSD, rerun `sh test/gui-maul.sh` (Xvfb on maul + xdrive clicks/keys + screenshots in build/gui/),
-      fix what it finds, look at the weather-art gallery (rain/snow/storm/fog/partly/day), then jack runs it on the real X display.
-      also: host build of xweather needs libX11-devel (+ Xvfb for local GUI tests); `make check` skips it without the headers
+- [ ] M3c last step: jack runs `xweather` once on maul's real X display (window manager, depth, feel); fix what that shows
 - [ ] sanitizer target (`-fsanitize=address,undefined` on the host unit tests); pin BearSSL (submodule or vendored)
 
 ## Next
@@ -25,6 +22,7 @@
 - [ ] Mac OS 9 (Retro68), CI with big-endian check
 
 ## Done
+- [x] M3c xweather (2026-10-24): CDE-look Xlib window, menus, Location dialog (validation, atomic save), auto-refresh + Refresh button, weather pictures, About; GUI scenario with 21 assertions passes in Xvfb on the laptop and on maul (real PowerPC binary); screenshots reviewed. Not yet seen on a real display.
 - [x] M3b seams and model (2026-10-24): Net::yield + Err::Cancelled (SIGINT/SIGTERM cancel a fetch, exit 130), TLS time and entropy from the platform (64-bit clock), portable settings editor + atomic posix store + `weather -S`, app/Model with refresh timers, backoff and stale data. 168 unit checks (also run on maul via `make check-maul`), 65 feature checks (70 online), maul smoke test
 - [x] M3a restructure: src/{core,app,tls,platform/posix,cli}, mk/<target>.mk, per-file objects with dep tracking, `make lint` (verified it fails on a planted violation), BearSSL built by the Makefile for each target (2026-10-24)
 - [x] M2 core + CLI: errors-as-values, retry/backoff, provider fallback, logging, config, sysexits; 42 unit + 42 feature checks; runs on maul (2026-10-24)
