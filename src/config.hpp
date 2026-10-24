@@ -7,9 +7,10 @@
 namespace wx {
 
 struct Config {
-	// Placeholder location (Chicago) until the user sets one.
-	long lat_e4 = 418800;
-	long lon_e4 = -876300;
+	// Default location: Madison, WI 53703 (Capitol Square). Override in ~/.weatherrc or with -l.
+	long lat_e4 = 430747;
+	long lon_e4 = -893841;
+	char name[48] = "Madison, WI";
 	bool metric = false;
 	int timeout_s = 15;
 	int attempts = 3;
@@ -24,6 +25,14 @@ inline Status config_set(Config *c, sv key, sv val, int line)
 		long lim = key == "latitude" ? 900000 : 1800000;
 		if (!n.ok || n.v > lim || n.v < -lim) return make(Err::Config, "bad latitude/longitude", line);
 		(key == "latitude" ? c->lat_e4 : c->lon_e4) = n.v;
+	} else if (key == "name") {
+		if (val.size() >= sizeof c->name) return make(Err::Config, "name too long (max 47)", line);
+		for (size_t i = 0; i < val.size(); i++) {
+			if (static_cast<unsigned char>(val[i]) < 32 || static_cast<unsigned char>(val[i]) > 126)
+				return make(Err::Config, "name must be printable ASCII", line);
+			c->name[i] = val[i];
+		}
+		c->name[val.size()] = 0;
 	} else if (key == "units") {
 		if (val == "metric") c->metric = true;
 		else if (val == "imperial") c->metric = false;

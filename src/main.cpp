@@ -19,10 +19,11 @@ static const Provider *const kAll[] = { &kOpenMeteo };
 
 static void usage(FILE *f)
 {
-	fputs("usage: weather [-1dhqsV] [-c file] [-l lat,lon] [-p providers] [-t secs]\n"
+	fputs("usage: weather [-1dhqsV] [-c file] [-l lat,lon] [-n name] [-p providers] [-t secs]\n"
 	      "               [-u metric|imperial] [-v]\n"
 	      "  -1  one line of output       -c  config file (default ~/.weatherrc)\n"
 	      "  -d  debug: dump traffic      -l  latitude,longitude in decimal degrees\n"
+	      "  -n  place name for display   (-l without -n drops the configured name)\n"
 	      "  -h  this help                -p  comma separated sources, in fallback order\n"
 	      "  -q  errors only              -s  log to syslog\n"
 	      "  -t  network timeout, secs    -u  units\n"
@@ -93,7 +94,7 @@ int main(int argc, char **argv)
 		{nullptr, 0, nullptr, 0},
 	};
 	int ch;
-	while ((ch = getopt_long(argc, argv, "1c:dhH:l:p:qst:u:vV", longopts, nullptr)) != -1) {
+	while ((ch = getopt_long(argc, argv, "1c:dhH:l:n:p:qst:u:vV", longopts, nullptr)) != -1) {
 		Status s;
 		switch (ch) {
 		case '1': oneline = true; break;
@@ -111,8 +112,10 @@ int main(int argc, char **argv)
 			s = config_set(&cfg, "latitude", la, 0);
 			if (s.ok()) s = config_set(&cfg, "longitude", comma + 1, 0);
 			if (!s.ok()) return fail(make(Err::Usage, s.msg));
+			cfg.name[0] = 0;   // the configured name described somewhere else
 			break;
 		}
+		case 'n': s = config_set(&cfg, "name", optarg, 0); if (!s.ok()) return fail(make(Err::Usage, s.msg)); break;
 		case 'p': s = config_set(&cfg, "providers", optarg, 0); if (!s.ok()) return fail(make(Err::Usage, s.msg)); break;
 		case 'q': quiet = true; break;
 		case 's': use_syslog = true; break;
@@ -178,7 +181,7 @@ int main(int argc, char **argv)
 
 	Buf<512> out;
 	if (oneline) { format_oneline(out, f); out.add('\n'); }
-	else format_full(out, f);
+	else format_full(out, f, cfg.name);
 	fputs(out.c_str(), stdout);
 	if (ferror(stdout) || fflush(stdout) != 0) return exit_code(Err::Io);
 	return 0;

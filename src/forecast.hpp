@@ -65,9 +65,11 @@ constexpr void format_oneline(Buf<N> &o, const Forecast &f)
 }
 
 template <size_t N>
-constexpr void format_full(Buf<N> &o, const Forecast &f)
+constexpr void format_full(Buf<N> &o, const Forecast &f, sv place = sv())
 {
-	o.add("Weather from ").add(f.source).add(", observed ").add(f.time).add(" UTC\n  ");
+	o.add("Weather ");
+	if (!place.empty()) o.add("for ").add(place).add(' ');
+	o.add("from ").add(f.source).add(", observed ").add(f.time).add(" UTC\n  ");
 	o.add_fixed(f.temp_t10, 1).add(f.metric ? " C   " : " F   ").add(wmo_text(f.code));
 	if (f.is_day != kUnset) o.add(f.is_day ? " (day)" : " (night)");
 	o.add('\n');

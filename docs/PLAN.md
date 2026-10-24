@@ -62,7 +62,12 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   A plain-HTTP testing flag (-H) exists and warns loudly; WEATHER_NO_TA=1 is a test hook that must make TLS fail.
   Binary: 153 KB stripped, needs only libc + libgcc_s.
 
+- 2026-10-24 Default location Madison, WI 53703 (Capitol Square 43.0747,-89.3841), with a `name` setting.
+  Persistence: ~/.weatherrc is the single source of truth for settings shared by CLI and xweather; the
+  window rewrites only the latitude/longitude/name lines (temp file + rename, other lines and comments kept).
+  Appearance (fonts, colours, geometry) goes in X resources, optional. Each OS gets its own settings
+  store behind a small interface (OS 9 Preferences folder, Tiger prefs); the core assumes no dotfile.
+
 ## Open questions
-- User's location (placeholder coordinates until given).
 - Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.
 - Whether Retro68's GCC accepts this C++17 for OS 9; Open Transport usability.

@@ -43,14 +43,14 @@ expect "ok oneline" 0 $W -1 -H 127.0.0.1:$P_OK
 contains "ok oneline text" "54.8F Clear sky, wind 8.7mph SE, humidity 84% (open-meteo 2026-10-24T04:45)"
 expect "ok metric flag" 0 $W -u metric -1 -H 127.0.0.1:$P_OK
 expect "ok full" 0 $W -H 127.0.0.1:$P_OK
-contains "full layout" "Weather from open-meteo, observed 2026-10-24T04:45 UTC"
+contains "full layout" "Weather for Madison, WI from open-meteo, observed 2026-10-24T04:45 UTC"
 contains "full wind line" "Wind 8.7 mph from SE   Humidity 84%"
 expect "plain-http warning is shown" 0 $W -1 -H 127.0.0.1:$P_OK
 contains "warn" "NO TLS"
 expect "quiet hides warning" 0 $W -q -1 -H 127.0.0.1:$P_OK
 case "$OUT" in *"NO TLS"*) bad "quiet still warns";; *) ok;; esac
 expect "debug dumps traffic" 0 $W -d -1 -H 127.0.0.1:$P_OK
-contains "debug request" "GET /v1/forecast?latitude=41.8800"
+contains "debug request" "GET /v1/forecast?latitude=43.0747&longitude=-89.3841"
 contains "debug response" "HTTP/1.0 200 OK"
 
 expect "http 500" 76 $W -H 127.0.0.1:$P_500
@@ -71,6 +71,19 @@ expect "retries on 5xx" 76 $W -H 127.0.0.1:$P_500
 contains "attempt 3 logged" "attempt 3/3"
 expect "no retry on 404" 76 $W -H 127.0.0.1:$P_404
 case "$OUT" in *"attempt 2/3"*) bad "404 was retried";; *) ok;; esac
+
+# place name: default, config, -n, and -l dropping a stale name
+expect "name from config" 0 $W -c "$CFG" -H 127.0.0.1:$P_OK
+echo "name = Oslo" >> "$CFG"
+expect "name from config file" 0 $W -H 127.0.0.1:$P_OK
+contains "config name shown" "Weather for Oslo from"
+expect "-l drops configured name" 0 $W -l 59.91,10.75 -H 127.0.0.1:$P_OK
+contains "no name after -l" "Weather from open-meteo"
+expect "-n sets name" 0 $W -l 59.91,10.75 -n Bergen -H 127.0.0.1:$P_OK
+contains "-n shown" "Weather for Bergen from"
+expect "-l reaches the request" 0 $W -d -l 59.91,10.75 -1 -H 127.0.0.1:$P_OK
+contains "-l in request" "latitude=59.9100&longitude=10.7500"
+echo "attempts = 3" > "$CFG"
 
 # usage and config errors
 expect "version" 0 -V

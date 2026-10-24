@@ -86,6 +86,11 @@ static void test_openmeteo()
 	CHECK(f.temp_t10 == 548 && f.humidity == 84 && f.wind_t10 == 87 && f.wind_dir == 138);
 	CHECK(f.code == 0 && f.is_day == 0 && !strcmp(f.time, "2026-10-24T04:45"));
 
+	Buf<300> full;
+	format_full(full, f, "Madison, WI");
+	constexpr sv head = "Weather for Madison, WI from open-meteo, observed";
+	CHECK(full.view().substr(0, head.size()) == head);
+
 	Buf<300> one;
 	format_oneline(one, f);
 	CHECK(one.view() == sv("54.8F Clear sky, wind 8.7mph SE, humidity 84% (open-meteo 2026-10-24T04:45)"));
@@ -126,7 +131,12 @@ static void test_config()
 	CHECK(s.err == Err::Config && s.detail == 1);
 	s = config_parse("no equals sign\n", &c);
 	CHECK(s.err == Err::Config);
+	s = config_parse("name = Oslo, Norway\n", &c);
+	CHECK(s.ok() && !strcmp(c.name, "Oslo, Norway"));
+	s = config_parse("name = abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz\n", &c);
+	CHECK(s.err == Err::Config);                            // too long
 	CHECK(config_parse("", &c).ok());
+	{ Config d; CHECK(d.lat_e4 == 430747 && d.lon_e4 == -893841 && !strcmp(d.name, "Madison, WI")); }
 	CHECK(config_parse("units = metric", &c).ok());         // no trailing newline
 }
 

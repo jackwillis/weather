@@ -15,7 +15,7 @@ See `docs/PLAN.md` (goals, milestones, decision log) and `TODO.md`.
 ## Use
     weather [-1dhqsV] [-c file] [-l lat,lon] [-p sources] [-t secs] [-u metric|imperial] [-v]
 Config: `~/.weatherrc` (`latitude`, `longitude`, `units`, `timeout`, `attempts`, `providers`, `log`),
-flags override it. The default location is a placeholder (Chicago). Exit codes follow BSD sysexits
+flags override it. The default location is Madison, WI 53703 (Capitol Square 43.0747,-89.3841); set `name`, `latitude`, `longitude` or use -l/-n. Exit codes follow BSD sysexits
 (68 dns, 69 connect/no source, 74 io, 75 timeout, 76 http/tls/cert, 65 bad data, 64 usage, 78 config).
 Diagnostics go to stderr (or syslog with -s); stdout carries only the result. `-d` dumps the traffic.
 
