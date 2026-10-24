@@ -42,11 +42,11 @@ GNU make is required (`gmake` on BSD). One fragment per target in `mk/`.
     make check-gui-maul           # the same scenario with the real PowerPC xweather in Xvfb on maul (build/gui/)
     ONLINE=1 sh test/feature.sh build/host/weather   # also test against the real server
 
-Needs (xweather, host build): libX11-devel; for `check-gui`: Xvfb and ImageMagick. A BearSSL checkout at `spike/bearssl` (git clone https://www.bearssl.org/git/BearSSL; gitignored, a
-pinned copy comes later; the Makefile builds its library per target), python3 (fixture server only), and for
+Needs: a C++17 compiler and GNU make; BearSSL is vendored in `third_party/bearssl` (pinned, built per target by the Makefile).
+Optional: libX11-devel (builds `xweather`), Xvfb + ImageMagick (`check-gui`), python3 (fixture servers for tests only), and for
 the cross target the toolchain from `~/scratch/netbsd-xc` (see its README-repro.md; paths are variables in
-`mk/netbsd-macppc.mk`). Trust anchors (`src/tls/anchors.h`) are generated with `brssl ta`; refreshing them is
-a release task.
+`mk/netbsd-macppc.mk`). Trust anchors: `src/tls/anchors.h` is generated from `src/tls/isrg-roots.pem` (`make anchors`) and `make check` verifies
+the header matches the PEM and that the PEM holds exactly ISRG Root X1 and X2. Refreshing them is a release task.
 
 ## Layout (dependencies point down only; see docs/ARCHITECTURE.md)
 - `src/core/` portable, constexpr, no OS headers: status, text, json, http, forecast, provider, openmeteo, fetch, config, log/net interfaces
@@ -55,6 +55,7 @@ a release task.
 - `src/tls/` BearSSL glue + trust anchors
 - `src/platform/posix/` sockets with yield/cancel, clock, entropy, settings dotfile store, syslog/stderr log sink, libstdc++ shim
 - `src/cli/` the `weather` command
+- `third_party/bearssl/` pinned BearSSL; `tools/` anchor generation and check
 - `mk/` per-target build fragments; `test/` unit tests, fixtures, fixture server, feature and maul smoke scripts; `spike/` experiments
 
 ## License

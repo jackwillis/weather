@@ -11,7 +11,7 @@
 
 TARGET  ?= host
 VERSION  = 0.1.0
-BEARSSL ?= spike/bearssl
+BEARSSL ?= third_party/bearssl
 
 include mk/$(TARGET).mk
 
@@ -21,7 +21,8 @@ WARN  = -Wall -Wextra -Wno-unused-parameter
 CXXFLAGS_ALL = -std=c++17 -O2 -g $(WARN) $(EXTRA_CXXFLAGS) $(X11_CXXFLAGS) -fno-exceptions -fno-rtti \
     -MMD -MP -DWEATHER_VERSION='"$(VERSION)"' -Isrc -I$(BEARSSL)/inc $(CXXFLAGS)
 
-BEARSSL_LIB = $(BEARSSL)/$(BEARSSL_BUILD)/libbearssl.a
+BEARSSL_OUT = $(BUILD)/bearssl
+BEARSSL_LIB = $(BEARSSL_OUT)/libbearssl.a
 
 # Layers (see docs/ARCHITECTURE.md). Platform is chosen by the target; only posix exists so far.
 PLATFORM     = posix
@@ -68,11 +69,23 @@ $(OBJ)/test/unittest.o: test/unittest.cpp
 	$(CXX) $(CXXFLAGS_ALL) -DFIXTURE_DIR='"test/fixtures"' -c -o $@ $<
 
 $(BEARSSL_LIB):
-	$(MAKE) -C $(BEARSSL) BUILD=$(BEARSSL_BUILD) CONF=Unix $(BEARSSL_MAKEVARS) lib
+	$(MAKE) -C $(BEARSSL) BUILD=$(abspath $(BEARSSL_OUT)) CONF=Unix $(BEARSSL_MAKEVARS) lib
+
+# ---- trust anchors: anchors.h is generated from isrg-roots.pem (needs the host brssl tool)
+$(BUILD)/bearssl/brssl:
+	$(MAKE) -C $(BEARSSL) BUILD=$(abspath $(BEARSSL_OUT)) CONF=Unix $(BEARSSL_MAKEVARS) $(abspath $(BEARSSL_OUT))/brssl
+
+anchors:
+	$(MAKE) TARGET=host build/host/bearssl/brssl
+	sh tools/gen-anchors.sh build/host/bearssl/brssl > src/tls/anchors.h.new && mv src/tls/anchors.h.new src/tls/anchors.h
+
+check-anchors:
+	$(MAKE) TARGET=host build/host/bearssl/brssl
+	sh tools/check-anchors.sh build/host/bearssl/brssl
 
 # ---- tests
 check: $(CHECK_TARGET)
-check-native: lint $(BUILD)/unittest $(BUILD)/weather
+check-native: lint check-anchors $(BUILD)/unittest $(BUILD)/weather
 	$(BUILD)/unittest
 	sh test/feature.sh $(BUILD)/weather
 check-gui: $(BUILD)/xweather $(BUILD)/xdrive
@@ -106,4 +119,4 @@ clean:
 
 -include $(wildcard $(OBJ)/*.d $(OBJ)/*/*.d $(OBJ)/*/*/*.d)
 
-.PHONY: all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
+.PHONY: anchors check-anchors all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean

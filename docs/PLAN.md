@@ -101,6 +101,8 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   opened a menu toggles it); Xlib's `Status` macro collides with wx::Status (`#undef` after the X headers); XSendEvent to
   window 0 means "the window under the pointer" (the test driver now refuses to send without a window).
 
+- 2026-10-24 BearSSL is vendored at a pinned commit (third_party/README.md), not fetched: a fresh clone builds with no network. Anchors are generated from a PEM in the tree and checked.
+
 ## Open questions
 - Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.
 - Whether Retro68's GCC accepts this C++17 for OS 9; Open Transport usability.
