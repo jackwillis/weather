@@ -6,6 +6,7 @@
 #   make lint                 portable layers must not include OS headers
 #   make check-maul           cross-build the unit tests and run them on maul (big-endian ground truth)
 #   make check-san            unit + robustness + feature tests under ASan/UBSan (mk/host-san.mk)
+#   make install              DESTDIR/PREFIX/MANDIR honoured; `make plist` lists the files; `make dist`, `make distcheck`
 #   make smoke-maul           cross-build, push to maul, test the real binary there
 #   make clean
 # Shortcut: `make ppc` = make TARGET=netbsd-macppc.
@@ -91,6 +92,50 @@ anchors:
 check-anchors:
 	$(MAKE) TARGET=host build/host/bearssl/brssl
 	sh tools/check-anchors.sh build/host/bearssl/brssl
+
+# ---- install / release (DESTDIR, PREFIX, MANDIR honoured; works for a cross TARGET too)
+PREFIX  ?= /usr/local
+BINDIR  ?= $(PREFIX)/bin
+MANDIR  ?= $(PREFIX)/share/man
+EXDIR   ?= $(PREFIX)/share/examples/weather
+INSTALL ?= install
+DISTNAME = weather-$(VERSION)
+
+install: all
+	$(INSTALL) -d -m 755 $(DESTDIR)$(BINDIR) $(DESTDIR)$(MANDIR)/man1 $(DESTDIR)$(MANDIR)/man5 $(DESTDIR)$(EXDIR)
+	$(INSTALL) -m 755 $(BUILD)/weather $(DESTDIR)$(BINDIR)/weather
+	$(INSTALL) -m 644 man/weather.1 $(DESTDIR)$(MANDIR)/man1/weather.1
+	$(INSTALL) -m 644 man/weatherrc.5 $(DESTDIR)$(MANDIR)/man5/weatherrc.5
+	$(INSTALL) -m 644 share/weatherrc.example $(DESTDIR)$(EXDIR)/weatherrc
+	@if [ -n "$(XWEATHER_TARGETS)" ]; then \
+	    echo "$(INSTALL) -m 755 $(BUILD)/xweather $(DESTDIR)$(BINDIR)/xweather"; \
+	    $(INSTALL) -m 755 $(BUILD)/xweather $(DESTDIR)$(BINDIR)/xweather && \
+	    $(INSTALL) -m 644 man/xweather.1 $(DESTDIR)$(MANDIR)/man1/xweather.1; fi
+
+# The files `make install` would install, relative to PREFIX: the basis of a package PLIST.
+plist:
+	@rm -rf $(BUILD)/plist-stage
+	@$(MAKE) -s install DESTDIR=$(abspath $(BUILD)/plist-stage) PREFIX=$(PREFIX) MANDIR=$(MANDIR) >/dev/null
+	@cd $(BUILD)/plist-stage$(PREFIX) && find . -type f | sed 's|^\./||' | sort
+
+# Source tarball of the current commit (refuses a dirty tree), reproducible: same commit, same bytes.
+dist:
+	@git diff --quiet HEAD -- || { echo "dist: uncommitted changes: commit first"; exit 1; }
+	@mkdir -p build/dist
+	git archive --format=tar --prefix=$(DISTNAME)/ HEAD | gzip -9n > build/dist/$(DISTNAME).tar.gz
+	@cd build/dist && h=$$(sha512sum $(DISTNAME).tar.gz | cut -d' ' -f1) && \
+	    echo "SHA512 ($(DISTNAME).tar.gz) = $$h" > $(DISTNAME).tar.gz.sha512 && \
+	    echo "Size ($(DISTNAME).tar.gz) = $$(wc -c < $(DISTNAME).tar.gz) bytes" >> $(DISTNAME).tar.gz.sha512 && \
+	    cat $(DISTNAME).tar.gz.sha512
+
+# Prove the tarball is complete and reproducible: unpack it elsewhere, build, run the tests, rebuild the tarball.
+distcheck: dist
+	@rm -rf build/distcheck && mkdir -p build/distcheck
+	tar -xzf build/dist/$(DISTNAME).tar.gz -C build/distcheck
+	$(MAKE) -C build/distcheck/$(DISTNAME) check-native
+	@cp build/dist/$(DISTNAME).tar.gz build/dist/first.tar.gz
+	@$(MAKE) -s dist >/dev/null
+	@cmp build/dist/first.tar.gz build/dist/$(DISTNAME).tar.gz && echo "distcheck: tarball is reproducible" && rm -f build/dist/first.tar.gz
 
 # ---- tests
 check: $(CHECK_TARGET)

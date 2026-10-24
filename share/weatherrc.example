@@ -1,0 +1,13 @@
+# Example settings for weather(1) and xweather(1): copy to ~/.weatherrc and edit.
+# See weatherrc(5). Everything here is optional; these are the defaults.
+
+latitude  = 43.0747        # decimal degrees, -90..90
+longitude = -89.3841       # decimal degrees, -180..180
+name      = Madison, WI    # shown in the output; may be empty
+units     = imperial       # imperial (F, mph) or metric (C, km/h)
+
+#timeout   = 15            # seconds per network step
+#attempts  = 3             # tries per data source
+#providers = open-meteo    # data sources in the order to try them
+#log       = warn          # error, warn, info or debug
+#autorefresh = on          # xweather: refresh every 15 minutes

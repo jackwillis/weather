@@ -1,0 +1,94 @@
+.Dd October 24, 2026
+.Dt WEATHERRC 5
+.Os
+.Sh NAME
+.Nm weatherrc
+.Nd settings for weather and xweather
+.Sh DESCRIPTION
+.Pa ~/.weatherrc
+holds the settings shared by
+.Xr weather 1
+and
+.Xr xweather 1 .
+It is a text file of lines of the form
+.Pp
+.Dl key = value
+.Pp
+Blank lines are ignored and anything from a
+.Ql #
+to the end of a line is a comment.
+Spaces around keys and values are ignored.
+If a key appears more than once the last value wins.
+An unknown key, a bad value or a line without an equals sign is an error that names the line number.
+A missing file is the same as an empty one.
+.Pp
+Programs that change the file
+.Pf ( Fl S
+in
+.Xr weather 1 ,
+and the Location dialog and Options menu in
+.Xr xweather 1 )
+rewrite only the keys they own and leave every other line, comment and line ending as it was.
+The new file replaces the old one atomically, keeps its permissions, and a symbolic link is followed
+rather than replaced.
+.Sh KEYS
+.Bl -tag -width "autorefresh"
+.It Ic latitude
+Decimal degrees, \-90 to 90, up to four decimals.
+Default 43.0747 (Madison, Wisconsin).
+.It Ic longitude
+Decimal degrees, \-180 to 180, up to four decimals.
+Default \-89.3841.
+.It Ic name
+The place's name for display: printable ASCII, up to 47 characters, no
+.Ql # .
+May be empty.
+Default
+.Ql Madison, WI .
+.It Ic units
+.Ql imperial
+or
+.Ql metric .
+Default
+.Ql imperial .
+.It Ic timeout
+Seconds to wait for each network step, 1 to 300.
+Default 15.
+.It Ic attempts
+Tries per data source before giving up on it, 1 to 300.
+Default 3.
+.It Ic providers
+Comma separated data sources in the order to try them.
+Default
+.Ql open-meteo .
+.It Ic log
+Log level:
+.Ql error ,
+.Ql warn ,
+.Ql info
+or
+.Ql debug .
+Default
+.Ql warn .
+.It Ic autorefresh
+.Ql on
+or
+.Ql off :
+whether
+.Xr xweather 1
+refreshes by itself every 15 minutes.
+Default
+.Ql on .
+.El
+.Sh EXAMPLES
+.Bd -literal -offset indent
+# my weather
+latitude  = 59.9100
+longitude = 10.7500
+name      = Oslo, Norway
+units     = metric
+autorefresh = on     # xweather only
+.Ed
+.Sh SEE ALSO
+.Xr weather 1 ,
+.Xr xweather 1

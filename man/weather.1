@@ -1,0 +1,162 @@
+.Dd October 24, 2026
+.Dt WEATHER 1
+.Os
+.Sh NAME
+.Nm weather
+.Nd print current weather conditions
+.Sh SYNOPSIS
+.Nm
+.Op Fl 1dhqsSV
+.Op Fl c Ar file
+.Op Fl l Ar lat,lon
+.Op Fl n Ar name
+.Op Fl p Ar sources
+.Op Fl t Ar seconds
+.Op Fl u Ar metric|imperial
+.Op Fl v
+.Sh DESCRIPTION
+.Nm
+fetches the current conditions for a place over an encrypted (TLS) connection and prints them.
+It needs no proxy and no other software; the TLS library and the trust anchors it needs are built in.
+.Pp
+The place, units and other settings come from
+.Xr weatherrc 5 ,
+and the options below override them for one run.
+Diagnostics go to standard error (or the system log with
+.Fl s ) ;
+standard output carries only the result, so the output is safe to use in scripts.
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl 1
+Print a single line instead of the multi-line summary.
+.It Fl c Ar file
+Read settings from
+.Ar file
+instead of
+.Pa ~/.weatherrc .
+The file must exist, unless
+.Fl S
+is given, which creates it.
+.It Fl d
+Debug: log at the most detailed level and include the request and response text.
+.It Fl h
+Print a usage summary and exit.
+.It Fl H Ar host:port
+Testing only: speak plain HTTP to
+.Ar host:port
+instead of TLS to the data source.
+A warning is logged because nothing is encrypted or verified.
+.It Fl l Ar lat,lon
+Latitude and longitude in decimal degrees, for example
+.Ql 43.0747,-89.3841 .
+This also forgets the configured place name, since it described somewhere else; use
+.Fl n
+to name the new place.
+.It Fl n Ar name
+Name of the place, shown in the full output (printable ASCII, no
+.Ql # ) .
+.It Fl p Ar sources
+Comma separated list of data sources, tried in order until one answers.
+The only source at present is
+.Ql open-meteo .
+.It Fl q
+Log errors only.
+.It Fl s
+Log to
+.Xr syslog 3
+instead of standard error.
+.It Fl S
+Save the location, name and units (after applying any other options) into the settings file and exit.
+Comments and all other settings in the file are kept; the file is replaced atomically.
+.It Fl t Ar seconds
+Network timeout for each connect, read and write.
+.It Fl u Ar units
+Either
+.Ql metric
+(degrees Celsius, km/h) or
+.Ql imperial
+(degrees Fahrenheit, mph).
+.It Fl v
+Log more.
+Give it twice for the most detail.
+.It Fl V
+Print the version and exit.
+.El
+.Pp
+Transient failures (name lookup, connection, timeout, dropped connection, server errors) are retried
+with a doubling delay, up to the number of
+.Va attempts
+in the settings file.
+Permanent failures (such as a certificate that cannot be trusted) are not retried.
+If several sources are given, a failing source is skipped and the next one is tried.
+.Pp
+.Nm
+checks the server certificate against the built-in trust anchors and against the system clock.
+If the clock is earlier than 2025 it refuses to continue and says so, because certificates cannot be checked.
+Interrupting
+.Nm
+with
+.Dv SIGINT
+or
+.Dv SIGTERM
+during a fetch cancels it cleanly.
+.Sh FILES
+.Bl -tag -width "~/.weatherrc"
+.It Pa ~/.weatherrc
+Settings, see
+.Xr weatherrc 5 .
+.El
+.Sh ENVIRONMENT
+.Bl -tag -width "WEATHER_NO_TA"
+.It Ev HOME
+Where to look for the settings file.
+.It Ev WEATHER_NOW
+Testing only: a Unix time in seconds that replaces the system clock.
+.It Ev WEATHER_NO_TA
+Testing only: when set, no trust anchors are loaded, so TLS verification must fail.
+.El
+.Sh EXIT STATUS
+.Nm
+exits 0 on success and otherwise with a value from
+.In sysexits.h
+that says what went wrong:
+.Bl -column "130" "EX_UNAVAILABLE" -offset indent
+.It 64 Ta EX_USAGE Ta bad command line
+.It 65 Ta EX_DATAERR Ta unusable or malformed answer
+.It 68 Ta EX_NOHOST Ta name lookup failed
+.It 69 Ta EX_UNAVAILABLE Ta cannot connect, or every source failed
+.It 71 Ta EX_OSERR Ta the system clock is wrong
+.It 74 Ta EX_IOERR Ta network I/O error, or a truncated answer
+.It 75 Ta EX_TEMPFAIL Ta timed out
+.It 76 Ta EX_PROTOCOL Ta HTTP error, TLS failure or untrusted certificate
+.It 78 Ta EX_CONFIG Ta bad settings file
+.It 130 Ta Ta interrupted
+.El
+.Sh EXAMPLES
+Show the weather for the configured place:
+.Pp
+.Dl $ weather
+.Pp
+One line in metric units for Oslo, for a status bar:
+.Pp
+.Dl $ weather -1 -u metric -l 59.91,10.75
+.Pp
+Make Madison the default place:
+.Pp
+.Dl $ weather -l 43.0747,-89.3841 -n \&"Madison, WI\&" -S
+.Pp
+Use it in a script:
+.Bd -literal -offset indent
+if line=$(weather -1 -q); then echo "$line"; else echo "weather unavailable"; fi
+.Ed
+.Sh SEE ALSO
+.Xr xweather 1 ,
+.Xr weatherrc 5
+.Sh AUTHORS
+.An Jack Willis
+.Sh BUGS
+Only TLS 1.2 is supported by the built-in TLS library.
+The trust anchors are compiled in (ISRG Root X1 and X2), so a data source whose certificates chain to another
+root cannot be used until the program is rebuilt with that root.
+Name lookups cannot be interrupted, so cancelling during one takes effect when the lookup ends.
