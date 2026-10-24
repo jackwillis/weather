@@ -79,6 +79,12 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   pkg_install there is 20260227. Unverified: building pkg_install/pkg_create on Fedora, and how pkgin
   treats an unsigned second repository.
 
+- 2026-10-24 xweather: CDE look (blue-grey, hand-drawn bevels in Xlib behind a small Motif-shaped API), auto-refresh
+  every 15 min plus a Refresh button. Every OS gets its own UI. Full architecture, seams, target matrix, build
+  system, test and release decisions: `docs/ARCHITECTURE.md`. Notable changes it makes: GNU make required;
+  cooperative `yield` hook on the network seam so a UI never freezes during a fetch (no threads/fork);
+  TLS gets time and entropy from the platform; Tiger needs a modern cross-compiler (GCC 4.0 is C++98, UNVERIFIED).
+
 ## Open questions
 - Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.
 - Whether Retro68's GCC accepts this C++17 for OS 9; Open Transport usability.

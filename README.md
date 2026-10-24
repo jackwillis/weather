@@ -10,7 +10,7 @@ Status: M1 (TLS) and M2 (core + CLI) work. Running on maul: `weather -1` prints 
     $ weather -1
     54.6F Clear sky, wind 9.0mph SE, humidity 83% (open-meteo 2026-10-24T05:00)
 
-See `docs/PLAN.md` (goals, milestones, decision log) and `TODO.md`.
+See `docs/PLAN.md` (goals, milestones, decision log), `docs/ARCHITECTURE.md` (layers, seams, targets, build, tests, releases) and `TODO.md`.
 
 ## Use
     weather [-1dhqsV] [-c file] [-l lat,lon] [-p sources] [-t secs] [-u metric|imperial] [-v]

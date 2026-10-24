@@ -1,9 +1,14 @@
 # TODO
 
 ## Now
-- [ ] M3 Motif-style Xlib window on the core (start here)
+- [ ] M3a restructure into src/core, app, tls, platform/posix, cli; mk/<target>.mk; `make lint` (portable-core check)
+- [ ] M3b seams: Net::yield (+ Err::Cancelled), Net::entropy, TLS time/entropy from the platform; portable settings
+      text update (keep comments) + tests; app/Model (refresh timers, stale data, backoff) + tests with fake clock
+- [ ] M3c xweather: CDE-look Xlib window using the Model (auto-refresh 15 min + Refresh button, location dialog)
+- [ ] `make check-maul` (cross-built unit tests run on maul = big-endian proof); sanitizer target; pin BearSSL
 
 ## Next
+- [ ] Compiler gates before ports: Retro68 probe (C++17, Open Transport); Tiger modern cross-GCC feasibility
 - [ ] M4 second provider (check MET Norway / NWS TLS), on-disk stale cache, man page, `make dist` tarball + SHA-512
 - [ ] Pin BearSSL (submodule or vendored) so a fresh clone builds
 - [ ] Location by place name (geocoding), default location prompt
