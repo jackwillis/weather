@@ -1,0 +1,25 @@
+# Mac OS 9 build (PowerPC, Carbon-free classic toolbox) with Retro68. Run inside the Retro68 container; see `make os9`.
+#   cmake -DCMAKE_TOOLCHAIN_FILE=/Retro68-build/toolchain/powerpc-apple-macos/cmake/retroppc.toolchain.cmake <this dir>
+# No Apple binary is needed: Open Transport's client glue is our own (src/platform/os9/ot_glue.cc).
+cmake_minimum_required(VERSION 3.9)
+project(weather_os9 C CXX)
+set(ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
+file(GLOB_RECURSE BEARSSL_SRC ${ROOT}/third_party/bearssl/src/*.c)
+add_library(bearssl STATIC ${BEARSSL_SRC})
+target_include_directories(bearssl PUBLIC ${ROOT}/third_party/bearssl/inc PRIVATE ${ROOT}/third_party/bearssl/src)
+target_compile_options(bearssl PRIVATE -Os)
+
+set(WEATHER_VERSION_STR "0.1.0")
+add_application(Weather CONSOLE
+  ${ROOT}/src/core/fetch.cpp
+  ${ROOT}/src/tls/tls.cpp
+  ${ROOT}/src/platform/os9/net_os9.cpp
+  ${ROOT}/src/platform/os9/ot_glue.cc
+  ${ROOT}/src/platform/os9/log_os9.cpp
+  ${ROOT}/src/platform/os9/console_main.cpp
+  ${ROOT}/src/platform/posix/nocxx.cpp
+  ${ROOT}/os9/weather.r)
+target_include_directories(Weather PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+target_compile_definitions(Weather PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
+target_compile_options(Weather PRIVATE -O2 -fno-exceptions -fno-rtti)
+target_link_libraries(Weather bearssl OpenTransportLib OpenTptInternetLib)

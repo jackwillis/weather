@@ -20,6 +20,7 @@ typedef UInt32 OTOpenFlags;
 
 struct TNetbuf { UInt32 maxlen; UInt32 len; UInt8 *buf; };
 struct TCall { TNetbuf addr; TNetbuf opt; TNetbuf udata; long sequence; };
+struct TDiscon { TNetbuf udata; SInt32 reason; long sequence; };
 struct TBind { TNetbuf addr; UInt32 qlen; };
 struct TEndpointInfo { SInt32 addr, options, tsdu, etsdu, connect, discon; UInt32 servtype, flags; };
 struct InetAddress { UInt16 fAddressType; UInt16 fPort; UInt32 fHost; UInt8 fUnused[8]; };
@@ -33,6 +34,12 @@ InetSvcRef OTOpenInternetServices(OTConfiguration *cfg, OTOpenFlags oflag, OSSta
 OSStatus OTCloseProvider(ProviderRef ref);
 OSStatus OTBind(EndpointRef ep, TBind *req, TBind *ret);
 OSStatus OTConnect(EndpointRef ep, TCall *snd, TCall *rcv);
+OSStatus OTRcvConnect(EndpointRef ep, TCall *call);
+OSStatus OTRcvDisconnect(EndpointRef ep, TDiscon *discon);
+OSStatus OTRcvOrderlyDisconnect(EndpointRef ep);
+OSStatus OTSetSynchronous(ProviderRef ref);
+OSStatus OTSetNonBlocking(ProviderRef ref);
+OTResult OTLook(EndpointRef ep);
 OTResult OTSnd(EndpointRef ep, void *buf, unsigned long n, OTFlags flags);
 OTResult OTRcv(EndpointRef ep, void *buf, unsigned long n, OTFlags *flags);
 OSStatus OTSndOrderlyDisconnect(EndpointRef ep);
@@ -47,5 +54,12 @@ EndpointRef OTOpenEndpointPriv(OTConfiguration *cfg, OTOpenFlags oflag, TEndpoin
 InetSvcRef OTOpenInternetServicesPriv(OTConfiguration *cfg, OTOpenFlags oflag, OSStatus *err, void *client);
 OSStatus OTCloseProviderPriv(ProviderRef ref, void *client);
 }
+// Error codes (values checked against Apple's header) and event codes returned by OTLook.
+enum {
+	kOTBadAddressErr = -3150, kOTOutStateErr = -3155, kOTLookErr = -3158, kOTFlowErr = -3161, kOTNoDataErr = -3162,
+	kOTCanceledErr = -3180, kOTClientNotInittedErr = -3279,
+	kOTENETUNREACHErr = -3250, kOTETIMEDOUTErr = -3259, kOTECONNREFUSEDErr = -3260, kOTEHOSTUNREACHErr = -3264
+};
+enum { kT_CONNECT = 0x0002, kT_DATA = 0x0004, kT_DISCONNECT = 0x0010, kT_ORDREL = 0x0080, kT_GODATA = 0x0100 };
 #define kOTDefaultInternetServicesPath (reinterpret_cast<OTConfiguration *>(-3L))
 #endif
