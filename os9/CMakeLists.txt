@@ -35,6 +35,11 @@ target_link_libraries(SeedInstall bearssl)
 
 option(WEATHER_BUILD_DIAGNOSTICS "Build self-running OS 9 network checks" OFF)
 if(WEATHER_BUILD_DIAGNOSTICS)
+  add_application(PortableProbe CONSOLE
+    ${ROOT}/spike/os9/portable_probe.cc
+    ${ROOT}/src/platform/posix/nocxx.cpp)
+  target_include_directories(PortableProbe PRIVATE ${ROOT}/src)
+  target_compile_options(PortableProbe PRIVATE -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
   add_application(TlsSeedProbe CONSOLE
     ${ROOT}/spike/os9/tls_seed_probe.cc
     ${ROOT}/src/core/fetch.cpp
