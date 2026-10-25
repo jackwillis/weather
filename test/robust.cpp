@@ -76,6 +76,7 @@ static void exercise(const char *p, size_t n)
 
 	// numbers
 	for (int d = 0; d <= 4; d++) { Num x = parse_fixed(in.substr(0, 40), d); if (x.ok) EXPECT(x.v > -2000000000L && x.v < 2000000000L); }
+	for (int d = 5; d <= 9; d++) (void)parse_fixed(in.substr(0, 40), d);
 	(void)json_num(in.substr(0, 40), 1);
 
 	// config file and settings editor
