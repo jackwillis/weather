@@ -6,9 +6,13 @@
 # Each bad certificate must be refused during the handshake, with the right BearSSL reason, before a single request
 # byte is sent (the server logs every request it reads, and must log none). A good certificate is the control.
 #
-# usage (from the repo root; make check-tls):  sh test/tls_local.sh CXX BUILD_DIR     e.g.  sh test/tls_local.sh c++ build/host
-CXX=${1:?usage: tls_local.sh CXX BUILD_DIR}
-B=${2:?usage: tls_local.sh CXX BUILD_DIR}
+# usage (from the repo root; make check-tls):  sh test/tls_local.sh CXX BUILD_DIR [CXXFLAGS [LDFLAGS]]
+# e.g.  sh test/tls_local.sh c++ build/host      CXXFLAGS/LDFLAGS: the target's extra flags (sanitizers), so the harness links with the objects it reuses.
+CXX=${1:?usage: tls_local.sh CXX BUILD_DIR [CXXFLAGS [LDFLAGS]]}
+B=${2:?usage: tls_local.sh CXX BUILD_DIR [CXXFLAGS [LDFLAGS]]}
+XCXXFLAGS=${3:-}
+XLDFLAGS=${4:-}
+unset WEATHER_NO_TA     # that test hook empties the trust set, which would fail the control
 pass=0; fail=0
 ok()  { pass=$((pass+1)); }
 bad() { fail=$((fail+1)); echo "FAIL: $1"; }
@@ -58,10 +62,10 @@ fi
 
 # ---- the client under test: tls.cpp with the throwaway root as its only trust anchor
 "$B/bearssl/brssl" ta "$T/ca.pem" > "$T/test_anchors.h" 2>/dev/null || { bad "brssl could not convert the test root"; echo "tls tests: $pass passed, $fail failed"; exit 1; }
-FLAGS="-std=c++17 -O1 -fno-exceptions -fno-rtti -Isrc -I$T -Ithird_party/bearssl/inc"
+FLAGS="-std=c++17 -O1 -fno-exceptions -fno-rtti -Isrc -I$T -Ithird_party/bearssl/inc $XCXXFLAGS"
 if ! { "$CXX" $FLAGS -DWEATHER_TEST_ANCHORS -c src/tls/tls.cpp -o "$T/tls.o" &&
        "$CXX" $FLAGS -c test/tls_harness.cpp -o "$T/harness.o" &&
-       "$CXX" -o "$T/harness" "$T/harness.o" "$T/tls.o" "$B/obj/core/fetch.o" "$B/obj/platform/posix/net_posix.o" \
+       "$CXX" $XLDFLAGS -o "$T/harness" "$T/harness.o" "$T/tls.o" "$B/obj/core/fetch.o" "$B/obj/platform/posix/net_posix.o" \
            "$B/obj/platform/posix/log_posix.o" "$B/bearssl/libbearssl.a"; }; then
 	bad "could not build the harness"
 	echo "tls tests: $pass passed, $fail failed"; exit 1
@@ -73,7 +77,7 @@ python3 -B test/tls_server.py "$T/ports" "$T/requests" \
 	"expired:$T/good.pem:$T/good.key" "notyet:$T/good.pem:$T/good.key" \
 	"untrusted:$T/untrusted.pem:$T/untrusted.key" "nonca:$T/viainter_chain.pem:$T/viainter.key" &
 SRV=$!
-i=0; while [ ! -s "$T/ports" ] && [ $i -lt 20 ]; do sleep 1; i=$((i+1)); done
+i=0; while [ ! -s "$T/ports" ] && [ $i -lt 20 ] && kill -0 $SRV 2>/dev/null; do sleep 1; i=$((i+1)); done
 [ -s "$T/ports" ] || { bad "the test server did not start"; echo "tls tests: $pass passed, $fail failed"; exit 1; }
 
 NOW=$(date +%s)

@@ -92,7 +92,7 @@ anchors:
 
 # Certificate verification, offline: the real tls.cpp against a local TLS server with generated certificates (needs openssl, python3).
 check-tls: $(BEARSSL_LIB) $(BUILD)/bearssl/brssl $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/log_posix.o
-	sh test/tls_local.sh "$(CXX)" $(BUILD)
+	sh test/tls_local.sh "$(CXX)" $(BUILD) "$(EXTRA_CXXFLAGS)" "$(EXTRA_LDFLAGS)"
 
 check-anchors:
 	$(MAKE) TARGET=host build/host/bearssl/brssl
