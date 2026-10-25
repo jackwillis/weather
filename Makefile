@@ -90,6 +90,10 @@ anchors:
 	$(MAKE) TARGET=host build/host/bearssl/brssl
 	sh tools/gen-anchors.sh build/host/bearssl/brssl > src/tls/anchors.h.new && mv src/tls/anchors.h.new src/tls/anchors.h
 
+# Certificate verification, offline: the real tls.cpp against a local TLS server with generated certificates (needs openssl, python3).
+check-tls: $(BEARSSL_LIB) $(BUILD)/bearssl/brssl $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/log_posix.o
+	sh test/tls_local.sh "$(CXX)" $(BUILD)
+
 check-anchors:
 	$(MAKE) TARGET=host build/host/bearssl/brssl
 	sh tools/check-anchors.sh build/host/bearssl/brssl
@@ -155,7 +159,7 @@ distcheck: dist
 
 # ---- tests
 check: $(CHECK_TARGET)
-check-native: lint check-anchors $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather
+check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather
 	$(BUILD)/unittest
 	$(BUILD)/robust
 	sh test/feature.sh $(BUILD)/weather
@@ -202,4 +206,4 @@ clean:
 
 -include $(wildcard $(OBJ)/*.d $(OBJ)/*/*.d $(OBJ)/*/*/*.d)
 
-.PHONY: os9 FORCE san-note check-san anchors check-anchors all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
+.PHONY: os9 FORCE san-note check-san anchors check-anchors check-tls all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
