@@ -682,6 +682,32 @@ static void test_model()
 		CHECK(m.tick(500 + 900));
 		CHECK(m.age(100) == 0);          // never a negative age
 	}
+	{ // the clock stepped back after a fetch: the age of the data cannot be known. It is stale and must not read "just now"
+		Model m(mc, 1000000);
+		m.tick(1000000);
+		Forecast f = some_forecast(548);
+		m.finish(1000000, okay(), &f);
+		CHECK(!m.stale(1000010));        // normal case unchanged
+		Buf<200> ok; m.status_line(ok, 1000010);
+		CHECK(strstr(ok.c_str(), "Updated just now") != nullptr);
+		CHECK(m.stale(500));
+		Buf<200> b; m.status_line(b, 500);
+		CHECK(strstr(b.c_str(), "just now") == nullptr && strstr(b.c_str(), "Updated at an unknown time (the clock changed)") != nullptr);
+		CHECK(m.stale(1000000 - 1) && !m.stale(1000000));   // the boundary: now == fetch time is a known age (0)
+		CHECK(!m.tick(500));                                // the UI ticks every second; the refresh time is clamped to the new clock
+		CHECK(m.tick(500 + 900));                           // fetching: the old data is still described honestly
+		Buf<200> fb; m.status_line(fb, 500 + 900);
+		CHECK(strstr(fb.c_str(), "showing data from an unknown time (the clock changed)") != nullptr);
+		m.finish(500 + 900, make(Err::Timeout, "timed out"), nullptr);
+		Buf<200> xb; m.status_line(xb, 500 + 901);
+		CHECK(strstr(xb.c_str(), "Showing data from an unknown time (the clock changed)") != nullptr);
+		CHECK(m.stale(500 + 901));
+		m.tick(500 + 900 + 60);
+		Forecast g = some_forecast(550);
+		m.finish(500 + 900 + 61, okay(), &g);                // a fresh fetch under the new clock: known age again
+		Buf<200> nb; m.status_line(nb, 500 + 900 + 62);
+		CHECK(!m.stale(500 + 900 + 62) && strstr(nb.c_str(), "Updated just now") != nullptr);
+	}
 	{ // location changes while a fetch runs: its answer is dropped and a new fetch is queued
 		Model m(mc, 0);
 		m.tick(0);
