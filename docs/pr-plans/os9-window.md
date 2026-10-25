@@ -61,6 +61,6 @@ not covered by simulated pause tests. PR stays draft until required acceptance.
 Follow-up verification on the combined tree: `make check` passed with 535 unit
 checks, 206820 mutation inputs, 99 CLI checks, 6 flag checks, 14 anchor checks,
 21 GUI checks and 2 provisioning tests. ASan/UBSan passed. `make check-maul
-smoke-maul` then passed on actual NetBSD/macppc: 535 unit checks, 206820 robustness
+smoke-maul` then passed on actual NetBSD/macppc: 535 unit checks, 80820 robustness
 inputs, and all ten live/clock/anchor/settings/error smoke checks. No compilation
 ran on maul. Remaining native OS 9 checks still require a Tiger boot.

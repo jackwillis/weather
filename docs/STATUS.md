@@ -45,6 +45,6 @@ console target additionally links RetroConsole. The old production Weather on
 maul has not yet been replaced.
 
 NetBSD follow-up regression (2026-10-25, #11 combined with main): actual PowerPC
-run passed 535 unit checks and 206820 robustness inputs. All ten smoke checks
+run passed 535 unit checks and 80820 robustness inputs. All ten smoke checks
 passed, including live TLS, clock/anchor failures and settings. Host check and
 ASan/UBSan passed as well. No builds ran on maul.
