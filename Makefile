@@ -93,6 +93,7 @@ anchors:
 check-anchors:
 	$(MAKE) TARGET=host build/host/bearssl/brssl
 	sh tools/check-anchors.sh build/host/bearssl/brssl
+	sh test/anchors.sh build/host/bearssl/brssl
 
 # ---- install / release (DESTDIR, PREFIX, MANDIR honoured; works for a cross TARGET too)
 PREFIX  ?= /usr/local
