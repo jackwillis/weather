@@ -54,6 +54,7 @@ Default
 .It Ic timeout
 Seconds to wait for each network step, 1 to 300.
 Default 15.
+One attempt as a whole is limited to three times this, so a server that trickles its answer is given up on.
 .It Ic attempts
 Tries per data source before giving up on it, 1 to 300.
 Default 3.

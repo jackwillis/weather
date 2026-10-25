@@ -10,9 +10,10 @@ namespace wx {
 constexpr long long kMinSaneTime = 1735689600LL;
 
 struct FetchOpts {
-	int timeout_s = 15;
+	int timeout_s = 15;          // per wait (connect, each read): a server that keeps trickling is stopped by deadline_s
 	int attempts = 3;            // tries per provider
 	long backoff_ms = 500;       // doubles each retry
+	int deadline_s = 0;          // longest one attempt may take in all (connect, handshake, answer); 0 = 3 x timeout_s
 	bool dump = false;           // log request/response text at debug level
 	const char *force_host = nullptr;  // testing: plain HTTP to this host/port instead
 	const char *force_port = nullptr;

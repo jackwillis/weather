@@ -125,6 +125,8 @@ struct Fake {
 	int nsteps = 0, next = 0, connects = 0, closes = 0, nsleeps = 0;
 	long sleeps[8] = {};
 	long long clock = 1790000000LL;
+	long read_secs = 0;      // the clock advances this much on every read (a slow trickle)
+	int reads = 0;
 	bool cancel_sleep = false;
 	const char *cur = ""; size_t pos = 0; Err cur_err = Err::Ok;
 	char request[512] = {};
@@ -134,6 +136,7 @@ static Fake *F(Net &n) { return static_cast<Fake *>(n.ctx); }
 static long fk_read(Io &io, void *buf, size_t len)
 {
 	Fake *f = static_cast<Fake *>(io.ctx);
+	f->reads++; f->clock += f->read_secs;
 	size_t left = strlen(f->cur) - f->pos;
 	if (left == 0) {
 		if (f->cur_err != Err::Ok) { io.err = f->cur_err; io.detail = 1; return -1; }
@@ -219,6 +222,26 @@ static void test_fetch()
 		Net n = make_net(&f);
 		Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
 		CHECK(s.ok() && f.connects == 2 && f.nsleeps == 1);
+	}
+	{ // a server that trickles its answer: every read is quick, but the whole attempt must not outlast 3 x the timeout
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1; f.read_secs = 1;     // one second per read, timeout_s = 1
+		Net n = make_net(&f);
+		Status s = fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
+		CHECK(s.err == Err::Timeout && f.closes == 1 && f.reads <= 6);                    // gave up after about 3 s, not after the whole answer
+		Fake g; g.steps[0] = {okay(), kGood, Err::Ok}; g.nsteps = 1;                      // the same answer at full speed is fine
+		Net gn = make_net(&g);
+		CHECK(fetch_once(gn, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+		Fake r; r.steps[0] = {okay(), kGood, Err::Ok}; r.nsteps = 1; r.read_secs = 1;
+		Net rn = make_net(&r);
+		Status rs = fetch_retry(rn, "h", "80", false, "/", o, buf, sizeof buf, &body);    // a timeout is retried, each attempt bounded
+		CHECK(rs.err == Err::Timeout && r.connects == 3 && r.closes == 3);
+		Fake e; e.steps[0] = {okay(), kGood, Err::Ok}; e.nsteps = 1; e.read_secs = 1;
+		Net en = make_net(&e);
+		FetchOpts roomy = o; roomy.deadline_s = 100;                                         // an explicit deadline replaces 3 x timeout
+		CHECK(fetch_once(en, "h", "80", false, "/", roomy, buf, sizeof buf, &body).ok());
+		Fake b; b.steps[0] = {okay(), kGood, Err::Ok}; b.nsteps = 1; b.read_secs = -100;     // the clock steps back mid-fetch: never a false timeout
+		Net bn = make_net(&b);
+		CHECK(fetch_once(bn, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
 	}
 	{ // chunked response: refused, not retried
 		Fake f; f.steps[0] = {okay(), kChunked, Err::Ok}; f.nsteps = 1;

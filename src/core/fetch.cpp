@@ -32,6 +32,11 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 	if (tls && net.now && net.now(net) < kMinSaneTime)
 		return make(Err::Clock, "system clock is before 2025; set the date (needed to check certificates)");
 
+	// The timeout bounds each wait; this bounds the attempt, so a server that trickles one byte at a time cannot hold it for
+	// hours. Measured with the platform clock (whole seconds); if the clock steps back the elapsed time is negative, which is safe.
+	const long long start = net.now ? net.now(net) : 0;
+	const long long limit = o.deadline_s > 0 ? o.deadline_s : 3LL * o.timeout_s;
+
 	Io raw;
 	logf(LogDebug, "connecting to %s:%s%s", host, port, tls ? " (tls)" : "");
 	Status s = net.connect(net, host, port, o.timeout_s, &raw);
@@ -60,6 +65,7 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 
 	size_t got = 0;
 	while (s.ok()) {
+		if (net.now && net.now(net) - start > limit) { s = make(Err::Timeout, "answer not complete within the time limit"); break; }
 		if (got == cap) { s = make(Err::BadData, "response too large"); break; }
 		long r = io->read(*io, buf + got, cap - got);
 		if (r < 0) { s = io_fail(*io, "reading response failed"); break; }
