@@ -91,14 +91,24 @@ supported test installation; privileged changes remain the owner's responsibilit
 - SeedInstall correctly refused a missing import on maul, logging
   `FAIL: weather-seed.import missing or invalid`. This is the expected negative test;
   no managed seed was installed by that run.
+- With explicit owner approval, a genuine private seed was delivered and installed.
+  The first installer run reported import-deletion failure; inspection showed
+  Retro68's `_unlink_r` is a stub returning -1. The temporary private import was
+  removed through authenticated SSH, and the local import was removed after
+  successful verification. The installer now uses native File Manager deletion.
+  A synthetic regression first reproduced two failed cleanup assertions, then
+  passed on maul with the fix, including both absolute and relative paths. The
+  complete storage probe finished with zero failures after the fix.
 - SeedStoreProbe on maul passed normal/restart ownership checks and seven injected
   failures in the actual adapter: short write, close, pre-exchange flush, exchange,
   post-exchange flush, old-file deletion and final flush. Every failure released no
   TLS bytes and left a complete primary record. Tests ran in a new disposable folder.
 - TlsSeedProbe performs a certificate-verified live Open-Meteo fetch and checks that
   the real managed seed advances, logging only success/error and a boolean. Run it
-  twice to check actual process-to-process continuity. This remains pending until
-  the owner authorizes delivery of the genuine private installation seed.
+  twice to check actual process-to-process continuity. Both launches passed on
+  maul (2026-10-25), each logging `ok live verified-TLS fetch` and `seed-advanced=1`.
+  NetBSD CLI, X11 and test binaries also cross-built successfully; hardware execution
+  on NetBSD remains outstanding while maul runs Tiger/Classic.
 
 Build the latter probes with `WEATHER_BUILD_DIAGNOSTICS=ON` in the OS 9 CMake build.
 Fault injection is compiled only into SeedStoreProbe, never the Weather app.

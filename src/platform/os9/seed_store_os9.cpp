@@ -14,6 +14,16 @@ OSErr make_spec(short volume, long directory, const char *name, FSSpec &out)
 bool usable(OSErr e) { return e == noErr || e == fnfErr; }
 }
 
+bool os9_delete_file(const char *path)
+{
+	// Retro68's _unlink_r is a stub returning -1. Resolve the same (0,0)
+	// HFS directory used by its fopen implementation, then delete natively.
+	if (!path) return false;
+	FSSpec file;
+	if (make_spec(0, 0, path, file) != noErr || FSpDelete(&file) != noErr) return false;
+	return FlushVol(nullptr, file.vRefNum) == noErr;
+}
+
 bool Os9SeedStore::init()
 {
 	if (initialized_) return true;

@@ -44,6 +44,28 @@ int main()
 	check(owned, "create fresh disposable test directory");
 	if (!owned) { std::fclose(logfile); return 1; }
 	std::snprintf(primary, sizeof primary, "%s:seed-test-primary", folder);
+	char import_path[256]; std::snprintf(import_path, sizeof import_path, "%s:seed-test-import", folder);
+	FILE *import = std::fopen(import_path, "wb");
+	check(import != nullptr, "create synthetic import for cleanup regression");
+	if (import) {
+		std::fputs("synthetic import, not a seed", import); std::fclose(import);
+		check(wx::os9_delete_file(import_path), "import cleanup deletes the app-owned file");
+		FSSpec leftover; OSErr removed = spec(import_path, leftover);
+		check(removed == fnfErr, "import path no longer exists");
+		// Remove only our disposable fixture if the cleanup under test failed.
+		if (removed == noErr) FSpDelete(&leftover);
+	}
+	// The installer uses a relative import name; cover that path convention too.
+	char relative[32]; std::snprintf(relative, sizeof relative, "seed-cleanup-%lu", static_cast<unsigned long>(TickCount()));
+	FSSpec local;
+	bool made_local = spec(relative, local) == fnfErr && FSpCreate(&local, 'Wthr', 'BINA', 0) == noErr;
+	check(made_local, "exclusively create relative cleanup fixture");
+	if (made_local) {
+		check(wx::os9_delete_file(relative), "relative import cleanup succeeds");
+		FSSpec leftover; OSErr removed = spec(relative, leftover);
+		check(removed == fnfErr, "relative import no longer exists");
+		if (removed == noErr) FSpDelete(&leftover);
+	}
 	unsigned char seed[32], record[wx::kSeedRecordSize];
 	for (size_t i = 0; i < sizeof seed; ++i) seed[i] = static_cast<unsigned char>(i + 1);
 	wx::seed_encode(seed, record);

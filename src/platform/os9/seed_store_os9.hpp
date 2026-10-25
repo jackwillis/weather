@@ -3,6 +3,8 @@
 #include <cstddef>
 
 namespace wx {
+// Remove an app-owned file using the same HFS path conventions as fopen.
+bool os9_delete_file(const char *path);
 #ifdef WEATHER_SEED_DIAGNOSTICS
 enum class SeedFileFault { None, ShortWrite, Close, FlushBefore, Exchange, FlushAfter, DeleteNext, FlushFinal };
 #endif

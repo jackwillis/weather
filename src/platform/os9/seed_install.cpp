@@ -26,7 +26,7 @@ int main()
 	bool installed = locked && store.install(record, n);
 	wx::secret_clear(record, sizeof record);
 	bool released = !locked || store.release();
-	bool removed = installed && std::remove("weather-seed.import") == 0;
+	bool removed = installed && wx::os9_delete_file("weather-seed.import");
 	std::fprintf(log, "%s: %s\n", installed && released && removed ? "ok" : "FAIL",
 	             !locked ? "seed store busy or a stale lock exists; nothing installed" :
 	             !installed ? "seed install failed or a seed already exists; existing seed was not overwritten" :
