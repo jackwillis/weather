@@ -31,10 +31,11 @@ flags override it. The default location is Madison, WI 53703 (Capitol Square 43.
 `-S` saves location, name and units into the config file (comments and other settings are kept; the write is atomic) and exits. Ctrl-C or SIGTERM during a fetch cancels cleanly (exit 130). Diagnostics go to stderr (or syslog with -s); stdout carries only the result. `-d` dumps the traffic.
 
 ## Build and test
-GNU make is required (`gmake` on BSD). One fragment per target in `mk/`.
+GNU make is required (`gmake` on BSD and under Homebrew; Apple's make 3.81 works too). One fragment per target in `mk/`.
 
     make                          # native build (build/host/weather), -Werror
-    make check                    # lint + unit tests (static_assert + runtime) + feature tests (fixture server)
+    make check                    # lint, anchors (+ test/anchors.sh), unit (static_assert + runtime), robustness, CLI feature tests (fixture server),
+                                  # seed provisioning, Makefile flags test; plus the GUI scenario when X11 headers are present
     make lint                     # portable layers (src/core, src/app) may include only freestanding headers
     make TARGET=netbsd-macppc     # cross-build for NetBSD/macppc (build/netbsd-macppc/weather, stripped; .debug keeps symbols)
     make ppc                      # same as TARGET=netbsd-macppc
@@ -48,8 +49,21 @@ GNU make is required (`gmake` on BSD). One fragment per target in `mk/`.
 Needs: a C++17 compiler and GNU make; BearSSL is vendored in `third_party/bearssl` (pinned, built per target by the Makefile).
 Optional: libX11-devel (builds `xweather`), Xvfb + ImageMagick (`check-gui`), python3 (fixture servers for tests only), and for
 the cross target the toolchain from `~/scratch/netbsd-xc` (see its README-repro.md; paths are variables in
-`mk/netbsd-macppc.mk`). Trust anchors: `src/tls/anchors.h` is generated from `src/tls/isrg-roots.pem` (`make anchors`) and `make check` verifies
-the header matches the PEM and that the PEM holds exactly ISRG Root X1 and X2. Refreshing them is a release task.
+`mk/netbsd-macppc.mk`). Trust anchors: `src/tls/anchors.h` is generated from `src/tls/roots.pem` (`make anchors`) and `make check` verifies
+the header matches the PEM and that the PEM holds exactly ISRG Root X1, ISRG Root X2 and HARICA TLS RSA Root CA 2021 (checked by SHA-256
+fingerprint; `test/anchors.sh` tests the check itself). Refreshing them is a release task.
+
+### Host platforms
+Developed on Linux; `make check` (everything except the GUI scenario) also passes on macOS (arm64) with Apple's GNU make 3.81 and with
+Homebrew's `make` 4.x (installed as `gmake`). Besides the compiler: `openssl` (the anchor fingerprint check; without it that check is
+skipped with a notice), `python3` (fixture servers, seed tests) and POSIX `sh`.
+
+Linux only (or needing extra tools): `check-gui` (Xvfb; `mk/host.mk` looks for `/usr/include/X11`, so it is skipped on macOS), AddressSanitizer in
+`check-san` (detected through a Linux library path; macOS gets UBSan only), `make os9` (podman) and the `*-maul` targets (the test machine).
+
+Shell scripts in `tools/` and `test/` are POSIX `sh` and POSIX `awk`: some run on NetBSD, whose awk is BSD awk, so no gawk-only idioms. macOS's
+awk is BSD awk too, which makes it a useful check. With GNU make 3.81, flags changed within one second of the previous build may not
+rebuild objects (3.81 compares times in whole seconds); use `make clean` after scripted flag changes.
 
 ## Mac OS 9
     make os9      # build/os9/Weather.{APPL,bin,dsk}: PowerPC PEF app, built with Retro68 in a podman container, no Apple files needed

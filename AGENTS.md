@@ -18,11 +18,14 @@ This file is the working agreement. Updated 2026-10-25.
 * C++17, `-fno-exceptions -fno-rtti`, no heap in `src/core` and `src/app`, errors as values (`Status`), no libstdc++ in NetBSD binaries (`nocxx.cpp`).
 * Dependencies point down only: core/app (freestanding) < tls < platform/* < cli/ui. `make lint` enforces it for core and app.
 * Red/green: write the failing test first. Keep `make check` green; also `make check-san`. Any new parser input path gets mutation coverage (`test/robust.cpp`).
+* Shell in `tools/` and `test/` is POSIX `sh`/`awk` (NetBSD's awk is BSD awk; no gawk idioms). The Makefile must keep working with GNU make 3.81 (macOS):
+  no `$(file)`, no features newer than 3.81. `make check` is expected to pass on Linux and macOS (README, "Host platforms").
 * Retro68 quirks: no `%z`/`%ll` in printf, no Open Transport/`Microseconds`/`ReadLocation`/`GetKeys` headers (we declare what we use), an event pump must call
   `BeginUpdate/EndUpdate` for update events and bound its work per call.
 
 ## Build and test
-    make check            # host: lint, anchors, unit (226), robustness (164k inputs), CLI feature (78), GUI in Xvfb (21)
+    make check            # host: lint, anchors (+14 tests of the check), unit (461), robustness (186k inputs), CLI feature (78), seed provisioning (2),
+                          # Makefile flags (6), GUI in Xvfb (21; where X11 headers exist)
     make check-san        # sanitizers
     make check-maul smoke-maul   # PowerPC tests on maul; maul must be booted into NetBSD (maulctl status)
     make os9              # Mac OS 9 app via Retro68 in podman -> build/os9/Weather.{APPL,bin,dsk}
