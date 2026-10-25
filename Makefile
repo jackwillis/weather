@@ -66,8 +66,12 @@ $(BUILD)/unittest: $(TEST_OBJS) $(BEARSSL_LIB)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(TEST_OBJS) $(BEARSSL_LIB)
 
 # Objects depend on the exact compiler command: change a flag (or the toolchain) and everything rebuilds.
+# Written by a shell recipe, not $(file ...), so GNU make 3.81 (macOS) works too. Caveat: 3.81 compares file times
+# in whole seconds, so changing flags within the same second as the previous build can leave objects unrebuilt.
+$(OBJ)/.flags: export FLAGS_LINE = $(CXX) $(CXXFLAGS_ALL)
 $(OBJ)/.flags: FORCE
-	@$(shell mkdir -p $(OBJ))$(file >$@.new,$(CXX) $(CXXFLAGS_ALL))
+	@mkdir -p $(OBJ)
+	@printf '%s\n' "$$FLAGS_LINE" > $@.new
 	@if cmp -s $@.new $@; then rm -f $@.new; else mv $@.new $@; fi
 FORCE:
 
@@ -161,6 +165,7 @@ check-native: lint check-anchors $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weat
 	$(BUILD)/robust
 	sh test/feature.sh $(BUILD)/weather
 	python3 test/seed_provision.py
+	sh test/flags.sh "$(MAKE)"
 # Everything again under AddressSanitizer + UBSan: unit tests, parser robustness, the CLI's feature tests.
 check-san:
 	@$(MAKE) -s TARGET=host-san san-note
