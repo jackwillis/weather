@@ -5,6 +5,10 @@
 # local toolchain / sysroot live outside the repo (see README)
 *.core
 *.log
+# Secret seed material is per installation, never a build/package artifact.
+weather.seed
+weather-seed.import
+__pycache__/
 # third-party sources fetched for experiments
 /spike/bearssl/
 /spike/tlsfetch-*

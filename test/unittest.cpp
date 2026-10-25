@@ -34,6 +34,7 @@ using namespace wx;
 // ---- runtime tests
 static int g_fail = 0, g_run = 0;
 #define CHECK(c) do { g_run++; if (!(c)) { g_fail++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
+#include "seed_tests.hpp"
 
 static char g_fixbuf[2][8192];
 static const char *fixture(int slot, const char *name)
@@ -956,6 +957,7 @@ int main()
 	test_forms();
 	test_metno();
 	test_os9_dns();
+	test_seed_pool();
 	printf("%d checks, %d failed\n", g_run, g_fail);
 	return g_fail ? 1 : 0;
 }

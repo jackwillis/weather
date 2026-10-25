@@ -67,9 +67,11 @@ Retro68 container. Layers: the same core, app and tls code; `src/platform/os9/` 
   POSIX `getaddrinfo` still blocks. See `spike/os9/DNS-PROBE.md` for hardware coverage and limits.
 * **Clock**: UTC is derived from the Date & Time time zone (`gmtDelta` plus the daylight-saving flag); TLS certificate dates
   use it, and `fetch` refuses a clock before 2025. Verified against OS X on the real machine: gmtDelta already includes daylight saving (an extra DST term made it an hour slow).
-* **Entropy is the weak point.** There is no `/dev/urandom`. We hash timer jitter, ticks, clock, mouse position, free memory and
-  a seed file kept from the previous run. This keeps session keys unguessable for a casual observer but is weaker than a kernel
-  RNG; it does not affect certificate checking. A hardware or OS-provided source would replace it if one exists on the target.
+* **Entropy**: a unique secret seed provisioned from a modern OS CSPRNG initializes an in-process BearSSL HMAC_DRBG.
+  Timing samples are supplemental only. An exclusive lock protects the Preferences seed store; its successor is saved through
+  checked file exchange/volume flushes before output is released. Missing/invalid provisioning or failed rotation refuses TLS.
+  No silent jitter-only fallback, no legacy seed promotion, and no guarantee of power-loss durability or compromise recovery.
+  See `OS9-SEEDS.md` for setup, tests, recovery and remaining hardware verification.
 * **Apple material policy**: nothing from Apple's SDK is committed or needed to build. Files obtained from Apple's old developer
   CDs for reading and comparison live outside the repo.
 

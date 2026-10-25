@@ -5,6 +5,8 @@
 #include "net_os9.hpp"
 #include "ot_min.h"
 #include "dns_resolve.hpp"
+#include "seed_store_os9.hpp"
+#include "tls/seed_pool.hpp"
 #include "core/log.hpp"
 #include <bearssl.h>
 #include <Events.h>
@@ -298,73 +300,53 @@ long long os9_now(Net &)
 	return local - delta;
 }
 
-// Entropy. Mac OS 9 has no /dev/urandom, so we hash many weak sources: timer jitter over a busy loop, ticks, the clock,
-// the mouse, free memory, plus a seed file kept from the previous run. This is NOT as strong as a kernel RNG; it is
-// good enough to make session keys unguessable by a casual observer but a determined attacker who knows the machine's
-// state could narrow it. Server authentication (the certificate check) does not depend on it. See docs/ARCHITECTURE.md.
-constexpr const char *kSeedFile = "weather.seed";
+// The installation seed is provisioned from a modern OS CSPRNG. Timing samples
+// are supplemental only; they do not establish entropy or recovery guarantees.
+Os9SeedStore g_seed_store;
+SeedPool<Os9SeedStore> g_seed_pool(g_seed_store);
+bool g_exit_ready = false;
 
 bool os9_entropy(Net &, void *buf, size_t len)
 {
+	if (!g_exit_ready) { logf(LogError, "cannot register TLS seed cleanup"); return false; }
 	br_sha256_context h;
 	br_sha256_init(&h);
-	for (int round = 0; round < 256; round++) {
-		UnsignedWide us;
-		Microseconds(&us);
-		volatile unsigned long spin = 0;
-		for (int i = 0; i < 50 + (static_cast<int>(us.lo) & 63); i++) spin += static_cast<unsigned long>(i) * us.lo;
-		UnsignedWide us2;
-		Microseconds(&us2);
-		unsigned long sample[4] = { us.lo, us2.lo - us.lo, TickCount(), spin };
+	for (int round = 0; round < 32; ++round) {
+		UnsignedWide before, after;
+		Microseconds(&before);
+		volatile UInt32 spin = 0;
+		for (int i = 0; i < 50 + static_cast<int>(before.lo & 63); ++i)
+			spin += static_cast<UInt32>(i) * before.lo;
+		Microseconds(&after);
+		UInt32 sample[4] = {before.lo, after.lo - before.lo, TickCount(), spin};
 		br_sha256_update(&h, sample, sizeof sample);
 	}
-	UInt32 now;
-	GetDateTime(&now);
-	Point mouse;
-	GetMouse(&mouse);
-	long mem[3] = { static_cast<long>(now), static_cast<long>(FreeMem()), (static_cast<long>(mouse.h) << 16) ^ mouse.v };
-	br_sha256_update(&h, mem, sizeof mem);
-	unsigned char old[32];
-	size_t have = 0;
-	if (FILE *f = std::fopen(kSeedFile, "rb")) { have = std::fread(old, 1, sizeof old, f); std::fclose(f); }
-	br_sha256_update(&h, old, have);
-	unsigned char key[32];
-	br_sha256_out(&h, key);
-
-	// expand: out = SHA256(key || counter); next seed = SHA256(key || "next")
-	unsigned char *p = static_cast<unsigned char *>(buf);
-	for (unsigned char ctr = 0; len > 0; ctr++) {
-		br_sha256_context e;
-		br_sha256_init(&e);
-		br_sha256_update(&e, key, sizeof key);
-		br_sha256_update(&e, &ctr, 1);
-		unsigned char blk[32];
-		br_sha256_out(&e, blk);
-		size_t n = len < sizeof blk ? len : sizeof blk;
-		std::memcpy(p, blk, n);
-		p += n; len -= n;
-	}
-	br_sha256_context nx;
-	br_sha256_init(&nx);
-	br_sha256_update(&nx, key, sizeof key);
-	br_sha256_update(&nx, "next", 4);
-	unsigned char nextseed[32];
-	br_sha256_out(&nx, nextseed);
-	if (FILE *f = std::fopen(kSeedFile, "wb")) { std::fwrite(nextseed, 1, sizeof nextseed, f); std::fclose(f); }
-	logf(LogDebug, "entropy: jitter pool%s", have ? " + seed file" : " (no seed file yet)");
-	return true;
+	Point mouse; GetMouse(&mouse);
+	UInt32 sample[2] = {static_cast<UInt32>(FreeMem()),
+	                   (static_cast<UInt32>(static_cast<UInt16>(mouse.h)) << 16) |
+	                   static_cast<UInt16>(mouse.v)};
+	br_sha256_update(&h, sample, sizeof sample);
+	unsigned char extra[32]; br_sha256_out(&h, extra);
+	secret_clear(&h, sizeof h);
+	bool ok = g_seed_pool.fill(buf, len, extra, sizeof extra);
+	secret_clear(extra, sizeof extra);
+	if (!ok) logf(LogError, "%s", g_seed_pool.error());
+	return ok;
 }
 
 } // namespace
 
 void os9_net_shutdown()
 {
+	if (!g_seed_pool.shutdown()) logf(LogWarn, "%s", g_seed_pool.error());
 	if (g_conn.ep) { OTCloseProvider(g_conn.ep); g_conn.ep = nullptr; }
 	if (g_ot_ok) { CloseOpenTransport(); g_ot_ok = false; }
 }
 
 void os9_net_init(Net *net)
 {
+	static bool registered = false;
+	if (!registered) { g_exit_ready = std::atexit(os9_net_shutdown) == 0; registered = true; }
 	net->connect = os9_connect;
 	net->close = os9_close;
 	net->sleep_ms = os9_sleep;

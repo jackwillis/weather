@@ -11,6 +11,7 @@
 #include "core/openmeteo.hpp"
 #include "core/settings.hpp"
 #include "core/version.hpp"
+#include "tls/seed_pool.hpp"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -38,6 +39,11 @@ static void exercise(const char *p, size_t n)
 	g_runs++;
 	g_cur_len = n;
 	sv in(p, n);
+	unsigned char seed_out[32], encoded[kSeedRecordSize];
+	if (seed_decode(reinterpret_cast<const unsigned char *>(p), n, seed_out)) {
+		seed_encode(seed_out, encoded);
+		EXPECT(n == kSeedRecordSize && std::memcmp(p, encoded, n) == 0);
+	}
 
 	// HTTP
 	HttpResponse h = http_parse(in);
@@ -186,6 +192,10 @@ int main(int argc, char **argv)
 	static const char cfg[] = "# my weather\nlatitude = 43.0747  # home\nlongitude=-89.3841\nname = Madison, WI\nunits = metric\n"
 	    "timeout = 15\nattempts = 3\nproviders = open-meteo\nlog = info\nautorefresh = off\n";
 	mutate_all(cfg, sizeof cfg - 1, iterations, rng);
+	unsigned char synthetic_seed[32], record[kSeedRecordSize];
+	for (size_t i = 0; i < sizeof synthetic_seed; ++i) synthetic_seed[i] = static_cast<unsigned char>(i + 1);
+	seed_encode(synthetic_seed, record);
+	mutate_all(reinterpret_cast<const char *>(record), sizeof record, iterations, rng);
 
 	// hostile shapes
 	static char big[20000];

@@ -14,6 +14,7 @@ add_application(Weather CONSOLE
   ${ROOT}/src/core/fetch.cpp
   ${ROOT}/src/tls/tls.cpp
   ${ROOT}/src/platform/os9/net_os9.cpp
+  ${ROOT}/src/platform/os9/seed_store_os9.cpp
   ${ROOT}/src/platform/os9/ot_glue.cc
   ${ROOT}/src/platform/os9/log_os9.cpp
   ${ROOT}/src/platform/os9/console_main.cpp
@@ -24,11 +25,43 @@ target_compile_definitions(Weather PRIVATE WEATHER_VERSION="${WEATHER_VERSION_ST
 target_compile_options(Weather PRIVATE -O2 -fno-exceptions -fno-rtti)
 target_link_libraries(Weather bearssl OpenTransportLib OpenTptInternetLib)
 
+add_application(SeedInstall CONSOLE
+  ${ROOT}/src/platform/os9/seed_install.cpp
+  ${ROOT}/src/platform/os9/seed_store_os9.cpp
+  ${ROOT}/src/platform/posix/nocxx.cpp)
+target_include_directories(SeedInstall PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+target_compile_options(SeedInstall PRIVATE -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
+target_link_libraries(SeedInstall bearssl)
+
 option(WEATHER_BUILD_DIAGNOSTICS "Build self-running OS 9 network checks" OFF)
 if(WEATHER_BUILD_DIAGNOSTICS)
+  add_application(TlsSeedProbe CONSOLE
+    ${ROOT}/spike/os9/tls_seed_probe.cc
+    ${ROOT}/src/core/fetch.cpp
+    ${ROOT}/src/tls/tls.cpp
+    ${ROOT}/src/platform/os9/net_os9.cpp
+    ${ROOT}/src/platform/os9/seed_store_os9.cpp
+    ${ROOT}/src/platform/os9/ot_glue.cc
+    ${ROOT}/src/platform/os9/log_os9.cpp
+    ${ROOT}/src/platform/posix/nocxx.cpp
+    ${ROOT}/os9/weather.r)
+  target_include_directories(TlsSeedProbe PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+  target_compile_definitions(TlsSeedProbe PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
+  target_compile_options(TlsSeedProbe PRIVATE -O2 -fno-exceptions -fno-rtti)
+  target_link_libraries(TlsSeedProbe bearssl OpenTransportLib OpenTptInternetLib)
+  add_application(SeedStoreProbe CONSOLE
+    ${ROOT}/spike/os9/seed_store_probe.cc
+    ${ROOT}/src/platform/os9/seed_store_os9.cpp
+    ${ROOT}/src/platform/posix/nocxx.cpp
+    ${ROOT}/os9/weather.r)
+  target_include_directories(SeedStoreProbe PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+  target_compile_definitions(SeedStoreProbe PRIVATE WEATHER_SEED_DIAGNOSTICS=1)
+  target_compile_options(SeedStoreProbe PRIVATE -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
+  target_link_libraries(SeedStoreProbe bearssl)
   add_application(DnsNetProbe CONSOLE
     ${ROOT}/spike/os9/dns_net_probe.cc
     ${ROOT}/src/platform/os9/net_os9.cpp
+    ${ROOT}/src/platform/os9/seed_store_os9.cpp
     ${ROOT}/src/platform/os9/ot_glue.cc
     ${ROOT}/src/platform/os9/log_os9.cpp
     ${ROOT}/src/platform/posix/nocxx.cpp

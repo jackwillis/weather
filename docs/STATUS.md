@@ -6,9 +6,9 @@
 | `weather` CLI, NetBSD/macppc | works | live fetch on maul; `make check-maul` 226 unit + 74,576 mutated inputs, `make smoke-maul` 10 checks (2026-10-25) |
 | `xweather`, NetBSD/macppc | works in Xvfb on the laptop and on maul | 21-step GUI scenario; ~3 MB RSS, ~0 idle CPU. Not yet judged by a person on maul's real display |
 | Data sources | `open-meteo`, `met-no` (needs `contact`) | both live-verified through BearSSL; fallback and skip-without-contact tested |
-| Host test suite (`make check`) | green | lint, anchors, 226 unit, 164,576 mutated inputs, 78 CLI feature, 21 GUI checks; `make check-san` (UBSan+ASan) green |
+| Host test suite (`make check`) | green | lint, anchors, 461 unit, 186,018 mutated inputs, 78 CLI feature, 21 GUI checks, 2 provisioning tests; `make check-san` (UBSan+ASan) green |
 | NetBSD package | built, staged | `tools/mkpkg-netbsd.sh`; the old build is installed on maul, the rebuilt one (with met-no) is not yet |
-| Mac OS 9, console app | works | live forecast on a real Mac OS 9.2.2 (Classic); clock checked against OS X |
+| Mac OS 9, console app | builds; production TLS path verified with managed seed | real storage/failure probes pass; approved seed installation and two live certificate-verified TLS launches with seed advancement passed on maul (2026-10-25) |
 | Mac OS 9, window UI | not started | next milestone |
 
 ## Mac OS 9 findings (all on real hardware)
@@ -21,7 +21,7 @@
 * An event pump must validate update events (`BeginUpdate`/`EndUpdate`) and bound its work per call, or it spins forever.
 
 ## Known gaps and risks
-* OS 9 entropy is a jitter pool plus a seed file, weaker than a kernel RNG (documented in ARCHITECTURE.md).
+* OS 9 now requires a provisioned managed seed, with checked rotation and exclusive ownership. Host tests, real-adapter fault injection, approved installation and two live TLS launches on maul pass. Import cleanup uses native File Manager deletion because Retro68's unlink is a stub; regression-tested on hardware. Supplemental jitter has no measured entropy guarantee, and physical power-loss/rollback durability is unverified; see OS9-SEEDS.md.
 * OS 9 DNS now uses an async provider with yield/cancel and a wrap-safe deadline. Host lifecycle tests pass; DnsProbe and DnsNetProbe passed on maul (2026-10-25), including closing a pending query and reconnecting. A deliberately stalled DNS server and delayed-open cancellation remain unverified on hardware. POSIX `getaddrinfo` still blocks.
 * The GitHub repository is not created (the owner's call); Open-Meteo and MET Norway terms still need a final read before publishing.
 * Delivery of OS 9 apps depends on the Mac being in OS X with a console login; a stuck `hdiutil attach` must be killed with `kill -9`.

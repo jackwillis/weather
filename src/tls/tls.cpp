@@ -4,6 +4,7 @@
 #include <bearssl.h>
 #include "anchors.h"
 #include "timeconv.hpp"
+#include "secret_clear.hpp"
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
@@ -91,11 +92,13 @@ static Status tls_open(Net &net, Io &raw, const char *host, Io *out)
 	br_x509_minimal_set_time(&t->xc, static_cast<uint32_t>(bt.days), static_cast<uint32_t>(bt.secs));
 
 	// Seed the random generator from the platform. Never run TLS with a missing source.
-	unsigned char seed[32];
-	if (!net.entropy || !net.entropy(net, seed, sizeof seed))
+	unsigned char seed[32] = {};
+	if (!net.entropy || !net.entropy(net, seed, sizeof seed)) {
+		secret_clear(seed, sizeof seed);
 		return make(Err::Tls, "no source of random numbers");
+	}
 	br_ssl_engine_inject_entropy(&t->sc.eng, seed, sizeof seed);
-	memset(seed, 0, sizeof seed);
+	secret_clear(seed, sizeof seed);
 
 	if (!br_ssl_client_reset(&t->sc, host, 0))
 		return map_engine_error(br_ssl_engine_last_error(&t->sc.eng), raw);

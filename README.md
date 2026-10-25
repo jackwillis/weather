@@ -54,10 +54,11 @@ the header matches the PEM and that the PEM holds exactly ISRG Root X1 and X2. R
 ## Mac OS 9
     make os9      # build/os9/Weather.{APPL,bin,dsk}: PowerPC PEF app, built with Retro68 in a podman container, no Apple files needed
 Console edition for now: it reads an optional `weather.conf` (same `key = value` lines as `~/.weatherrc`) next to the app, fetches,
-prints the forecast and waits for a click. Debug output goes to the console and to `weather.log`; `weather.seed` keeps entropy between
-runs. Cmd-. cancels a fetch, including DNS lookup. Needs Open Transport with TCP/IP configured. The network layer (`src/platform/os9/`) talks to Open Transport
+prints the forecast and waits for a click. Debug output goes to the console and to `weather.log`; the managed TLS seed lives in Preferences.
+Cmd-. cancels a fetch, including DNS lookup. Needs Open Transport with TCP/IP configured. The network layer (`src/platform/os9/`) talks to Open Transport
 through our own small declarations and client glue (see docs/ARCHITECTURE.md, "Mac OS 9 target"). DNS uses an asynchronous provider with timeout/cancel support.
-Known limits: TLS random numbers come from a jitter pool (weaker than a kernel RNG), Retro68's `printf` lacks `%lld`.
+TLS requires a unique provisioned seed; `SeedInstall` installs it in Preferences and the app checks seed rotation before releasing entropy.
+See [OS 9 seed setup and recovery](docs/OS9-SEEDS.md). Legacy jitter-only seeds are not imported. Retro68's `printf` still lacks `%lld`.
 To run it on a Mac with OS X (Classic) use `tools/deliver-os9.sh` (see its comments) and open the app.
 
 ## Install and packages
