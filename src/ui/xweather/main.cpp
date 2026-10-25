@@ -214,7 +214,7 @@ void draw_status(Drawable d)
 	if (g.fetching) {
 		static const char *dots[] = {"", ".", "..", "..."};
 		st.add("Fetching").add(dots[(mono_ms() / 300) % 4]);
-		if (g.model.has_forecast()) st.add(" (showing data from ").add_int(0).add(" min ago)");
+		if (g.model.has_forecast()) { st.add(" (showing data from "); Model::add_age(st, g.model.age(now)); st.add(")"); }
 	} else {
 		g.model.status_line(st, now);
 	}
