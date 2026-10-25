@@ -47,6 +47,10 @@ GNU make is required (`gmake` on BSD and under Homebrew; Apple's make 3.81 works
     ONLINE=1 sh test/feature.sh build/host/weather   # also test against the real server
 
 Needs: a C++17 compiler and GNU make; BearSSL is vendored in `third_party/bearssl` (pinned, built per target by the Makefile).
+GitHub Actions runs host/GUI checks and ASan/UBSan sequentially, plus a separate 32-bit unit/mutation/CLI job.
+CI requires the ASan runtime (`REQUIRE_ASAN=1`) and fails rather than silently downgrading to UBSan-only checks.
+The 32-bit job can be reproduced with `make TARGET=host-32 check` on x86 Linux with g++ multilib installed.
+CI uses fixtures and no private seeds or maul credentials; real PowerPC and OS 9 checks remain separate hardware gates.
 Optional: libX11-devel (builds `xweather`), Xvfb + ImageMagick (`check-gui`), python3 (fixture servers for tests only), and for
 the cross target the toolchain from `~/scratch/netbsd-xc` (see its README-repro.md; paths are variables in
 `mk/netbsd-macppc.mk`). Trust anchors: `src/tls/anchors.h` is generated from `src/tls/roots.pem` (`make anchors`) and `make check` verifies
