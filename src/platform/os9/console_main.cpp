@@ -16,9 +16,18 @@ using namespace wx;
 // Cancel with Cmd-. like any Mac program (and keep other applications alive while we wait).
 static bool console_yield(Net &)
 {
+	// A bounded number of events per call, and every update event is validated (BeginUpdate/EndUpdate): an update
+	// event that is never validated is delivered again and again, which would make this loop spin forever.
 	EventRecord ev;
-	while (WaitNextEvent(everyEvent, &ev, 0, nullptr))
-		if (ev.what == keyDown && (ev.modifiers & cmdKey) && (ev.message & charCodeMask) == '.') return false;
+	for (int i = 0; i < 8 && WaitNextEvent(everyEvent, &ev, 0, nullptr); i++) {
+		if (ev.what == updateEvt) {
+			WindowPtr w = reinterpret_cast<WindowPtr>(ev.message);
+			BeginUpdate(w);
+			EndUpdate(w);
+		} else if (ev.what == keyDown && (ev.modifiers & cmdKey) && (ev.message & charCodeMask) == '.') {
+			return false;
+		}
+	}
 	return true;
 }
 
@@ -73,6 +82,7 @@ int main()
 		os9_net_init(&net);
 		net.yield = console_yield;
 		tls_net_init(&net);
+		logf(LogInfo, "clock: unix %lu UTC", static_cast<unsigned long>(net.now(net)));   // Retro68 printf has no %lld
 		Query q;
 		q.lat_e4 = cfg.lat_e4;
 		q.lon_e4 = cfg.lon_e4;

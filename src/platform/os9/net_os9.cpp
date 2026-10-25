@@ -34,6 +34,8 @@ enum Wait { WaitOk = 0, WaitTimeout, WaitCancelled };
 // One polling pause: let the app run (and maybe cancel), sleep one slice, enforce the deadline.
 Wait pause(Net *net, long long deadline_ms)
 {
+	static long polls = 0;
+	if (++polls % 200 == 0) logf(LogDebug, "still waiting (%ld polls, %lld ms to deadline)", polls, deadline_ms - mono_ms());
 	if (net && net->yield && !net->yield(*net)) return WaitCancelled;
 	long fin;
 	Delay(kSliceTicks, &fin);
@@ -55,6 +57,7 @@ void fail_io(Io &io, long code, const char *msg)
 int handle_look(EndpointRef ep)
 {
 	long ev = OTLook(ep);
+	logf(LogDebug, "OTLook -> 0x%lx", ev);
 	if (ev == kT_ORDREL) { OTRcvOrderlyDisconnect(ep); return 1; }
 	if (ev == kT_DISCONNECT) { TDiscon d; std::memset(&d, 0, sizeof d); OTRcvDisconnect(ep, &d); return -1; }
 	return 0;   // T_DATA, T_GODATA, ...: just retry the call
@@ -77,8 +80,11 @@ long ot_read(Io &io, void *buf, size_t len)
 			int h = handle_look(c->ep);
 			if (h > 0) return 0;
 			if (h < 0) { fail_io(io, n, "connection reset by the server"); return -1; }
+			Wait w = pause(c->net, deadline);   // never spin: yield and honour the deadline
+			if (w != WaitOk) { fail_wait(io, w); return -1; }
 			continue;
 		}
+		logf(LogDebug, "OTRcv -> %ld", n);
 		fail_io(io, n, "network I/O error");
 		return -1;
 	}
@@ -101,6 +107,8 @@ long ot_write(Io &io, const void *buf, size_t len)
 		if (n == kOTLookErr) {
 			int h = handle_look(c->ep);
 			if (h != 0) { fail_io(io, n, "connection closed by the server"); return -1; }
+			Wait w = pause(c->net, deadline);
+			if (w != WaitOk) { fail_wait(io, w); return -1; }
 			continue;
 		}
 		fail_io(io, n, "network I/O error");
@@ -122,8 +130,8 @@ Status connect_ip(Net &net, UInt32 ip, UInt16 port, int timeout_ms)
 	OSStatus err = 0;
 	EndpointRef ep = OTOpenEndpoint(OTCreateConfiguration("tcp"), 0, &info, &err);
 	if (!ep || err) return make(Err::Connect, "cannot open a TCP endpoint", err);
-	OTSetSynchronous(ep);
-	OTSetNonBlocking(ep);
+	OSStatus m1 = OTSetSynchronous(ep), m2 = OTSetNonBlocking(ep);
+	logf(LogDebug, "OTSetSynchronous -> %ld, OTSetNonBlocking -> %ld", static_cast<long>(m1), static_cast<long>(m2));
 	OSStatus e = OTBind(ep, nullptr, nullptr);
 	if (e) { OTCloseProvider(ep); return make(Err::Connect, "cannot bind a TCP endpoint", e); }
 
@@ -158,6 +166,7 @@ Status connect_ip(Net &net, UInt32 ip, UInt16 port, int timeout_ms)
 	}
 	if (e) { OTCloseProvider(ep); return connect_error(e, "cannot connect"); }
 	g_conn.ep = ep;
+	logf(LogDebug, "tcp connected");
 	return okay();
 }
 
@@ -219,7 +228,7 @@ bool os9_sleep(Net &net, long ms)
 }
 
 // Unix seconds (UTC). The Mac clock is local wall-clock seconds since 1904; the Date & Time control panel's
-// time zone gives the offset: gmtDelta (low 24 bits, signed seconds east of GMT) and a daylight-saving flag in the high byte.
+// time zone gives the offset: gmtDelta (low 24 bits, signed seconds east of GMT, daylight saving included).
 long long os9_now(Net &)
 {
 	UInt32 mac;
@@ -230,7 +239,11 @@ long long os9_now(Net &)
 	if (delta & 0x00800000) delta |= ~0x00FFFFFFL;
 	bool dst = (loc.u.gmtDelta & 0x80000000UL) != 0;
 	long long local = static_cast<long long>(mac) - 2082844800LL;   // 1904 -> 1970
-	return local - delta - (dst ? 3600 : 0);
+	static bool shown = false;
+	if (!shown) { shown = true; logf(LogDebug, "clock: mac=%lu gmtDelta=%ld dstflag=%d raw=0x%lx", static_cast<unsigned long>(mac), delta, dst ? 1 : 0, static_cast<unsigned long>(loc.u.gmtDelta)); }
+	// Verified against OS X on the real machine (2026-10-25, CDT): gmtDelta is -18000 and ALREADY includes daylight saving,
+	// the flag in the high byte is informational. Subtracting another hour for the flag made the clock an hour slow.
+	return local - delta;
 }
 
 // Entropy. Mac OS 9 has no /dev/urandom, so we hash many weak sources: timer jitter over a busy loop, ticks, the clock,

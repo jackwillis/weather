@@ -64,7 +64,7 @@ Retro68 container. Layers: the same core, app and tls code; `src/platform/os9/` 
   `Net::yield`, so the event loop keeps running and Cmd-. cancels. DNS (`OTInetStringToAddress`) cannot be interrupted,
   the same limit as `getaddrinfo` on POSIX.
 * **Clock**: UTC is derived from the Date & Time time zone (`gmtDelta` plus the daylight-saving flag); TLS certificate dates
-  use it, and `fetch` refuses a clock before 2025. Both the offset and the DST sign still need verifying against a known clock.
+  use it, and `fetch` refuses a clock before 2025. Verified against OS X on the real machine: gmtDelta already includes daylight saving (an extra DST term made it an hour slow).
 * **Entropy is the weak point.** There is no `/dev/urandom`. We hash timer jitter, ticks, clock, mouse position, free memory and
   a seed file kept from the previous run. This keeps session keys unguessable for a casual observer but is weaker than a kernel
   RNG; it does not affect certificate checking. A hardware or OS-provided source would replace it if one exists on the target.

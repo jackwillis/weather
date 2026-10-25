@@ -5,8 +5,9 @@ works without a proxy, and is cross-built from Linux for NetBSD/macppc first, th
 The portable core (`src/`, no OS headers except in `net_posix.cpp`/`log.cpp`) is separate from the
 per-OS UI layer. NetBSD gets `xweather`, a CDE-look window drawn in plain Xlib (no Xt, no Motif).
 
-Status: the CLI (`weather`) and `xweather` work on maul. `weather -1` prints a live forecast; `xweather` shows it in a window
-(menus, Location dialog, auto-refresh every 15 min, weather pictures). Not yet run by a person on a real display.
+Status (details in `docs/STATUS.md`): the CLI (`weather`) and `xweather` work on maul (NetBSD/macppc). A first Mac OS 9 build
+(`Weather`, a console app) fetches and prints a live forecast over TLS on a real Mac running OS 9.2.2; its window UI is not written yet.
+`weather -1` prints a live forecast; `xweather` shows it in a window (menus, Location dialog, auto-refresh every 15 min, weather pictures).
 
     $ weather -1
     54.6F Clear sky, wind 9.0mph SE, humidity 83% (open-meteo 2026-10-24T05:00)
@@ -50,6 +51,15 @@ the cross target the toolchain from `~/scratch/netbsd-xc` (see its README-repro.
 `mk/netbsd-macppc.mk`). Trust anchors: `src/tls/anchors.h` is generated from `src/tls/isrg-roots.pem` (`make anchors`) and `make check` verifies
 the header matches the PEM and that the PEM holds exactly ISRG Root X1 and X2. Refreshing them is a release task.
 
+## Mac OS 9
+    make os9      # build/os9/Weather.{APPL,bin,dsk}: PowerPC PEF app, built with Retro68 in a podman container, no Apple files needed
+Console edition for now: it reads an optional `weather.conf` (same `key = value` lines as `~/.weatherrc`) next to the app, fetches,
+prints the forecast and waits for a click. Debug output goes to the console and to `weather.log`; `weather.seed` keeps entropy between
+runs. Cmd-. cancels a fetch. Needs Open Transport with TCP/IP configured. The network layer (`src/platform/os9/`) talks to Open Transport
+through our own small declarations and client glue (see docs/ARCHITECTURE.md, "Mac OS 9 target"). Known limits: DNS lookup is not
+interruptible, TLS random numbers come from a jitter pool (weaker than a kernel RNG), Retro68's `printf` lacks `%lld`.
+To run it on a Mac with OS X (Classic) use `tools/deliver-os9.sh` (see its comments) and open the app.
+
 ## Install and packages
     make install DESTDIR=/stage PREFIX=/usr/pkg MANDIR=/usr/pkg/man   # bin/weather, bin/xweather, man pages, example config
     make plist PREFIX=/usr/pkg MANDIR=/usr/pkg/man                    # the file list (a package PLIST)
@@ -66,6 +76,7 @@ pkg_add installs exactly the PLIST and settings are a per-user dotfile.
 - `src/ui/xweather/` the X11 window: CDE drawing primitives (`cde.*`, weather art) and the app (`main.cpp`)
 - `src/tls/` BearSSL glue + trust anchors
 - `src/platform/posix/` sockets with yield/cancel, clock, entropy, settings dotfile store, syslog/stderr log sink, libstdc++ shim
+- `src/platform/os9/` Mac OS 9: Open Transport network layer, Open Transport declarations and glue, console app and log sink; `os9/` is its CMake build
 - `src/cli/` the `weather` command
 - `third_party/bearssl/` pinned BearSSL; `tools/` anchor generation and check
 - `mk/` per-target build fragments; `test/` unit tests, fixtures, fixture server, feature and maul smoke scripts; `spike/` experiments

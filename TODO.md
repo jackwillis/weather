@@ -1,16 +1,17 @@
 # TODO
 
 ## Now
+- [ ] OS 9 window UI (classic Toolbox: window, menus, dialogs; Platinum look) on top of the existing Model; settings store (Preferences folder), proper event loop (WaitNextEvent) instead of the console app
+- [ ] OS 9 hardening: DNS timeout/cancel (OT async open + notifier), better entropy (check for an OS-provided source), run under 68k too only if a target needs it
 - [ ] M3c last step: jack runs `xweather` once on maul's real X display (window manager, depth, feel); fix what that shows
-- [ ] AddressSanitizer needs `sudo dnf install libasan libubsan` (jack); `make check-san` currently runs UBSan in trap mode only
+- [ ] Reinstall the rebuilt NetBSD package on maul (`doas pkg_add -u`; staged at /tmp/weather-0.1.0.tgz, lost at reboot: rebuild with tools/mkpkg-netbsd.sh)
 
 ## Next
-- [ ] OS 9: Probe1 (spike/os9, Retro68 PEF) delivered to MacOS9Lives:weather-dev; Classic starts and asks to update the System Folder (jack's call). Next: read probe1.log, then an Open Transport probe (declare the OT subset by hand + MakeImport stubs, or use Apple's Universal Interfaces from jack)
-- [ ] OS 9 networking gate: Open Transport from Retro68 (headers: Apple's Universal Interfaces from jack, or hand-declared subset + MakeImport stubs); check Classic works on maul's Tiger side (compile gate passed, `make probe-os9`)
 - [ ] On-disk stale cache (serve the last good forecast when every source is down)
 - [ ] Third source: api.weather.gov (NWS, US only; TLS verified: chains to ISRG X1) needs multi-step requests (points -> stations -> observation) so the Provider interface must grow a step mechanism
 - [ ] Location by place name (geocoding), default location prompt
 - [ ] SIGHUP config reload / daemon mode (only if the window needs it)
+- [ ] Tests for the OS 9 layer that can run without the Mac (e.g. clock conversion and log format rewrite as pure functions)
 
 ## Packaging (M5, after xweather)
 - [ ] app-defaults file for xweather resources (optional)
@@ -18,9 +19,10 @@
 - [ ] Verify Open-Meteo terms/attribution; create the GitHub repo and push (jack's call)
 
 ## Later
-- [ ] Mac OS 9 (Retro68), CI with big-endian check
+- [ ] CI with a big-endian check; Mac OS X Tiger native build (parked)
 
 ## Done
+- [x] OS 9 end to end (2026-10-25): console `Weather` app fetched a live forecast over TLS 1.2 (ECDHE-RSA-ChaCha20-Poly1305, cert verified against our anchors) on a real Mac OS 9.2.2 under Classic. Our own Open Transport glue replaced Apple's (probe 4 proves it); network layer, log sink, SIZE resource, `make os9`. Bugs found on hardware and fixed: event pump spun forever on an unvalidated update event, Retro68 `printf` has no `%zu`/`%lld`, UTC conversion double-counted daylight saving (checked against OS X `date -u`).
 - [x] Second data source MET Norway (met-no): one request, worldwide, F/C and m/s conversions, WMO code mapping, `contact` setting + User-Agent (their terms), HARICA root pinned; live-verified through BearSSL; compile-time tests also run on Retro68; fallback and skip-without-contact tested (226 unit, 164k mutated inputs, 78 feature) (2026-10-24)
 - [x] OS 9 compile gate (Retro68 GCC 16.1 builds the core + compile-time tests for PowerPC and 68k); xweather resource use measured; ctwm integration scripts tested on copies (2026-10-24)
 - [x] Man pages (weather.1, xweather.1, weatherrc.5; groff -mdoc -ww clean), `make install/plist/dist/distcheck` (tarball reproducible, builds and tests from a clean unpack), example config, CHANGELOG (2026-10-24)
@@ -35,10 +37,3 @@
 - [x] Cross-toolchain for NetBSD 11.0 macppc, hello + Xlib app run on maul
 - [x] C++17 -fno-exceptions -fno-rtti cross-compile check; BearSSL builds for macppc
 
-## OS 9 networking (2026-10-24): gate closed
-- Probe 3 on real Mac OS 9.2.2 (Classic, 256 MB): InitOpenTransport 0, DNS for api.open-meteo.com resolved, TCP connect to :443 ok,
-  send ok, receive got a disconnect (expected, we sent no TLS). So Open Transport works from a Retro68 PEF app.
-- Needs Apple's static glue (OpenTransportAppPPC.o, OpenTptInetPPC.o; not redistributable). Kept OUTSIDE the repo in ~/scratch/os9-sdk
-  (OT SDK 1.3 from the Apple Developer CD, Apr 2000, via discmaster.textfiles.com); build with -DOT_SDK=<dir>. Our own declarations: spike/os9/ot_min.h.
-- Next: reimplement the glue ourselves (it only fills a client record with 3 data-symbol addresses; disassembled, small) so no Apple binary is needed,
-  then Net seam for OS 9 (OT TCP + DNS, async/yield via event loop), BearSSL over it, then the OS 9 UI.
