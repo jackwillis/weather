@@ -56,6 +56,13 @@ static_assert(!json_num(R"("54.8")", 1).ok, "string is not a number");
 static_assert(json_get("{\"a\":1", "a").r == JsonFind::Malformed, "truncated object");
 static_assert(json_get("[1]", "a").r == JsonFind::Malformed, "not an object");
 
+// Line breaks: LF, CRLF and a lone CR; CRLF is one break, LF then CR is two.
+static_assert(line_break("ab\ncd", 0) == 2 && line_break("ab\rcd", 0) == 2 && line_break("abcd", 0) == 4 && line_break("", 0) == 0 &&
+    line_break("ab\ncd", 3) == 5, "line_break");
+static_assert(after_break("ab\r\ncd", 2) == 4 && after_break("ab\rcd", 2) == 3 && after_break("ab\ncd", 2) == 3 &&
+    after_break("ab\r", 2) == 3 && after_break("ab", 2) == 2 && after_break("a\r\r\nb", 1) == 2 && after_break("a\n\rb", 1) == 2,
+    "after_break");
+
 constexpr sv kHttp = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}";
 static_assert(http_parse(kHttp).st.ok() && http_parse(kHttp).code == 200 && http_parse(kHttp).body == sv("{}"),
     "http ok");

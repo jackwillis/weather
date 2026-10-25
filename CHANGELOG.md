@@ -15,7 +15,8 @@ First version.
   answer: retried, exit 74. It was reported as malformed data (exit 65) and not retried, contrary to the man page.
 - CLI: `-c` is honoured in every form (`-c FILE`, `-cFILE`, `-Sc FILE`); before, the clustered and attached forms were ignored
   and `-S` rewrote `~/.weatherrc` instead. `-V` and `-h` no longer read the config, so a malformed file cannot block them.
-- Config files may end lines with LF, CRLF or a lone CR (classic Mac). A CR-only file used to be read as a single comment line and silently
-  gave the default location; `-S` now also edits such files in place and keeps their line ending.
+- The config parser and `-S` accept LF, CRLF or a lone CR (classic Mac) as line breaks. A CR-only file used to be read as one line (a comment,
+  if it began with `#`) and silently gave the default location; `-S` now edits such files in place and keeps their line ending. The OS 9
+  console app's own `weather.conf` reader is unchanged.
 - Tests: compile-time `static_assert`s, 203 unit checks, parser mutation tests, 65 CLI feature tests, a 21-step GUI
   scenario (also on real hardware), UBSan build, vendored and pinned BearSSL, reproducible trust anchors.
