@@ -34,3 +34,11 @@
 - [x] M1 TLS spike: BearSSL handshake + Open-Meteo fetch works on maul (2026-10-23)
 - [x] Cross-toolchain for NetBSD 11.0 macppc, hello + Xlib app run on maul
 - [x] C++17 -fno-exceptions -fno-rtti cross-compile check; BearSSL builds for macppc
+
+## OS 9 networking (2026-10-24): gate closed
+- Probe 3 on real Mac OS 9.2.2 (Classic, 256 MB): InitOpenTransport 0, DNS for api.open-meteo.com resolved, TCP connect to :443 ok,
+  send ok, receive got a disconnect (expected, we sent no TLS). So Open Transport works from a Retro68 PEF app.
+- Needs Apple's static glue (OpenTransportAppPPC.o, OpenTptInetPPC.o; not redistributable). Kept OUTSIDE the repo in ~/scratch/os9-sdk
+  (OT SDK 1.3 from the Apple Developer CD, Apr 2000, via discmaster.textfiles.com); build with -DOT_SDK=<dir>. Our own declarations: spike/os9/ot_min.h.
+- Next: reimplement the glue ourselves (it only fills a client record with 3 data-symbol addresses; disassembled, small) so no Apple binary is needed,
+  then Net seam for OS 9 (OT TCP + DNS, async/yield via event loop), BearSSL over it, then the OS 9 UI.
