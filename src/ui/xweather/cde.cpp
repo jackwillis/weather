@@ -1,4 +1,5 @@
 #include "cde.hpp"
+#include "app/weather_art.hpp"
 #include <cstdio>
 #include <cstring>
 
@@ -195,124 +196,46 @@ void field(Theme &t, Drawable w, Rect r, const char *s, size_t n, size_t cur, bo
 }
 
 // ---------------------------------------------------------------- weather art
+// The geometry lives in app/weather_art.hpp (shared with the Mac OS 9 UI); this is the Xlib canvas it draws on.
 
-static void disc(Theme &t, Drawable w, int cx, int cy, int r, unsigned long c)
-{
-	XSetForeground(t.dpy, t.gc, c);
-	XFillArc(t.dpy, w, t.gc, cx - r, cy - r, static_cast<unsigned>(2 * r), static_cast<unsigned>(2 * r), 0, 360 * 64);
-}
-
-static void cloud(Theme &t, Drawable w, int cx, int cy, int s100, unsigned long body, unsigned long edge)
-{
-	auto sc = [&](int v) { return v * s100 / 100; };
-	for (int pass = 0; pass < 2; pass++) {
-		int grow = pass == 0 ? 2 : 0;
-		unsigned long c = pass == 0 ? edge : body;
-		disc(t, w, cx - sc(16), cy + sc(4), sc(12) + grow, c);
-		disc(t, w, cx - sc(2), cy - sc(6), sc(16) + grow, c);
-		disc(t, w, cx + sc(15), cy + sc(2), sc(13) + grow, c);
-		XSetForeground(t.dpy, t.gc, c);
-		XFillRectangle(t.dpy, w, t.gc, cx - sc(16), cy + sc(2) - grow, static_cast<unsigned>(sc(32)), static_cast<unsigned>(sc(14) + 2 * grow));
+namespace {
+struct XCanvas {
+	Theme &t;
+	Drawable w;
+	void color(wx::Rgb c) { XSetForeground(t.dpy, t.gc, t.rgb(c.r, c.g, c.b)); }
+	void rect(int x, int y, int rw, int rh, wx::Rgb c)
+	{
+		if (rw <= 0 || rh <= 0) return;
+		color(c);
+		XFillRectangle(t.dpy, w, t.gc, x, y, static_cast<unsigned>(rw), static_cast<unsigned>(rh));
 	}
-	XSetForeground(t.dpy, t.gc, body);                     // hide the edge line inside the body
-	XFillRectangle(t.dpy, w, t.gc, cx - sc(15), cy + sc(2), static_cast<unsigned>(sc(30)), static_cast<unsigned>(sc(13)));
-}
-
-static void sun(Theme &t, Drawable w, int cx, int cy, int r)
-{
-	unsigned long ray = t.rgb(255, 214, 64), core = t.rgb(255, 196, 32), rim = t.rgb(214, 150, 20);
-	static const int dir[8][2] = {{100, 0}, {71, 71}, {0, 100}, {-71, 71}, {-100, 0}, {-71, -71}, {0, -100}, {71, -71}};
-	XSetForeground(t.dpy, t.gc, ray);
-	XSetLineAttributes(t.dpy, t.gc, 3, LineSolid, CapRound, JoinRound);
-	for (const auto &d : dir)
-		XDrawLine(t.dpy, w, t.gc, cx + d[0] * (r + 5) / 100, cy + d[1] * (r + 5) / 100, cx + d[0] * (r + 13) / 100, cy + d[1] * (r + 13) / 100);
-	XSetLineAttributes(t.dpy, t.gc, 0, LineSolid, CapButt, JoinMiter);
-	disc(t, w, cx, cy, r + 1, rim);
-	disc(t, w, cx, cy, r, core);
-}
-
-static void moon(Theme &t, Drawable w, int cx, int cy, int r, unsigned long sky)
-{
-	disc(t, w, cx, cy, r, t.rgb(240, 236, 200));
-	disc(t, w, cx + r / 2 + 2, cy - r / 3, r - 1, sky);
-}
-
-static void drops(Theme &t, Drawable w, int cx, int y, int n, int len, unsigned long c)
-{
-	XSetForeground(t.dpy, t.gc, c);
-	XSetLineAttributes(t.dpy, t.gc, 2, LineSolid, CapRound, JoinRound);
-	for (int i = 0; i < n; i++) {
-		int x = cx - 18 + i * (36 / (n > 1 ? n - 1 : 1));
-		int yy = y + (i % 2) * 6;
-		XDrawLine(t.dpy, w, t.gc, x, yy, x - 4, yy + len);
+	void disc(int cx, int cy, int r, wx::Rgb c)
+	{
+		color(c);
+		XFillArc(t.dpy, w, t.gc, cx - r, cy - r, static_cast<unsigned>(2 * r), static_cast<unsigned>(2 * r), 0, 360 * 64);
 	}
-	XSetLineAttributes(t.dpy, t.gc, 0, LineSolid, CapButt, JoinMiter);
-}
-
-static void flakes(Theme &t, Drawable w, int cx, int y, unsigned long c)
-{
-	XSetForeground(t.dpy, t.gc, c);
-	for (int i = 0; i < 5; i++) {
-		int x = cx - 20 + i * 10, yy = y + (i % 2) * 9 + 4;
-		XDrawLine(t.dpy, w, t.gc, x - 3, yy, x + 3, yy);
-		XDrawLine(t.dpy, w, t.gc, x, yy - 3, x, yy + 3);
-		XDrawLine(t.dpy, w, t.gc, x - 2, yy - 2, x + 2, yy + 2);
-		XDrawLine(t.dpy, w, t.gc, x - 2, yy + 2, x + 2, yy - 2);
+	void line(int x0, int y0, int x1, int y1, int width, wx::Rgb c)
+	{
+		color(c);
+		XSetLineAttributes(t.dpy, t.gc, static_cast<unsigned>(width > 1 ? width : 0), LineSolid, width > 1 ? CapRound : CapButt, JoinRound);
+		XDrawLine(t.dpy, w, t.gc, x0, y0, x1, y1);
+		XSetLineAttributes(t.dpy, t.gc, 0, LineSolid, CapButt, JoinMiter);
 	}
+	void poly(const wx::ArtPt *p, int n, wx::Rgb c)
+	{
+		XPoint pts[16];
+		if (n > 16) n = 16;
+		for (int i = 0; i < n; i++) { pts[i].x = static_cast<short>(p[i].x); pts[i].y = static_cast<short>(p[i].y); }
+		color(c);
+		XFillPolygon(t.dpy, w, t.gc, pts, n, Nonconvex, CoordModeOrigin);
+	}
+};
 }
 
 void weather_icon(Theme &t, Drawable w, Rect a, long code, bool night)
 {
-	unsigned long sky = night ? t.rgb(38, 50, 86) : t.rgb(124, 172, 224);
-	fill(t, w, a, sky);
-	int cx = a.x + a.w / 2, cy = a.y + a.h / 2 - 4;
-	unsigned long white = t.rgb(248, 249, 252), grey = t.rgb(160, 166, 184), dark = t.rgb(96, 102, 124);
-	unsigned long edge = t.rgb(110, 124, 160), blue = night ? t.rgb(110, 160, 235) : t.rgb(48, 96, 190);
-
-	bool snowy = (code >= 71 && code <= 77) || code == 85 || code == 86;
-	bool rainy = (code >= 51 && code <= 67) || (code >= 80 && code <= 82);
-	bool storm = code >= 95 && code <= 99;
-	bool foggy = code == 45 || code == 48;
-
-	if (code == 0 || code == 1) {
-		if (night) { moon(t, w, cx, cy, 24, sky); }
-		else sun(t, w, cx, cy, 22);
-		if (night) {                                               // a few stars
-			XSetForeground(t.dpy, t.gc, white);
-			XFillRectangle(t.dpy, w, t.gc, a.x + 14, a.y + 14, 2, 2);
-			XFillRectangle(t.dpy, w, t.gc, a.x + a.w - 22, a.y + 22, 2, 2);
-			XFillRectangle(t.dpy, w, t.gc, a.x + a.w - 30, a.y + a.h - 24, 2, 2);
-		}
-	} else if (code == 2) {
-		if (night) moon(t, w, cx - 14, cy - 14, 18, sky); else sun(t, w, cx - 14, cy - 14, 16);
-		cloud(t, w, cx + 4, cy + 10, 100, white, edge);
-	} else if (foggy) {
-		XSetForeground(t.dpy, t.gc, grey);
-		XSetLineAttributes(t.dpy, t.gc, 4, LineSolid, CapRound, JoinRound);
-		for (int i = 0; i < 4; i++)
-			XDrawLine(t.dpy, w, t.gc, cx - 28 + (i % 2) * 8, cy - 16 + i * 14, cx + 26 - ((i + 1) % 2) * 8, cy - 16 + i * 14);
-		XSetLineAttributes(t.dpy, t.gc, 0, LineSolid, CapButt, JoinMiter);
-	} else if (code == 3) {
-		cloud(t, w, cx + 8, cy - 8, 80, grey, edge);
-		cloud(t, w, cx - 4, cy + 8, 100, white, edge);
-	} else if (storm) {
-		cloud(t, w, cx, cy - 10, 100, dark, edge);
-		XPoint bolt[6] = {{static_cast<short>(cx + 4), static_cast<short>(cy + 6)}, {static_cast<short>(cx - 8), static_cast<short>(cy + 26)},
-		    {static_cast<short>(cx - 1), static_cast<short>(cy + 26)}, {static_cast<short>(cx - 6), static_cast<short>(cy + 42)},
-		    {static_cast<short>(cx + 10), static_cast<short>(cy + 20)}, {static_cast<short>(cx + 3), static_cast<short>(cy + 20)}};
-		XSetForeground(t.dpy, t.gc, t.rgb(255, 214, 64));
-		XFillPolygon(t.dpy, w, t.gc, bolt, 6, Nonconvex, CoordModeOrigin);
-		if (code >= 96) drops(t, w, cx - 12, cy + 12, 2, 8, blue);
-	} else if (snowy) {
-		cloud(t, w, cx, cy - 10, 100, white, edge);
-		flakes(t, w, cx, cy + 14, white);
-	} else if (rainy) {
-		bool heavy = code == 55 || code == 65 || code == 67 || code == 82;
-		cloud(t, w, cx, cy - 10, 100, grey, edge);
-		drops(t, w, cx, cy + 14, heavy ? 6 : 4, heavy ? 14 : 10, blue);
-	} else {
-		cloud(t, w, cx, cy, 100, white, edge);                     // unknown: a plain cloud
-	}
+	XCanvas canvas{t, w};
+	wx::art::picture(canvas, wx::ArtRect{a.x, a.y, a.w, a.h}, code, night);
 	shadow(t, w, a, 1, false);
 }
 
