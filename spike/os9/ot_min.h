@@ -38,5 +38,14 @@ OTResult OTRcv(EndpointRef ep, void *buf, unsigned long n, OTFlags *flags);
 OSStatus OTSndOrderlyDisconnect(EndpointRef ep);
 OSStatus OTInetStringToAddress(InetSvcRef svc, char *name, InetHostInfo *out);
 }
+// Entry points exported by Open Transport's shared libraries (OpenTransportLib / OpenTptInternetLib). Each takes the address of the
+// application's "client record" as its LAST argument (Apple TN1173); ot_glue.cc supplies the record and the public wrappers above.
+extern "C" {
+OSStatus InitOpenTransportPriv(UInt32 flags, void *client);
+void CloseOpenTransportPriv(void *client);
+EndpointRef OTOpenEndpointPriv(OTConfiguration *cfg, OTOpenFlags oflag, TEndpointInfo *info, OSStatus *err, void *client);
+InetSvcRef OTOpenInternetServicesPriv(OTConfiguration *cfg, OTOpenFlags oflag, OSStatus *err, void *client);
+OSStatus OTCloseProviderPriv(ProviderRef ref, void *client);
+}
 #define kOTDefaultInternetServicesPath (reinterpret_cast<OTConfiguration *>(-3L))
 #endif

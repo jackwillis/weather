@@ -8,6 +8,10 @@
 
 #include "ot_min.h"
 
+#ifndef PROBE_NAME
+#define PROBE_NAME "probe3"   // Probe4 builds this same file with our own glue and a different name
+#endif
+
 static FILE *g_log;
 static void say(const char *fmt, long a = 0, long b = 0, long c = 0, long d = 0)
 {
@@ -19,8 +23,8 @@ static void say(const char *fmt, long a = 0, long b = 0, long c = 0, long d = 0)
 
 int main()
 {
-	g_log = fopen("MacOS9Lives:weather-dev:probe3.log", "a");
-	say("probe3 started");
+	g_log = fopen("MacOS9Lives:weather-dev:" PROBE_NAME ".log", "a");
+	say(PROBE_NAME " started");
 	say("calling InitOpenTransport");
 	OSStatus e = InitOpenTransport();
 	say("InitOpenTransport -> %ld", e);
@@ -72,7 +76,7 @@ int main()
 	}
 	if (svc) OTCloseProvider(svc);
 	CloseOpenTransport();
-	say("probe3 finished");
+	say(PROBE_NAME " finished");
 	if (g_log) fclose(g_log);
 	unsigned long t = TickCount();
 	while (TickCount() - t < 60 * 20) { }

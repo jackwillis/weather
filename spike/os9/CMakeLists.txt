@@ -10,3 +10,8 @@ if(OT_SDK)
   add_application(Probe3 CONSOLE probe3.cc)
   target_link_libraries(Probe3 ${OT_SDK}/OpenTransportAppPPC.o ${OT_SDK}/OpenTptInetPPC.o OpenTransportLib OpenTptInternetLib)
 endif()
+
+# Probe4: same test as Probe3 but with OUR glue (ot_glue.cc): needs no Apple binary at all.
+add_application(Probe4 CONSOLE probe3.cc ot_glue.cc)
+target_link_libraries(Probe4 OpenTransportLib OpenTptInternetLib)
+target_compile_definitions(Probe4 PRIVATE PROBE_NAME="probe4")

@@ -1,0 +1,69 @@
+// Our own replacement for Apple's static glue (OpenTransportAppPPC.o / OpenTptInetPPC.o), so the OS 9 build needs no Apple binary.
+// Written from the behaviour of that glue as observed by disassembling it and from Apple TN1173 ("Open Transport Asset Tracking"):
+//  - the application owns a small zeroed "client record"; every asset-creating call passes its address as an extra last argument;
+//  - InitOpenTransport checks that Open Transport is present, points three words of the record at private variables, sets a flag
+//    byte, then calls InitOpenTransportPriv(flags, &record). flags 3 = application client.
+// Only the calls the weather app uses are provided. A call we have not verified on real hardware is not added.
+#include <Gestalt.h>
+#include <cstdlib>
+#include "ot_min.h"
+
+namespace {
+// layout of the record as the OS expects to find it (40 bytes; the OS fills in the first words itself)
+struct ClientRecord {
+	UInt32 owned_by_os[2];
+	const void *library_manager;   // +8
+	const void *slm_global;        // +12
+	const void *exit_patch_rd;     // +16
+	UInt32 owned_by_os2[3];
+	UInt8 flag;                    // +32 (set to 1 by the glue)
+	UInt8 pad[7];
+};
+ClientRecord g_record;
+UInt32 g_library_manager = 0;
+UInt32 g_slm_global = 0;
+UInt32 g_exit_patch_rd = 0xaafe0700;   // initial value observed in Apple's glue; meaning unknown, kept identical
+bool g_open = false;
+
+void close_at_exit() { CloseOpenTransport(); }
+}
+
+extern "C" {
+
+OSStatus InitOpenTransport(void)
+{
+	long resp = 0;
+	if (Gestalt('otan', &resp) != noErr || !(resp & 1)) return -3201;   // Open Transport not present (same code as Apple's glue)
+	if (reinterpret_cast<void *>(InitOpenTransportPriv) == nullptr) return -3201;
+	g_record.library_manager = &g_library_manager;
+	g_record.slm_global = &g_slm_global;
+	g_record.exit_patch_rd = &g_exit_patch_rd;
+	g_record.flag = 1;
+	OSStatus e = InitOpenTransportPriv(3, &g_record);
+	if (e == noErr && !g_open) { g_open = true; std::atexit(close_at_exit); }
+	return e;
+}
+
+void CloseOpenTransport(void)
+{
+	if (!g_open) return;
+	g_open = false;
+	CloseOpenTransportPriv(&g_record);
+}
+
+EndpointRef OTOpenEndpoint(OTConfiguration *cfg, OTOpenFlags oflag, TEndpointInfo *info, OSStatus *err)
+{
+	return OTOpenEndpointPriv(cfg, oflag, info, err, &g_record);
+}
+
+InetSvcRef OTOpenInternetServices(OTConfiguration *cfg, OTOpenFlags oflag, OSStatus *err)
+{
+	return OTOpenInternetServicesPriv(cfg, oflag, err, &g_record);
+}
+
+OSStatus OTCloseProvider(ProviderRef ref)
+{
+	return OTCloseProviderPriv(ref, &g_record);
+}
+
+}
