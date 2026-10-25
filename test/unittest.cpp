@@ -35,6 +35,7 @@ using namespace wx;
 static int g_fail = 0, g_run = 0;
 #define CHECK(c) do { g_run++; if (!(c)) { g_fail++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
 #include "seed_tests.hpp"
+#include "os9_helper_tests.hpp"
 
 static char g_fixbuf[2][8192];
 static const char *fixture(int slot, const char *name)
@@ -230,6 +231,15 @@ static void test_fetch()
 		Net n = make_net(&f);
 		Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
 		CHECK(s.err == Err::Truncated && f.connects == 3 && f.closes == 3);
+	}
+	{ // connection closed before the status line is complete (hangup, or cut early): truncated, retried
+		const char *cuts[] = {"", "HTTP/", "HTTP/1.1 20"};
+		for (const char *cut : cuts) {
+			Fake f; f.steps[0] = {okay(), cut, Err::Ok}; f.nsteps = 1;
+			Net n = make_net(&f);
+			Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
+			CHECK(s.err == Err::Truncated && f.connects == 3 && f.closes == 3);
+		}
 	}
 	{ // read error mid-response is an Io/Timeout error and the socket is still closed
 		Fake f; f.steps[0] = {okay(), "HTTP/1.0 200 OK\r\n", Err::Timeout}; f.nsteps = 1;
@@ -984,6 +994,7 @@ int main()
 	test_metno();
 	test_os9_dns();
 	test_seed_pool();
+	test_os9_helpers();
 	printf("%d checks, %d failed\n", g_run, g_fail);
 	return g_fail ? 1 : 0;
 }
