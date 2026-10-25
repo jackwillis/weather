@@ -1,9 +1,10 @@
 // Open Transport backend. One endpoint at a time (a small windowed or console app).
 // Endpoints are synchronous + non-blocking: every call returns at once and "no data yet" is polled, so Net::yield
 // runs about every 50 ms (the event loop stays alive and the user can cancel). Known limit, like getaddrinfo on
-// POSIX: the DNS lookup itself (OTInetStringToAddress) cannot be interrupted.
+// DNS uses an asynchronous provider and the same foreground yield/deadline policy.
 #include "net_os9.hpp"
 #include "ot_min.h"
+#include "dns_resolve.hpp"
 #include "core/log.hpp"
 #include <bearssl.h>
 #include <Events.h>
@@ -24,6 +25,62 @@ struct Conn {
 };
 Conn g_conn;
 bool g_ot_ok = false;
+
+// Callback-owned storage has process lifetime. The controller only resets it
+// after completion/close; an abandoned open remains alive until drained.
+struct DnsBackend {
+	Net *net = nullptr;
+	char host[256] = {};
+	InetHostInfo info = {};
+	ProviderRef provider = nullptr;
+	OTResult open_code = 0, query_code = 0;
+	void *query_cookie = nullptr;
+	UInt32 open_done = 0, query_done = 0;
+	static pascal void notify(void *context, UInt32 event, OTResult result, void *cookie)
+	{
+		DnsBackend &b = *static_cast<DnsBackend *>(context);
+		if (event == 0x20000007) {
+			b.provider = cookie; b.open_code = result;
+			__atomic_store_n(&b.open_done, 1, __ATOMIC_RELEASE);
+		} else if (event == 0x10000001) {
+			b.query_code = result; b.query_cookie = cookie;
+			__atomic_store_n(&b.query_done, 1, __ATOMIC_RELEASE);
+		}
+	}
+	uint32_t now() { return TickCount(); }
+	bool yield() { return !net || !net->yield || net->yield(*net); }
+	void sleep() { long fin; Delay(3, &fin); }
+	int open(const char *name)
+	{
+		// No previous callback can own these fields when the controller calls open.
+		std::strcpy(host, name);
+		std::memset(&info, 0, sizeof info);
+		provider = nullptr; open_code = query_code = 0; query_cookie = nullptr;
+		__atomic_store_n(&open_done, 0, __ATOMIC_RELEASE);
+		__atomic_store_n(&query_done, 0, __ATOMIC_RELEASE);
+		return weather_async_open_internet(notify, this);
+	}
+	bool opened() { return __atomic_load_n(&open_done, __ATOMIC_ACQUIRE) != 0; }
+	int open_result() { return open_code ? open_code : provider ? 0 : -1; }
+	int query()
+	{
+		OSStatus e = OTSetNonBlocking(provider);
+		return e ? e : OTInetStringToAddress(provider, host, &info);
+	}
+	bool resolved() { return __atomic_load_n(&query_done, __ATOMIC_ACQUIRE) != 0; }
+	int query_result() { return query_cookie == &info ? query_code : -1; }
+	bool has_address() { return info.addrs[0] != 0; }
+	int close()
+	{
+		if (!provider) return 0;
+		OSStatus e = OTSetNonBlocking(provider);
+		if (!e) e = OTCloseProvider(provider);
+		if (!e) provider = nullptr;
+		return e;
+	}
+};
+DnsBackend g_dns;
+DnsResolver<DnsBackend> g_resolver(g_dns);
 
 constexpr long kSliceTicks = 3;   // 3/60 s = 50 ms
 
@@ -181,17 +238,12 @@ Status os9_connect(Net &net, const char *host, const char *port, int timeout_s, 
 	long pnum = std::strtol(port, &endp, 10);
 	if (*port == 0 || *endp != 0 || pnum < 1 || pnum > 65535) return make(Err::Usage, "bad port number");
 
-	OSStatus err = 0;
-	InetSvcRef svc = OTOpenInternetServices(kOTDefaultInternetServicesPath, 0, &err);
-	if (!svc || err) return make(Err::Dns, "cannot open the Open Transport name service", err);
-	InetHostInfo hi;
-	std::memset(&hi, 0, sizeof hi);
-	OSStatus e = OTInetStringToAddress(svc, const_cast<char *>(host), &hi);
-	OTCloseProvider(svc);
-	if (e || hi.addrs[0] == 0) {
-		logf(LogDebug, "OTInetStringToAddress(%s) -> %ld", host, static_cast<long>(e));
-		return make(Err::Dns, "cannot resolve host name", e);
-	}
+	if (!host || std::strlen(host) >= sizeof g_dns.host) return make(Err::Dns, "host name too long");
+	if (timeout_s <= 0 || timeout_s > 86400) return make(Err::Usage, "bad DNS timeout");
+	g_dns.net = &net;
+	Status dns = g_resolver.resolve(host, static_cast<uint32_t>(timeout_s) * 60);
+	if (!dns.ok()) return dns;
+	InetHostInfo hi = g_dns.info;
 
 	Status last = make(Err::Connect, "cannot connect");
 	for (int i = 0; i < 10 && hi.addrs[i]; i++) {

@@ -23,3 +23,17 @@ target_include_directories(Weather PRIVATE ${ROOT}/src ${ROOT}/third_party/bears
 target_compile_definitions(Weather PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
 target_compile_options(Weather PRIVATE -O2 -fno-exceptions -fno-rtti)
 target_link_libraries(Weather bearssl OpenTransportLib OpenTptInternetLib)
+
+option(WEATHER_BUILD_DIAGNOSTICS "Build self-running OS 9 network checks" OFF)
+if(WEATHER_BUILD_DIAGNOSTICS)
+  add_application(DnsNetProbe CONSOLE
+    ${ROOT}/spike/os9/dns_net_probe.cc
+    ${ROOT}/src/platform/os9/net_os9.cpp
+    ${ROOT}/src/platform/os9/ot_glue.cc
+    ${ROOT}/src/platform/os9/log_os9.cpp
+    ${ROOT}/src/platform/posix/nocxx.cpp
+    ${ROOT}/os9/weather.r)
+  target_include_directories(DnsNetProbe PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+  target_compile_options(DnsNetProbe PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
+  target_link_libraries(DnsNetProbe bearssl OpenTransportLib OpenTptInternetLib)
+endif()
