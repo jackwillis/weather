@@ -2,7 +2,7 @@
 
 ## Now
 - [ ] OS 9 window UI (classic Toolbox: window, menus, dialogs; Platinum look) on top of the existing Model; settings store (Preferences folder), proper event loop (WaitNextEvent) instead of the console app
-- [ ] OS 9 hardening: DNS timeout/cancel (OT async open + notifier), better entropy (check for an OS-provided source), run under 68k too only if a target needs it
+- [ ] OS 9 hardening acceptance: DNS delayed-open/stalled-server hardware coverage; authorize genuine managed-seed delivery, verify installer and two live TLS launches (implementation and synthetic-store fault tests pass); run under 68k only if a target needs it
 - [ ] M3c last step: jack runs `xweather` once on maul's real X display (window manager, depth, feel); fix what that shows
 - [ ] Reinstall the rebuilt NetBSD package on maul (`doas pkg_add -u`; staged at /tmp/weather-0.1.0.tgz, lost at reboot: rebuild with tools/mkpkg-netbsd.sh)
 

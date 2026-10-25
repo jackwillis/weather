@@ -59,11 +59,11 @@ $(BUILD)/xweather: $(BUILD)/xweather.debug
 $(BUILD)/xdrive: $(OBJ)/test/xdrive.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(X11_LIBS)
 
-$(BUILD)/robust: $(OBJ)/test/robust.o
-	$(CXX) $(EXTRA_LDFLAGS) -o $@ $<
+$(BUILD)/robust: $(OBJ)/test/robust.o $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(BEARSSL_LIB)
 
-$(BUILD)/unittest: $(TEST_OBJS)
-	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(TEST_OBJS)
+$(BUILD)/unittest: $(TEST_OBJS) $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(TEST_OBJS) $(BEARSSL_LIB)
 
 # Objects depend on the exact compiler command: change a flag (or the toolchain) and everything rebuilds.
 $(OBJ)/.flags: FORCE
@@ -159,6 +159,7 @@ check-native: lint check-anchors $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weat
 	$(BUILD)/unittest
 	$(BUILD)/robust
 	sh test/feature.sh $(BUILD)/weather
+	python3 test/seed_provision.py
 # Everything again under AddressSanitizer + UBSan: unit tests, parser robustness, the CLI's feature tests.
 check-san:
 	@$(MAKE) -s TARGET=host-san san-note

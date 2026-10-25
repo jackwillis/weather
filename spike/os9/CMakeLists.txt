@@ -24,3 +24,6 @@ target_compile_options(DnsProbe PRIVATE -O2 -Wall -Wextra -Werror -fno-exception
 # Existing glue checks a linked function's address; GCC diagnoses that old check.
 set_source_files_properties(${OS9SRC}/ot_glue.cc PROPERTIES COMPILE_OPTIONS "-Wno-error=address")
 target_link_libraries(DnsProbe OpenTransportLib OpenTptInternetLib)
+
+add_application(SeedFileProbe CONSOLE seed_file_probe.cc)
+target_compile_options(SeedFileProbe PRIVATE -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
