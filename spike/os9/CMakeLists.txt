@@ -1,3 +1,5 @@
 cmake_minimum_required(VERSION 3.9)
 project(os9probe)
 add_application(Probe1 CONSOLE probe1.cc)
+add_application(Probe2 CONSOLE probe2.cc)
+target_link_libraries(Probe2 OpenTransportLib OpenTptInternetLib)
