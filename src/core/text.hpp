@@ -2,6 +2,7 @@
 #pragma once
 #include <cstddef>
 #include <string_view>
+#include <limits>
 
 namespace wx {
 
@@ -65,15 +66,20 @@ constexpr Num parse_fixed(sv t, int decimals)
 	size_t i = 0;
 	bool neg = false;
 	if (i < t.size() && (t[i] == '-' || t[i] == '+')) { neg = t[i] == '-'; i++; }
+	// Check arithmetic before it happens: long is only 32 bits on macppc.
+	if (decimals < 0 || decimals > 9) return {};
+	long scale = 1;
+	for (int k = 0; k < decimals; k++) scale *= 10;
+	const long max = std::numeric_limits<long>::max();
 	long ip = 0;
 	int idig = 0;
 	while (i < t.size() && t[i] >= '0' && t[i] <= '9') {
 		if (++idig > 9) return {};
-		ip = ip * 10 + (t[i] - '0');
+		int digit = t[i] - '0';
+		if (ip > (max / scale - digit) / 10) return {};
+		ip = ip * 10 + digit;
 		i++;
 	}
-	long scale = 1;
-	for (int k = 0; k < decimals; k++) scale *= 10;
 	long v = ip * scale;
 	int fdig = 0;
 	if (i < t.size() && t[i] == '.') {
@@ -81,12 +87,12 @@ constexpr Num parse_fixed(sv t, int decimals)
 		long place = scale;
 		bool round_up = false;
 		while (i < t.size() && t[i] >= '0' && t[i] <= '9') {
-			if (fdig < decimals) { place /= 10; v += (t[i] - '0') * place; }
+			if (fdig < decimals) { place /= 10; long digit = (t[i] - '0') * place; if (v > max - digit) return {}; v += digit; }
 			else if (fdig == decimals) round_up = t[i] >= '5';
 			fdig++;
 			i++;
 		}
-		if (round_up) v += 1;
+		if (round_up) { if (v == max) return {}; v += 1; }
 		if (fdig == 0) return {};
 	}
 	if (i != t.size() || idig == 0) return {};
