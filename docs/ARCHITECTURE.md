@@ -50,6 +50,27 @@ The UI is a thin renderer on top, so all refresh behaviour is tested natively wi
 - Fixed 440x300 window. Input handling during a fetch: repaint and quit only (re-entrancy rule above).
 - GUI testing without a person: `xdrive` (synthetic events, screenshots) against a private Xvfb, on the laptop and on maul.
 
+## Mac OS 9 target (decided 2026-10-25)
+
+Built with Retro68 (GCC 16.1, PowerPC PEF, classic Toolbox, no Carbon), from `os9/CMakeLists.txt`; `make os9` runs it in the
+Retro68 container. Layers: the same core, app and tls code; `src/platform/os9/` replaces `platform/posix/`.
+
+* **Open Transport without Apple files.** Retro68 ships import libraries for Open Transport but no headers, and Apple's static
+  glue (`OpenTransportAppPPC.o`) is not redistributable. We declare the API subset we use ourselves (`ot_min.h`, layouts and
+  signatures verified against Apple's header and on real hardware) and replaced the glue with `ot_glue.cc`. The glue is tiny:
+  a 40-byte "client record" whose address is the extra last argument of every `*Priv` call (Apple TN1173), set up once by
+  `InitOpenTransportPriv(3, &record)`. Other Toolbox calls Retro68 lacks (`Microseconds`, `ReadLocation`) are in `toolbox_extra.h`.
+* **Network I/O** (`net_os9.cpp`): endpoints are synchronous and non-blocking; "no data yet" is polled every 50 ms with
+  `Net::yield`, so the event loop keeps running and Cmd-. cancels. DNS (`OTInetStringToAddress`) cannot be interrupted,
+  the same limit as `getaddrinfo` on POSIX.
+* **Clock**: UTC is derived from the Date & Time time zone (`gmtDelta` plus the daylight-saving flag); TLS certificate dates
+  use it, and `fetch` refuses a clock before 2025. Both the offset and the DST sign still need verifying against a known clock.
+* **Entropy is the weak point.** There is no `/dev/urandom`. We hash timer jitter, ticks, clock, mouse position, free memory and
+  a seed file kept from the previous run. This keeps session keys unguessable for a casual observer but is weaker than a kernel
+  RNG; it does not affect certificate checking. A hardware or OS-provided source would replace it if one exists on the target.
+* **Apple material policy**: nothing from Apple's SDK is committed or needed to build. Files obtained from Apple's old developer
+  CDs for reading and comparison live outside the repo.
+
 ## 4. Targets and tiers
 
 | target          | built on          | compiler                          | net / UI                         | package            | tier |
