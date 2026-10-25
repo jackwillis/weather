@@ -11,7 +11,8 @@ trap 'rm -rf "$T"' EXIT
 trap 'exit 1' INT TERM
 T=$(mktemp -d "${TMPDIR:-/tmp}/flags-test.XXXXXX") || exit 1
 OBJ=$T/obj/core/fetch.o
-build() { OUT=$($MAKE_CMD BUILD="$T" "$@" "$OBJ" 2>&1); got=$?; }
+# MAKEFLAGS is cleared so an outer -s/-n/-j (inherited through make's environment) cannot hide or change the output.
+build() { OUT=$(MAKEFLAGS= $MAKE_CMD BUILD="$T" "$@" "$OBJ" 2>&1); got=$?; }
 # GNU make 3.81 compares file times in whole seconds: let the clock tick before changing flags.
 tick() { sleep 1; }
 compiled() { case "$OUT" in *"-c -o "*) return 0;; *) return 1;; esac; }
