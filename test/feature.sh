@@ -83,7 +83,7 @@ expect "-l drops configured name" 0 $W -l 59.91,10.75 -H 127.0.0.1:$P_OK
 contains "no name after -l" "Weather from open-meteo"
 expect "-n sets name" 0 $W -l 59.91,10.75 -n Bergen -H 127.0.0.1:$P_OK
 contains "-n shown" "Weather for Bergen from"
-expect "-n before -l: -l still drops the name (options apply in order)" 0 -n Bergen -l 59.91,10.75 -H 127.0.0.1:$P_OK
+expect "-n before -l: -l still drops the name (options apply in order)" 0 $W -n Bergen -l 59.91,10.75 -H 127.0.0.1:$P_OK
 contains "no name after -n then -l" "Weather from open-meteo"
 expect "-l reaches the request" 0 $W -d -l 59.91,10.75 -1 -H 127.0.0.1:$P_OK
 contains "-l in request" "latitude=59.9100&longitude=10.7500"
@@ -177,6 +177,16 @@ c_case() {  # c_case NAME ARGS...
 c_case "-Sc FILE" -Sc "$OTHER" -n Z
 c_case "-cFILE" -c"$OTHER" -n Z -S
 c_case "-c after other flags" -n Z -S -c "$OTHER"
+# the last -c wins; and a flood of config options is refused, not silently truncated
+printf 'latitude = 3.0\n' > "$HD/first.rc"; printf 'latitude = 4.0\n' > "$HD/second.rc"
+OUT=$(HOME=$HD "$BIN" -c "$HD/first.rc" -c "$HD/second.rc" -n Z -S 2>&1); got=$?
+if [ "$got" = 0 ]; then ok; else bad "two -c: exit $got ($OUT)"; fi
+case "$(cat "$HD/second.rc")" in *"name = Z"*) ok;; *) bad "two -c: last file not updated";; esac
+case "$(cat "$HD/first.rc")" in "latitude = 3.0") ok;; *) bad "two -c: first file was modified";; esac
+many=""; i=0; while [ $i -lt 33 ]; do many="$many -n x"; i=$((i+1)); done
+OUT=$(HOME=$HD "$BIN" $many 2>&1); got=$?
+if [ "$got" = 64 ]; then ok; else bad "33 config options: exit $got, wanted 64 ($OUT)"; fi
+case "$OUT" in *"too many options"*) ok;; *) bad "33 config options: no 'too many options' message ($OUT)";; esac
 printf 'bogus = 1\n' > "$HD/bad.rc"
 OUT=$("$BIN" -V -c "$HD/bad.rc" 2>&1); got=$?
 if [ "$got" = 0 ]; then ok; else bad "-V with a malformed config: exit $got ($OUT)"; fi
