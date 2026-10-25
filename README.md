@@ -63,7 +63,7 @@ Homebrew's `make` 4.x (installed as `gmake`); `make dist distcheck` passes there
 skipped with a notice), `python3` (fixture servers, seed tests) and POSIX `sh`.
 
 Linux only (or needing extra tools): `check-gui` (Xvfb; `mk/host.mk` looks for `/usr/include/X11`, so it is skipped on macOS), AddressSanitizer in
-`check-san` (detected through a Linux library path; macOS gets UBSan only), `make os9` (podman) and the `*-maul` targets (the test machine).
+`check-san` (detected by asking the compiler for `libasan.so`; macOS gets UBSan only), `make os9` (podman) and the `*-maul` targets (the test machine).
 
 Shell scripts in `tools/` and `test/` are POSIX `sh` and POSIX `awk`: some run on NetBSD, whose awk is BSD awk, so no gawk-only idioms. macOS's
 awk is BSD awk too, which makes it a useful check. With GNU make 3.81, flags changed within one second of the previous build may not
