@@ -17,8 +17,10 @@ Acceptance:
   loops and response buffers, and compatibility of both existing providers.
 - Mutation coverage for every new parser path; host, 32-bit, sanitizers and real
   PowerPC validation. Live verification is separate from deterministic fixture CI.
-- Review any trust-anchor changes separately; never bypass TLS verification or
-  trust arbitrary hosts returned by an API without a documented policy.
+- Connect only to api.weather.gov. Validate every API-returned absolute URL and
+  reject any different host, scheme or nonstandard port; never follow an absolute
+  URL to another host or forward contact details there. Fixture-test hostile URLs.
+- Review trust-anchor changes separately; never bypass TLS verification.
 
 Dependencies: provider interface design; caching can remain independent. No daemon
 or geocoding requirement is introduced by this PR.
