@@ -38,13 +38,15 @@ struct DnsBackend {
 	OTResult open_code = 0, query_code = 0;
 	void *query_cookie = nullptr;
 	UInt32 open_done = 0, query_done = 0;
+	static constexpr UInt32 kOpenComplete = 0x20000007;
+	static constexpr UInt32 kQueryComplete = 0x10000001;
 	static pascal void notify(void *context, UInt32 event, OTResult result, void *cookie)
 	{
 		DnsBackend &b = *static_cast<DnsBackend *>(context);
-		if (event == 0x20000007) {
+		if (event == kOpenComplete) {
 			b.provider = cookie; b.open_code = result;
 			__atomic_store_n(&b.open_done, 1, __ATOMIC_RELEASE);
-		} else if (event == 0x10000001) {
+		} else if (event == kQueryComplete) {
 			b.query_code = result; b.query_cookie = cookie;
 			__atomic_store_n(&b.query_done, 1, __ATOMIC_RELEASE);
 		}
@@ -335,6 +337,8 @@ bool os9_entropy(Net &, void *buf, size_t len)
 }
 
 } // namespace
+
+const char *os9_entropy_error() { return g_exit_ready ? g_seed_pool.error() : "cannot register TLS seed cleanup"; }
 
 void os9_net_shutdown()
 {

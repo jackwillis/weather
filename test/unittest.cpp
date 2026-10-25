@@ -9,6 +9,7 @@
 #include "core/version.hpp"
 #include "app/locform.hpp"
 #include "app/model.hpp"
+#include "app/config_load.hpp"
 #include "app/window_actions.hpp"
 #include "app/textedit.hpp"
 #include "core/providers.hpp"
@@ -943,6 +944,27 @@ static void test_os9_dns()
 	  CHECK(r.resolve("h", 0).err == Err::Timeout); CHECK(f.opens == 0); }
 }
 
+static void test_config_load()
+{
+	SettingsStore store;
+	store.load = [](SettingsStore &s, char *out, size_t cap, size_t *n) {
+		const char *text = static_cast<const char *>(s.ctx);
+		if (!text) return make(Err::Config, "read failure");
+		*n = strlen(text);
+		if (*n < cap) memcpy(out, text, *n);
+		return okay();
+	};
+	Config cfg;
+	store.ctx = const_cast<char *>("units=metric\nlatitude=1\nnot-a-key=bad");
+	CHECK(!load_config(store,cfg).ok()); CHECK(!cfg.metric && cfg.lat_e4==430747);
+	store.ctx = const_cast<char *>("units=metric\nlatitude=1\nautorefresh=off");
+	CHECK(load_config(store,cfg).ok()); CHECK(cfg.metric && cfg.lat_e4==10000 && !cfg.auto_refresh);
+	store.ctx = const_cast<char *>(""); CHECK(load_config(store,cfg).ok()); CHECK(cfg.metric);
+	store.ctx = nullptr; CHECK(!load_config(store,cfg).ok()); CHECK(cfg.metric);
+	static char large[4097]; memset(large,' ',sizeof large-1);
+	store.ctx = large; CHECK(!load_config(store,cfg).ok()); CHECK(cfg.metric);
+}
+
 static void test_window_actions()
 {
 	Config cfg;
@@ -993,6 +1015,7 @@ int main()
 	test_settings_store();
 	test_model();
 	test_window_actions();
+	test_config_load();
 	test_forms();
 	test_metno();
 	test_os9_dns();

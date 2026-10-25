@@ -12,6 +12,7 @@ target_compile_options(bearssl PRIVATE -Os)
 set(WEATHER_VERSION_STR "0.1.0")
 set(WEATHER_COMMON
   ${ROOT}/src/core/fetch.cpp
+  ${ROOT}/src/platform/os9/config_os9.cpp
   ${ROOT}/src/tls/tls.cpp
   ${ROOT}/src/platform/os9/net_os9.cpp
   ${ROOT}/src/platform/os9/seed_store_os9.cpp
@@ -19,7 +20,7 @@ set(WEATHER_COMMON
   ${ROOT}/src/platform/os9/log_os9.cpp
   ${ROOT}/src/platform/posix/nocxx.cpp
   ${ROOT}/os9/weather.r)
-add_application(Weather ${WEATHER_COMMON} ${ROOT}/src/ui/os9/main.cpp)
+add_application(Weather ${WEATHER_COMMON} ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/main.cpp)
 add_application(WeatherConsole CONSOLE ${WEATHER_COMMON} ${ROOT}/src/platform/os9/console_main.cpp)
 target_include_directories(WeatherConsole PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
 target_compile_definitions(WeatherConsole PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
@@ -40,6 +41,12 @@ target_link_libraries(SeedInstall bearssl)
 
 option(WEATHER_BUILD_DIAGNOSTICS "Build self-running OS 9 network checks" OFF)
 if(WEATHER_BUILD_DIAGNOSTICS)
+  add_application(WeatherUITest CONSOLE ${WEATHER_COMMON}
+    ${ROOT}/src/ui/os9/window.cpp ${ROOT}/spike/os9/window_probe.cc)
+  target_include_directories(WeatherUITest PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+  target_compile_definitions(WeatherUITest PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
+  target_compile_options(WeatherUITest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
+  target_link_libraries(WeatherUITest bearssl OpenTransportLib OpenTptInternetLib)
   add_application(TlsSeedProbe CONSOLE
     ${ROOT}/spike/os9/tls_seed_probe.cc
     ${ROOT}/src/core/fetch.cpp
