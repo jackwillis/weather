@@ -14,8 +14,13 @@ struct HttpResponse {
 
 constexpr HttpResponse http_parse(sv raw)
 {
-	if (raw.size() < 12 || raw.substr(0, 5) != sv("HTTP/"))
+	if (raw.size() < 12 || raw.substr(0, 5) != sv("HTTP/")) {
+		// Bytes that stop inside "HTTP/..." (or no bytes at all) are a connection that dropped: retryable, unlike garbage.
+		size_t n = raw.size() < 5 ? raw.size() : 5;
+		if (raw.size() < 12 && raw.substr(0, n) == sv("HTTP/").substr(0, n))
+			return {make(Err::Truncated, "response cut off before the status line"), 0, {}};
 		return {make(Err::Parse, "not an HTTP response"), 0, {}};
+	}
 	size_t eol = find(raw, "\r\n");
 	if (eol == sv::npos) return {make(Err::Truncated, "response cut off in status line"), 0, {}};
 	// "HTTP/1.x SSS reason"

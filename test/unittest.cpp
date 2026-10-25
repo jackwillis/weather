@@ -231,6 +231,15 @@ static void test_fetch()
 		Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
 		CHECK(s.err == Err::Truncated && f.connects == 3 && f.closes == 3);
 	}
+	{ // connection closed before the status line is complete (hangup, or cut early): truncated, retried
+		const char *cuts[] = {"", "HTTP/", "HTTP/1.1 20"};
+		for (const char *cut : cuts) {
+			Fake f; f.steps[0] = {okay(), cut, Err::Ok}; f.nsteps = 1;
+			Net n = make_net(&f);
+			Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
+			CHECK(s.err == Err::Truncated && f.connects == 3 && f.closes == 3);
+		}
+	}
 	{ // read error mid-response is an Io/Timeout error and the socket is still closed
 		Fake f; f.steps[0] = {okay(), "HTTP/1.0 200 OK\r\n", Err::Timeout}; f.nsteps = 1;
 		Net n = make_net(&f);
