@@ -692,15 +692,15 @@ static void test_model()
 		CHECK(strstr(ok.c_str(), "Updated just now") != nullptr);
 		CHECK(m.stale(500));
 		Buf<200> b; m.status_line(b, 500);
-		CHECK(strstr(b.c_str(), "just now") == nullptr && strstr(b.c_str(), "Updated at an unknown time (the clock changed)") != nullptr);
+		CHECK(strstr(b.c_str(), "just now") == nullptr && strstr(b.c_str(), "Updated at an unknown time, clock changed") != nullptr);
 		CHECK(m.stale(1000000 - 1) && !m.stale(1000000));   // the boundary: now == fetch time is a known age (0)
 		CHECK(!m.tick(500));                                // the UI ticks every second; the refresh time is clamped to the new clock
 		CHECK(m.tick(500 + 900));                           // fetching: the old data is still described honestly
 		Buf<200> fb; m.status_line(fb, 500 + 900);
-		CHECK(strstr(fb.c_str(), "showing data from an unknown time (the clock changed)") != nullptr);
+		CHECK(strstr(fb.c_str(), "showing data from an unknown time, clock changed") != nullptr);
 		m.finish(500 + 900, make(Err::Timeout, "timed out"), nullptr);
 		Buf<200> xb; m.status_line(xb, 500 + 901);
-		CHECK(strstr(xb.c_str(), "Showing data from an unknown time (the clock changed)") != nullptr);
+		CHECK(strstr(xb.c_str(), "Showing data from an unknown time, clock changed") != nullptr);
 		CHECK(m.stale(500 + 901));
 		m.tick(500 + 900 + 60);
 		Forecast g = some_forecast(550);

@@ -139,7 +139,7 @@ public:
 	template <size_t N>
 	void add_data_age(Buf<N> &o, long long now) const
 	{
-		if (age_unknown(now)) o.add("an unknown time (the clock changed)");
+		if (age_unknown(now)) o.add("an unknown time, clock changed");
 		else add_age(o, age(now));
 	}
 
