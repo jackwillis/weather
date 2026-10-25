@@ -55,7 +55,7 @@ fingerprint; `test/anchors.sh` tests the check itself). Refreshing them is a rel
 
 ### Host platforms
 Developed on Linux; `make check` (everything except the GUI scenario) also passes on macOS (arm64) with Apple's GNU make 3.81 and with
-Homebrew's `make` 4.x (installed as `gmake`). Besides the compiler: `openssl` (the anchor fingerprint check; without it that check is
+Homebrew's `make` 4.x (installed as `gmake`); `make dist distcheck` passes there too. Besides the compiler: `openssl` (the anchor fingerprint check; without it that check is
 skipped with a notice), `python3` (fixture servers, seed tests) and POSIX `sh`.
 
 Linux only (or needing extra tools): `check-gui` (Xvfb; `mk/host.mk` looks for `/usr/include/X11`, so it is skipped on macOS), AddressSanitizer in
