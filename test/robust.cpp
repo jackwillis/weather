@@ -215,6 +215,9 @@ int main(int argc, char **argv)
 	static const char cfg[] = "# my weather\nlatitude = 43.0747  # home\nlongitude=-89.3841\nname = Madison, WI\nunits = metric\n"
 	    "timeout = 15\nattempts = 3\nproviders = open-meteo\nlog = info\nautorefresh = off\n";
 	mutate_all(cfg, sizeof cfg - 1, iterations, rng);
+	static char crcfg[sizeof cfg];                                          // the same file with classic Mac line endings
+	for (size_t i = 0; i < sizeof cfg - 1; i++) crcfg[i] = cfg[i] == '\n' ? '\r' : cfg[i];
+	mutate_all(crcfg, sizeof cfg - 1, iterations, rng);
 	static const char formats[] = "%zu %%zu %08zu %.*zu %lld %s %ld %.2f %%";
 	mutate_all(formats, sizeof formats - 1, iterations, rng);
 	unsigned char synthetic_seed[32], record[kSeedRecordSize];
