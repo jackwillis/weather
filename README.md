@@ -30,6 +30,11 @@ flags override it. The default location is Madison, WI 53703 (Capitol Square 43.
 (68 dns, 69 connect/no source, 74 io, 75 timeout, 76 http/tls/cert, 65 bad data, 64 usage, 78 config).
 `-S` saves location, name and units into the config file (comments and other settings are kept; the write is atomic) and exits. Ctrl-C or SIGTERM during a fetch cancels cleanly (exit 130). Diagnostics go to stderr (or syslog with -s); stdout carries only the result. `-d` dumps the traffic.
 
+Set `cache = on` to keep a private last-good forecast in `<config path>.cache` on
+POSIX systems. Matching entries up to 24 hours old are labelled stale; CLI fallback
+retains the live failure exit code. Plain-HTTP test requests bypass caching. See
+[cache behavior and format](docs/FORECAST-CACHE.md). OS 9 cache integration is pending.
+
 ## Build and test
 GNU make is required (`gmake` on BSD and under Homebrew; Apple's make 3.81 works too). One fragment per target in `mk/`.
 

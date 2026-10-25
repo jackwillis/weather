@@ -5,6 +5,7 @@
 // sanitizers do the watching. usage: robust [random-iterations] (default 20000)
 #include "app/textedit.hpp"
 #include "core/config.hpp"
+#include "core/forecast_cache.hpp"
 #include "core/http.hpp"
 #include "core/json.hpp"
 #include "core/metno.hpp"
@@ -40,6 +41,23 @@ static void exercise(const char *p, size_t n)
 	g_runs++;
 	g_cur_len = n;
 	sv in(p, n);
+	CacheKey cache_key{Query{},"open-meteo"};
+	auto check_cache=[&](const unsigned char *bytes,size_t size) {
+		CachedForecast decoded; decoded.fetched_at=-1;
+		if(cache_decode(bytes,size,cache_key,1792950000LL,&decoded)) {
+			unsigned char canonical[kForecastCacheBytes];
+			EXPECT(cache_encode(cache_key,decoded.forecast,decoded.fetched_at,canonical));
+			EXPECT(size==sizeof canonical && !memcmp(bytes,canonical,size));
+			EXPECT(plausible_temp_t10(decoded.forecast.temp_t10,false));
+		} else EXPECT(decoded.fetched_at==-1);
+	};
+	check_cache(reinterpret_cast<const unsigned char *>(p),n);
+	if(n==kForecastCacheBytes) {
+		unsigned char checked[kForecastCacheBytes]; memcpy(checked,p,n);
+		// Reach field validation as well as CRC rejection on mutated records.
+		cache_detail::put32(checked+156,cache_detail::crc(checked,156));
+		check_cache(checked,n);
+	}
 	// Format adapter: bounded output, failure empties it, deterministic prefix.
 	char full[257], small[18];
 	memset(small, 0x5a, sizeof small);
@@ -213,10 +231,14 @@ int main(int argc, char **argv)
 	memcpy(http + hl, seed, n);
 	mutate_all(http, static_cast<size_t>(hl) + n, iterations, rng);
 	static const char cfg[] = "# my weather\nlatitude = 43.0747  # home\nlongitude=-89.3841\nname = Madison, WI\nunits = metric\n"
-	    "timeout = 15\nattempts = 3\nproviders = open-meteo\nlog = info\nautorefresh = off\n";
+	    "timeout = 15\nattempts = 3\nproviders = open-meteo\nlog = info\nautorefresh = off\ncache = on\n";
 	mutate_all(cfg, sizeof cfg - 1, iterations, rng);
 	static const char formats[] = "%zu %%zu %08zu %.*zu %lld %s %ld %.2f %%";
 	mutate_all(formats, sizeof formats - 1, iterations, rng);
+	Forecast cached; cached.source="open-meteo"; cached.temp_t10=650; cached.code=0;
+	unsigned char cache_record[kForecastCacheBytes];
+	if(!cache_encode(CacheKey{Query{},"open-meteo"},cached,1792950000LL,cache_record)) return 1;
+	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);
 	unsigned char synthetic_seed[32], record[kSeedRecordSize];
 	for (size_t i = 0; i < sizeof synthetic_seed; ++i) synthetic_seed[i] = static_cast<unsigned char>(i + 1);
 	seed_encode(synthetic_seed, record);

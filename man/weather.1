@@ -140,6 +140,11 @@ that says what went wrong:
 .It 78 Ta EX_CONFIG Ta bad settings file
 .It 130 Ta Ta interrupted
 .El
+.Pp
+With
+.Ic cache = on ,
+a failed live fetch may print an explicitly stale cached forecast.
+The exit status still describes the live failure; cached data never makes it 0.
 .Sh EXAMPLES
 Show the weather for the configured place:
 .Pp

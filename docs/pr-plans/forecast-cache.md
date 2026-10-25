@@ -1,6 +1,44 @@
 # Last-good forecast cache
 
-Status: draft design and acceptance criteria; no implementation yet.
+Status: draft implementation; portable/POSIX milestone verified. OS 9 adapter
+and window integration are not implemented yet.
+
+Implemented:
+- Canonical 160-byte big-endian record with CRC, known source IDs, bounded fields,
+  exact location/units/provider identity and a 24-hour restore limit. Future fetch
+  times and corrupt/oversized/unknown records are rejected. Decoder source pointers
+  refer to static strings; accepted records re-encode byte-for-byte.
+- Opt-in `cache=on`, separate private `<config>.cache`; no contact or TLS seed data.
+  Plain-HTTP fixture requests bypass persistence. CLI cached output is explicitly
+  STALE and retains the live failure exit code; cancellation does not fall back.
+- Model/X11 cache restoration, stale-first status, dimmed temperature, live-success
+  clearing, restart and unit/location invalidation. No new retry loop.
+- Checked POSIX read/atomic write seam; native tests inject read, partial write,
+  file flush/close, rename, directory flush/close failures. Before replacement the
+  old valid record remains; after replacement failure is still reported but the
+  complete new record remains. Temporary files are cleaned up.
+
+Verification:
+- Host: 923 unit/storage checks, 230242 robustness inputs, 99 existing CLI checks,
+  4 new end-to-end CLI cache tests, 6 flags tests, 14 anchor tests, 2 provisioning
+  tests; ASan and UBSan passed. New decoder mutations also recompute CRC to reach
+  numeric/text/canonical validation beyond checksum rejection.
+- X11 GUI: 30 checks passed on host and on actual NetBSD/macppc. Native cache,
+  restart and changed-unit screenshots were inspected locally. A first native
+  restart run failed to show the second window; private Xvfb was hardened with
+  `-noreset` and remote folders were isolated, and the rerun passed. The original
+  startup failure's exact cause was not proven; failure logs are now retained.
+- Actual PowerPC: 923 unit checks, 86242 mutation inputs (the hardware driver uses
+  fewer random iterations), all ten smoke checks passed. Linux cross-built only.
+- Native live CLI created a 160-byte cache; deliberate trust-anchor rejection
+  returned 76 and printed STALE data. Disposable test files were removed. Log:
+  docs/verification/cache-netbsd-live-2026-10-25.txt.
+- Portable code compiles with Retro68 for both PowerPC and 68k. OS 9 adapter and
+  GUI behavior are not claimed tested. GitHub's 32-bit job runs on this PR.
+
+See docs/FORECAST-CACHE.md for the record and policy. Remaining before ready:
+OS 9 storage/fault handling, console/window wiring, and native OS 9 acceptance
+when Jack boots Tiger. The window integration follows #11. Keep this PR draft.
 
 Scope: add a bounded, versioned on-disk forecast cache through a platform storage
 seam. Serve matching last-good data when providers fail, visibly marked stale.

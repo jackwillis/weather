@@ -26,7 +26,7 @@ quit_xw() {
 	wait $XW; check "$1: exit status" "$?" 0
 }
 
-$XVFB $DISPLAY -screen 0 640x420x24 -nolisten tcp $XVFB_ARGS > xvfb.log 2>&1 &
+$XVFB $DISPLAY -noreset -screen 0 640x420x24 -nolisten tcp $XVFB_ARGS > xvfb.log 2>&1 &
 XPID=$!
 trap 'kill $XPID 2>/dev/null' EXIT
 i=0
@@ -95,6 +95,22 @@ if start_xw rcC $PORT_500; then
 	keeplog C
 	quit_xw C
 fi
+
+# ---------------------------------------------------------------- Cache: real file restoration, no service contact
+printf 'providers = met-no\ncache = on\nattempts = 1\n' > rcCache
+for round in 1 2; do
+	./xweather -v -c rcCache > xw.log 2>&1 & XW=$!
+	./xdrive wait Weather 20000 || { echo "FAIL cached window did not appear"; cat xw.log; cp xw.log snap/Cache-startup-failure.log; fail=$((fail+1)); break; }
+	./xdrive sleep 1500 snap snap/Cache-$round.$EXT
+	check "Cache $round: stale forecast restored, including restart" "$(grep -c 'restored cached forecast (stale)' xw.log)" 1
+	check "Cache $round: missing contact skips service" "$(grep -c 'met-no skipped' xw.log)" 1
+	if [ $round = 2 ]; then
+		./xdrive click 80 13 sleep 300 click 100 84 sleep 1500 snap snap/Cache-new-units.$EXT
+		check "Cache: changing units does not restore mismatched old record" "$(grep -c 'restored cached forecast (stale)' xw.log)" 1
+	fi
+	keeplog Cache-$round
+	quit_xw Cache-$round
+done
 
 # ---------------------------------------------------------------- D: the weather pictures
 for g in $GALLERY; do

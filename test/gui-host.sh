@@ -7,6 +7,7 @@ command -v Xvfb >/dev/null 2>&1 || { echo "gui-host: Xvfb not installed, skippin
 . test/gui-lib.sh
 OUT=build/gui-host; rm -rf $OUT; mkdir -p $OUT/run
 cp build/host/xweather build/host/xdrive test/gui/scenario.sh $OUT/run/
+python3 test/cache_fixture.py $OUT/run/rcCache.cache
 trap 'kill $SERVER_PIDS 2>/dev/null' EXIT INT TERM
 start_fixtures 18800
 ( cd $OUT/run && WX_DIR=. DISP=:88 SNAPEXT=png XDRIVE_SNAPCMD="import -display :88 -window root" \

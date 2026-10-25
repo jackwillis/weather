@@ -10,6 +10,7 @@
 // click on Refresh during a fetch (the UI keeps pumping events through Net::yield) is harmless.
 #pragma once
 #include "core/forecast.hpp"
+#include "core/forecast_cache.hpp"
 #include "core/status.hpp"
 #include "core/text.hpp"
 
@@ -42,9 +43,17 @@ public:
 	void location_changed()
 	{
 		have_ = false;
+		cached_ = false;
 		failures_ = 0;
 		if (phase_ != Phase::Fetching) { phase_ = Phase::Idle; want_ = true; }
 		else pending_reset_ = true;
+	}
+
+	bool restore_cached(const Forecast &f, long long fetched_at, long long now)
+	{
+		if (have_ || pending_reset_ || fetched_at < 0 || now < fetched_at || now - fetched_at > kForecastCacheAge) return false;
+		fc_ = f; at_ = fetched_at; have_ = true; cached_ = true;
+		return true; // Preserve the phase, error and refresh/retry schedule.
 	}
 
 	// Call regularly (e.g. once a second, or on a timer). True means: run the fetch now.
@@ -73,6 +82,7 @@ public:
 		}
 		if (s.ok() && f) {
 			fc_ = *f; have_ = true; at_ = now; failures_ = 0;
+			cached_ = false;
 			phase_ = Phase::Ok; last_ = okay();
 			next_at_ = now + cfg_.interval_s;
 		} else if (s.err == Err::Cancelled) {
@@ -95,6 +105,7 @@ public:
 
 	Phase phase() const { return phase_; }
 	bool has_forecast() const { return have_; }
+	bool cached() const { return cached_; }
 	const Forecast &forecast() const { return fc_; }
 	const Status &last_error() const { return last_; }
 	int failures() const { return failures_; }
@@ -103,7 +114,7 @@ public:
 	// Seconds since the data was fetched; -1 if there is none.
 	long age(long long now) const { return have_ ? (now >= at_ ? static_cast<long>(now - at_) : 0) : -1; }
 	// Showing data that may no longer be true: the last refresh failed or it is over two intervals old.
-	bool stale(long long now) const { return have_ && (phase_ == Phase::Failed || age(now) > 2 * cfg_.interval_s); }
+	bool stale(long long now) const { return have_ && (cached_ || phase_ == Phase::Failed || age(now) > 2 * cfg_.interval_s); }
 	// Seconds until the next automatic refresh; -1 if automatic refresh is off or a fetch is running.
 	long seconds_until_refresh(long long now) const
 	{
@@ -115,16 +126,18 @@ public:
 	template <size_t N>
 	void status_line(Buf<N> &o, long long now) const
 	{
+		if (cached_) { o.add("Cached / stale, fetched "); add_age(o, age(now)); o.add(". "); }
 		switch (phase_) {
 		case Phase::Idle:
 			o.add("Waiting to load"); break;
 		case Phase::Fetching:
-			o.add("Fetching"); if (have_) { o.add(" (showing data from "); add_age(o, age(now)); o.add(")"); } else o.add("..."); break;
+			o.add("Fetching"); if (have_ && !cached_) { o.add(" (showing data from "); add_age(o, age(now)); o.add(")"); } else o.add("..."); break;
 		case Phase::Ok:
-			o.add("Updated "); add_age(o, age(now)); break;
+			if (cached_) o.add("Live update pending");
+			else { o.add("Updated "); add_age(o, age(now)); } break;
 		case Phase::Failed:
 			o.add("Update failed: ").add(last_.msg);
-			if (have_) { o.add(". Showing data from "); add_age(o, age(now)); }
+			if (have_ && !cached_) { o.add(". Showing data from "); add_age(o, age(now)); }
 			break;
 		}
 		long left = seconds_until_refresh(now);
@@ -152,6 +165,7 @@ private:
 	Phase phase_ = Phase::Idle, prev_ = Phase::Idle;
 	Forecast fc_;
 	bool have_ = false, want_ = true, pending_reset_ = false;
+	bool cached_ = false;
 	long long at_ = 0, next_at_ = 0;
 	int failures_ = 0;
 	Status last_;

@@ -12,6 +12,7 @@
 #include "core/version.hpp"
 #include "platform/posix/net_posix.hpp"
 #include "platform/posix/settings_posix.hpp"
+#include "platform/posix/cache_posix.hpp"
 #include "tls/tls.hpp"
 #include <X11/keysym.h>
 #include <cerrno>
@@ -53,6 +54,8 @@ struct App {
 	Config cfg;
 	PosixStore store;
 	bool have_store = false;
+	PosixCache cache;
+	bool have_cache = false;
 	FetchOpts fo;
 	char forcehost[256] = "";
 	const Provider *providers[8];
@@ -185,7 +188,7 @@ void draw_body(Drawable d)
 	}
 	Buf<24> temp;
 	temp.add_fixed(f.temp_t10, 1).add("\260").add(f.metric ? "C" : "F");
-	cde::text(t, d, t.big, x0, 108, temp.view(), t.fg);
+	cde::text(t, d, t.big, x0, 108, temp.view(), g.model.cached() ? t.dim : t.fg);
 	cde::text(t, d, t.bold, x0, 132, wmo_text(f.code), t.fg);
 	Buf<64> wind;
 	if (f.wind_t10 != kUnset) {
@@ -212,9 +215,10 @@ void draw_status(Drawable d)
 	long long now = now_s();
 	Buf<220> st;
 	if (g.fetching) {
+		if(g.model.cached()) { st.add("Cached / stale, fetched "); Model::add_age(st,g.model.age(now)); st.add(". "); }
 		static const char *dots[] = {"", ".", "..", "..."};
 		st.add("Fetching").add(dots[(mono_ms() / 300) % 4]);
-		if (g.model.has_forecast()) { st.add(" (showing data from "); Model::add_age(st, g.model.age(now)); st.add(")"); }
+		if (g.model.has_forecast() && !g.model.cached()) { st.add(" (showing data from "); Model::add_age(st, g.model.age(now)); st.add(")"); }
 	} else {
 		g.model.status_line(st, now);
 	}
@@ -542,8 +546,20 @@ bool app_yield(Net &)
 	return !g.quit;
 }
 
+void restore_cache()
+{
+	if(!g.have_cache || g.model.has_forecast()) return;
+	CachedForecast previous; bool found=false;
+	Status loaded=read_cached_forecast(g.cache.base,cache_key(g.cfg),now_s(),&previous,&found);
+	if(loaded.ok() && found) {
+		if(g.model.restore_cached(previous.forecast,previous.fetched_at,now_s())) logf(LogInfo,"restored cached forecast (stale)");
+	}
+	else if(!loaded.ok()) logf(LogWarn,"%s",loaded.msg);
+}
+
 void do_fetch()
 {
+	restore_cache();
 	g.fetching = true;
 	redraw();
 	static char buf[64 * 1024];
@@ -551,6 +567,10 @@ void do_fetch()
 	q.lat_e4 = g.cfg.lat_e4; q.lon_e4 = g.cfg.lon_e4; q.metric = g.cfg.metric;
 	Forecast f;
 	Status s = fetch_forecast(g.net, g.providers, g.nprov, q, g.fo, buf, sizeof buf, &f);
+	if(s.ok() && g.have_cache) {
+		Status saved=write_cached_forecast(g.cache.base,cache_key(g.cfg),f,now_s());
+		if(!saved.ok()) logf(LogWarn,"%s",saved.msg);
+	}
 	g.fetching = false;
 	g.model.finish(now_s(), s, &f);
 	g.dirty = true;
@@ -665,6 +685,13 @@ int main(int argc, char **argv)
 	ModelConfig mc;
 	mc.auto_refresh = g.cfg.auto_refresh;
 	g.model = Model(mc, now_s());
+	if(g.cfg.cache && !g.fo.force_host && g.have_store) {
+		Buf<1024> path; path.add(g.store.path).add(".cache");
+		Status initialized=path.truncated?make(Err::Config,"cache path too long"):posix_cache_init(&g.cache,path.c_str());
+		g.have_cache=initialized.ok();
+		if(!initialized.ok()) logf(LogWarn,"%s",initialized.msg);
+	}
+	restore_cache();
 	logf(LogInfo, "xweather %s: %s, auto-refresh %s", WEATHER_VERSION, g.cfg.name[0] ? g.cfg.name : "(unnamed)", mc.auto_refresh ? "on" : "off");
 
 	redraw();

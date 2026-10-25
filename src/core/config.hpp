@@ -13,6 +13,7 @@ struct Config {
 	char name[48] = "Madison, WI";
 	bool metric = false;
 	bool auto_refresh = true;   // xweather: refresh every 15 minutes
+	bool cache = false;         // opt-in persistent last-good forecast
 	int timeout_s = 15;
 	int attempts = 3;
 	char providers[64] = "open-meteo";   // comma separated, in fallback order
@@ -39,10 +40,11 @@ inline Status config_set(Config *c, sv key, sv val, int line)
 		if (val == "metric") c->metric = true;
 		else if (val == "imperial") c->metric = false;
 		else return make(Err::Config, "units must be metric or imperial", line);
-	} else if (key == "autorefresh") {
-		if (val == "on") c->auto_refresh = true;
-		else if (val == "off") c->auto_refresh = false;
-		else return make(Err::Config, "autorefresh must be on or off", line);
+	} else if (key == "autorefresh" || key == "cache") {
+		bool &flag = key == "cache" ? c->cache : c->auto_refresh;
+		if (val == "on") flag = true;
+		else if (val == "off") flag = false;
+		else return make(Err::Config, "autorefresh/cache must be on or off", line);
 	} else if (key == "timeout" || key == "attempts") {
 		Num n = parse_fixed(val, 0);
 		if (!n.ok || n.v < 1 || n.v > 300) return make(Err::Config, "value must be 1..300", line);

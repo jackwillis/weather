@@ -35,6 +35,7 @@ using namespace wx;
 static int g_fail = 0, g_run = 0;
 #define CHECK(c) do { g_run++; if (!(c)) { g_fail++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
 #include "seed_tests.hpp"
+#include "cache_tests.hpp"
 #include "os9_helper_tests.hpp"
 
 static char g_fixbuf[2][8192];
@@ -968,6 +969,9 @@ int main()
 	test_metno();
 	test_os9_dns();
 	test_seed_pool();
+	test_cache_codec();
+	test_cache_storage();
+	test_cache_model();
 	test_os9_helpers();
 	printf("%d checks, %d failed\n", g_run, g_fail);
 	return g_fail ? 1 : 0;
