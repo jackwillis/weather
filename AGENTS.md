@@ -7,7 +7,8 @@ This file is the working agreement. Updated 2026-10-25.
 * **Never compile on maul** (the Power Mac G4 test machine, 256 MB RAM). Cross-build on the Linux laptop; maul only runs tests.
 * **Privileged steps are the owner's.** You have no root on maul. Write a small reviewed script, push it with `maulctl push`, and ask the owner to run it
   (`runlog <name>`); never try to work around permissions.
-* **Do not push to GitHub or create the repo**; commit locally at green milestones only. Commit messages end with the agent's co-author line.
+* **GitHub work uses feature branches and PRs in the existing repo**, as authorized by Jack on 2026-10-25. Do not create another repo.
+  Commit at green milestones; commit messages end with the agent's co-author line. Merge only when Jack authorizes it.
 * **No Apple material in the repo.** Apple SDK files were only read for reference (outside the repo, `~/scratch/os9-sdk`); our Open Transport
   declarations and glue are our own code. Never copy Apple headers or binaries into the tree.
 * **Never invent contact details** (MET Norway needs a real `contact` in the user's config; do not use the owner's email for external services).
