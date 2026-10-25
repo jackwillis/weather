@@ -1,5 +1,6 @@
 // Logging for Mac OS 9: console window plus an appended "weather.log" next to the application.
 #include "core/log.hpp"
+#include "portable.hpp"
 #include <cstdarg>
 #include <cstdio>
 
@@ -7,19 +8,6 @@ namespace wx {
 
 // Retro68's printf does not know the C99 'z' length modifier. size_t is the same size as long here, so rewrite %zu -> %lu.
 static_assert(sizeof(size_t) == sizeof(unsigned long), "size_t must match unsigned long for the %z rewrite");
-static void fix_fmt(const char *in, char *out, size_t cap)
-{
-	size_t o = 0;
-	for (bool pct = false; *in && o + 1 < cap; in++) {
-		if (*in == '%') pct = !pct;
-		else if (pct && (*in == 'z')) { out[o++] = 'l'; pct = false; continue; }
-		else if (pct && (*in >= 'a' && *in <= 'y' && *in != 'l' && *in != 'h')) pct = false;
-		else if (pct && (*in >= 'A' && *in <= 'Z')) pct = false;
-		out[o++] = *in;
-	}
-	out[o] = 0;
-}
-
 static Level g_level = LogWarn;
 
 void log_init(Level lvl, bool, const char *) { g_level = lvl; }
@@ -30,7 +18,10 @@ void logf(Level lvl, const char *fmt, ...)
 {
 	if (lvl > g_level) return;
 	char line[512], f2[256];
-	fix_fmt(fmt, f2, sizeof f2);
+	if (!os9::rewrite_log_format(fmt, f2, sizeof f2)) {
+		fputs("weather: invalid or oversized log format\n", stderr);
+		return;
+	}
 	va_list ap;
 	va_start(ap, fmt);
 	vsnprintf(line, sizeof line, f2, ap);

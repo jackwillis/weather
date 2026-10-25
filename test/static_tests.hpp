@@ -1,6 +1,7 @@
 // Compile-time tests of the portable core. If the core is wrong on a compiler, this does not compile there.
 // Included by unittest.cpp (host and maul) and by the OS 9 probe (Retro68): a bad parser breaks the build, on every target.
 #pragma once
+#include "platform/os9/portable.hpp"
 #include "core/config.hpp"
 #include "core/forecast.hpp"
 #include "core/http.hpp"
@@ -63,6 +64,13 @@ static_assert(http_parse("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2
     "chunked refused");
 static_assert(http_parse("garbage garbage").st.err == Err::Parse, "not http");
 static_assert(http_parse("HTTP/1.1 200 OK\r\nContent-Le").st.err == Err::Truncated, "cut headers");
+// a connection that dies before the status line is complete is a dropped connection, not malformed data
+static_assert(http_parse("").st.err == Err::Truncated, "empty reply");
+static_assert(http_parse("H").st.err == Err::Truncated, "cut in the protocol name");
+static_assert(http_parse("HTTP/1.").st.err == Err::Truncated, "cut after the protocol name");
+static_assert(http_parse("HTTP/1.1 20").st.err == Err::Truncated, "cut in the status code");
+static_assert(http_parse("HX").st.err == Err::Parse, "short non-HTTP bytes are malformed, not truncated");
+static_assert(http_parse("garbage").st.err == Err::Parse, "short garbage");
 static_assert(http_parse("HTTP/1.1 503 x\r\n\r\n").code == 503, "status code");
 
 static_assert(compass(0) == sv("N") && compass(90) == sv("E") && compass(138) == sv("SE") &&
