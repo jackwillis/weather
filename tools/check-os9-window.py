@@ -29,10 +29,14 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     # Only diagnostic-owned markers/logs. Never touch production config or seeds.
     remote(f"rm -f {REMOTE}/weather-ui.ready {REMOTE}/weather-ui.advance "
+           f"{REMOTE}/weather-ui.pumps {REMOTE}/weather-ui.live-go "
            f"{REMOTE}/weather-ui-test.log; open {REMOTE}/WeatherUITest")
     names = ["clear-day", "clear-night", "cloud", "rain", "snow", "storm",
-             "fog", "about", "metric", "stale-error", "after-yield", "live"]
+             "fog", "about", "metric", "stale-error", "yielding-fetch", "live"]
     for stage, name in enumerate(names):
+        if stage == 11:
+            remote("osascript -e 'tell application \"Finder\" to activate'")
+            remote(f"touch {REMOTE}/weather-ui.live-go")
         deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
             ready = remote(f"cat {REMOTE}/weather-ui.ready 2>/dev/null || true").strip()
@@ -43,6 +47,21 @@ def main():
             log = remote(f"cat {REMOTE}/weather-ui-test.log 2>/dev/null || true")
             (args.output / "weather-ui-test.log").write_bytes(log)
             raise RuntimeError(f"UI stage {stage} did not become ready; see saved log")
+        if stage == 10:
+            # Application activation only; never clicks or answers a system dialog.
+            remote("osascript -e 'tell application \"Finder\" to activate'")
+            time.sleep(1)
+            first = int(remote(f"cat {REMOTE}/weather-ui.pumps").strip())
+            time.sleep(2)
+            second = int(remote(f"cat {REMOTE}/weather-ui.pumps").strip())
+            remote(f"open {REMOTE}/WeatherUITest")
+            time.sleep(2)
+            if second <= first:
+                raise RuntimeError("native event pump did not advance while Finder was active")
+            print("background event pump advanced", flush=True)
+        if stage == 11:
+            remote(f"open {REMOTE}/WeatherUITest")
+            time.sleep(2)
         if stage in args.capture:
             shot = remote("/usr/sbin/screencapture -x /tmp/weather-ui-shot.png; "
                           "openssl base64 < /tmp/weather-ui-shot.png")

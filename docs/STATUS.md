@@ -9,7 +9,7 @@
 | Host test suite (`make check`) | green | lint, anchors, 461 unit, 186,018 mutated inputs, 78 CLI feature, 21 GUI checks, 2 provisioning tests; `make check-san` (UBSan+ASan) green |
 | NetBSD package | built, staged | `tools/mkpkg-netbsd.sh`; the old build is installed on maul, the rebuilt one (with met-no) is not yet |
 | Mac OS 9, console app | builds; production TLS path verified with managed seed | real storage/failure probes pass; approved seed installation and two live certificate-verified TLS launches with seed advancement passed on maul (2026-10-25) |
-| Mac OS 9, window UI | native window implemented | separate scripted hardware scenario exercises artwork, units, stale errors, update events during fetch, live TLS and quit; shared config read checks; see PR #11 |
+| Mac OS 9, window UI | native window implemented; follow-up hardware checks pending | separate scripted hardware scenario exercises artwork, units, stale errors, update events during fetch, live TLS and quit; shared config read checks; see PR #11 |
 
 ## Mac OS 9 findings (all on real hardware)
 * Classic runs on the Power Mac G4 under Mac OS X Tiger; apps are delivered and launched from Linux over SSH (`tools/deliver-os9.sh`,
@@ -32,3 +32,19 @@
     make check-maul smoke-maul  # PowerPC tests on maul (booted into NetBSD)
     make os9                    # Mac OS 9 app (needs podman); deliver with tools/deliver-os9.sh
     make dist distcheck         # reproducible tarball
+
+## Window follow-up in PR #11
+
+Menu/drag/close tracking now credits a shared active-time clock used by DNS and
+socket/TLS deadlines. Background execution and explicit suspend/resume handling
+are implemented; local deadline pauses cannot prevent a server closing an idle
+connection. Host checks and cross-builds pass. New background/menu acceptance and
+production delivery await a Tiger boot; earlier native UI evidence remains valid
+for its stated scope. The 274 KB native PEF includes TLS, whereas the larger
+console target additionally links RetroConsole. The old production Weather on
+maul has not yet been replaced.
+
+NetBSD follow-up regression (2026-10-25, #11 combined with main): actual PowerPC
+run passed 535 unit checks and 206820 robustness inputs. All ten smoke checks
+passed, including live TLS, clock/anchor failures and settings. Host check and
+ASan/UBSan passed as well. No builds ran on maul.

@@ -28,6 +28,8 @@ GWorldPtr buffer = nullptr;
 const WindowTestHooks *test_hooks = nullptr;
 wx::Status startup;
 unsigned long update_count = 0;
+unsigned long suspend_count = 0, resume_count = 0;
+bool foreground = true;
 long long painted_at = -1;
 bool menus_fetching = false;
 constexpr int kHeight = 310;
@@ -117,7 +119,7 @@ void draw_contents()
 	}
 	Buf<256> status;
 	const char *seed_error = os9_entropy_error();
-	if (model.phase()==Phase::Failed && *seed_error) status.add(seed_error).add(". See About for recovery.");
+	if (model.phase()==Phase::Failed && window_seed_failure(model.last_error(),seed_error)) status.add(seed_error).add(". See About for recovery.");
 	else model.status_line(status,net.now(net));
 	wrapped(16,210,status.c_str(),3,308);
 	text(16,287,cfg.auto_refresh?"Automatic updates on":"Automatic updates off",9,205);
@@ -144,9 +146,11 @@ void draw()
 		CopyBits(reinterpret_cast<BitMap *>(*GetGWorldPixMap(buffer)), &window->portBits,&r,&r,srcCopy,nullptr);
 		UnlockPixels(GetGWorldPixMap(buffer));
 	}
+	// Validate explicit redraws too, avoiding a redundant update-event cycle.
+	SetPort(window); Rect valid=box(0,0,340,kHeight); ValidRect(&valid);
 	SetGWorld(saved,device); painted_at=net.now(net);
 }
-void command(WindowAction a) { actions.apply(a,cfg,model,net.now(net)); draw(); }
+void command(WindowAction a) { if(actions.apply(a,cfg,model,net.now(net))) draw(); }
 void menu(long selection)
 {
 	int id = selection >> 16, item = selection & 65535;
@@ -158,17 +162,21 @@ void menu(long selection)
 	if (id == 130 && item == 3) command(WindowAction::Imperial);
 	HiliteMenu(0);
 }
+struct ModalTrackingTime {
+	uint32_t begin = TickCount();
+	~ModalTrackingTime() { os9_credit_modal_ticks(begin,TickCount()); }
+};
+
 bool pump(Net &)
 {
 	MenuHandle file = GetMenuHandle(129), options = GetMenuHandle(130);
 	bool fetching = model.phase() == Phase::Fetching;
 	if (fetching != menus_fetching) {
-		if (fetching) { DisableItem(file, 1); DisableItem(options, 0); DisableItem(GetMenuHandle(128), 1); }
-		else { EnableItem(file, 1); EnableItem(options, 0); EnableItem(GetMenuHandle(128), 1); }
+		if (fetching) { DisableItem(file, 1); DisableItem(options, 0); }
+		else { EnableItem(file, 1); EnableItem(options, 0); }
 		menus_fetching = fetching;
 		DrawMenuBar();
 	}
-	if (net.now(net) != painted_at) draw();
 	EventRecord e;
 	for (int i = 0; i < 8 && WaitNextEvent(everyEvent, &e, 0, nullptr); i++) {
 		if (e.what == updateEvt) {
@@ -176,7 +184,17 @@ bool pump(Net &)
 			BeginUpdate(w);
 			if (w == window) { ++update_count; draw(); }
 			EndUpdate(w);
-		} else if (e.what == activateEvt || e.what == osEvt) draw();
+		} else if (e.what == activateEvt) draw();
+		else if (e.what == osEvt) {
+			constexpr unsigned long kSuspendResumeMessage = 1;
+			constexpr unsigned long kResumeFlag = 1;
+			unsigned long message = static_cast<unsigned long>(e.message);
+			if ((message >> 24) == kSuspendResumeMessage) {
+				foreground = (message & kResumeFlag) != 0;
+				if (foreground) { ++resume_count; draw(); }
+				else ++suspend_count;
+			}
+		}
 		else if (e.what == keyDown) {
 			char ch = e.message & charCodeMask;
 			if (e.modifiers & cmdKey) menu(MenuKey(ch));
@@ -184,19 +202,28 @@ bool pump(Net &)
 		} else if (e.what == mouseDown) {
 			WindowPtr w = nullptr;
 			short part = FindWindow(e.where, &w);
-			if (part == inMenuBar && !fetching) menu(MenuSelect(e.where));
-			else if (w == window && part == inGoAway && (fetching || TrackGoAway(w, e.where))) command(WindowAction::Quit);
-			else if (w == window && part == inDrag && !fetching) {
+			if (part == inMenuBar) {
+				long selection;
+				{ ModalTrackingTime modal; selection=MenuSelect(e.where); }
+				menu(selection);
+			} else if (w == window && part == inGoAway) {
+				bool close;
+				{ ModalTrackingTime modal; close=TrackGoAway(w,e.where); }
+				if(close) command(WindowAction::Quit);
+			} else if (w == window && part == inDrag) {
+				ModalTrackingTime modal;
 				Rect bounds = (**GetGrayRgn()).rgnBBox;
 				DragWindow(w, e.where, &bounds);
 			} else if (w == window && part == inContent) {
-				SelectWindow(w); SetPort(w);
+				if (FrontWindow()!=window) { SelectWindow(w); continue; }
+				SetPort(w);
 				Point p = e.where;
 				GlobalToLocal(&p);
 				if (p.h >= 236 && p.h < 324 && p.v >= 270 && p.v < 294) command(WindowAction::Refresh);
 			}
 		}
 	}
+	if (!actions.quit && net.now(net) != painted_at) draw();
 	return !actions.quit;
 }
 }
@@ -205,6 +232,10 @@ void os9_window_action(WindowAction a) { command(a); }
 const Model &os9_window_model() { return model; }
 unsigned long os9_window_updates() { return update_count; }
 bool os9_window_buffered() { return buffer!=nullptr; }
+void os9_window_menu_selection(long selection) { menu(selection); }
+unsigned long os9_window_suspends() { return suspend_count; }
+unsigned long os9_window_resumes() { return resume_count; }
+bool os9_window_foreground() { return foreground; }
 void os9_window_invalidate() { SetPort(window); Rect r=box(0,0,340,kHeight); InvalRect(&r); }
 Status os9_window_fetch_live(const Config &c, Net &n, Forecast *f) {
 	static char response[65536];

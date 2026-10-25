@@ -7,8 +7,9 @@ About/recovery help, Refresh/Cmd-R, Quit/Cmd-Q, automatic updates and units.
 WeatherConsole retains the console diagnostic.
 
 The bounded event pump validates update events and repaints while network calls
-yield. During a fetch it suppresses refresh/settings changes and modal menu/drag
-tracking; Cmd-Q or the close box cancels. Network initialization happens once,
+yield. During a fetch it suppresses refresh/settings changes while allowing informational
+About interaction, menus and dragging. Local deadlines exclude measured modal
+tracking time; File/Quit, Cmd-Q or the close box cancels. Network initialization happens once,
 and terminal shutdown happens only at exit. Rendering restores the previous port,
 uses a GWorld when available and falls back to direct drawing if allocation fails.
 Seed-store failures are shown with recovery guidance; no lock is stolen or deleted.
@@ -46,5 +47,20 @@ Verification:
 Limits: actions are driven programmatically, not a claim of physical mouse/menu
 tracking or owner judgment on the real display. Native allocation-failure fallback,
 clock-change UI behavior, and actual suspend/resume interaction were not injected
-on hardware. NetBSD tests were cross-built, not run on maul while it is in Tiger.
-The independent CI (#10) and portable-helper (#13) PRs remain unmerged.
+on hardware. The original window pass ran while maul was in Tiger; the follow-up below adds native NetBSD regression evidence.
+CI (#10) and portable helpers (#13) are now merged into main and incorporated here.
+
+Follow-up after owner decisions: background execution, suspend/resume decoding and
+shared paused-time deadlines are implemented with host regressions. Main's CI and
+helper changes are integrated. Native build and test symbols explain the small
+production PEF; RetroConsole is linked only by console targets. The follow-up
+background/menu hardware acceptance and production delivery are pending because
+maul is currently in NetBSD; no reboot was attempted. Actual menu/mouse holds are
+not covered by simulated pause tests. PR stays draft until required acceptance.
+
+Follow-up verification on the combined tree: `make check` passed with 535 unit
+checks, 206820 mutation inputs, 99 CLI checks, 6 flag checks, 14 anchor checks,
+21 GUI checks and 2 provisioning tests. ASan/UBSan passed. `make check-maul
+smoke-maul` then passed on actual NetBSD/macppc: 535 unit checks, 206820 robustness
+inputs, and all ten live/clock/anchor/settings/error smoke checks. No compilation
+ran on maul. Remaining native OS 9 checks still require a Tiger boot.

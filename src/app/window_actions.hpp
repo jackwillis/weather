@@ -1,5 +1,5 @@
 // Command policy shared by the native window and its diagnostic driver.
-// During a yielding fetch, only Quit may change application state.
+// During a yielding fetch, only Quit and the informational About overlay change.
 #pragma once
 #include "core/config.hpp"
 #include "model.hpp"
@@ -7,15 +7,22 @@
 namespace wx {
 enum class WindowAction { Refresh, Quit, ToggleAuto, Metric, Imperial, About, DismissAbout };
 
+inline bool window_seed_failure(const Status &status, sv seed_reason)
+{
+	return !seed_reason.empty() && status.err == Err::Tls && status.msg && sv(status.msg) == "no source of random numbers";
+}
+
 struct WindowActions {
 	bool quit = false;
 	bool about = false;
 
-	void apply(WindowAction action, Config &cfg, Model &model, long long now)
+	bool apply(WindowAction action, Config &cfg, Model &model, long long now)
 	{
-		if (quit) return;
-		if (action == WindowAction::Quit) { quit = true; return; }
-		if (model.phase() == Phase::Fetching) return;
+		if (quit) return false;
+		if (action == WindowAction::Quit) { quit = true; return true; }
+		if (action == WindowAction::About) { bool changed = !about; about = true; return changed; }
+		if (action == WindowAction::DismissAbout) { bool changed = about; about = false; return changed; }
+		if (model.phase() == Phase::Fetching) return false;
 		switch (action) {
 		case WindowAction::Refresh: model.request_refresh(); break;
 		case WindowAction::ToggleAuto:
@@ -29,13 +36,14 @@ struct WindowActions {
 				cfg.metric = metric;
 				// Old values have different units; do not relabel them while fetching.
 				model.location_changed();
-			}
+			} else return false;
 			break;
 		}
-		case WindowAction::About: about = true; break;
-		case WindowAction::DismissAbout: about = false; break;
+		case WindowAction::About:
+		case WindowAction::DismissAbout:
 		case WindowAction::Quit: break;
 		}
+		return true;
 	}
 };
 } // namespace wx

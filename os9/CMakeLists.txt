@@ -47,6 +47,11 @@ if(WEATHER_BUILD_DIAGNOSTICS)
   target_compile_definitions(WeatherUITest PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
   target_compile_options(WeatherUITest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
   target_link_libraries(WeatherUITest bearssl OpenTransportLib OpenTptInternetLib)
+  add_application(PortableProbe CONSOLE
+    ${ROOT}/spike/os9/portable_probe.cc
+    ${ROOT}/src/platform/posix/nocxx.cpp)
+  target_include_directories(PortableProbe PRIVATE ${ROOT}/src)
+  target_compile_options(PortableProbe PRIVATE -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
   add_application(TlsSeedProbe CONSOLE
     ${ROOT}/spike/os9/tls_seed_probe.cc
     ${ROOT}/src/core/fetch.cpp

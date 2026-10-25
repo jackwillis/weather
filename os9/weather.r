@@ -6,7 +6,7 @@ resource 'SIZE' (-1) {
 	reserved,
 	acceptSuspendResumeEvents,
 	reserved,
-	cannotBackground,
+	canBackground,
 	needsActivateOnFGSwitch,
 	backgroundAndForeground,
 	dontGetFrontClicks,

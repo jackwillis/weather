@@ -3,6 +3,8 @@
 // runs about every 50 ms (the event loop stays alive and the user can cancel). Known limit, like getaddrinfo on
 // DNS uses an asynchronous provider and the same foreground yield/deadline policy.
 #include "net_os9.hpp"
+#include "portable.hpp"
+#include "modal_clock.hpp"
 #include "ot_min.h"
 #include "dns_resolve.hpp"
 #include "seed_store_os9.hpp"
@@ -27,6 +29,7 @@ struct Conn {
 };
 Conn g_conn;
 bool g_ot_ok = false;
+os9::ModalClock g_active_clock;
 
 // Callback-owned storage has process lifetime. The controller only resets it
 // after completion/close; an abandoned open remains alive until drained.
@@ -51,7 +54,7 @@ struct DnsBackend {
 			__atomic_store_n(&b.query_done, 1, __ATOMIC_RELEASE);
 		}
 	}
-	uint32_t now() { return TickCount(); }
+	uint32_t now() { return g_active_clock.ticks(TickCount()); }
 	bool yield() { return !net || !net->yield || net->yield(*net); }
 	void sleep() { long fin; Delay(3, &fin); }
 	int open(const char *name)
@@ -88,7 +91,7 @@ DnsResolver<DnsBackend> g_resolver(g_dns);
 
 constexpr long kSliceTicks = 3;   // 3/60 s = 50 ms
 
-long long mono_ms() { return static_cast<long long>(TickCount()) * 1000 / 60; }
+long long mono_ms() { return g_active_clock.milliseconds(TickCount()); }
 
 enum Wait { WaitOk = 0, WaitTimeout, WaitCancelled };
 
@@ -96,7 +99,11 @@ enum Wait { WaitOk = 0, WaitTimeout, WaitCancelled };
 Wait pause(Net *net, long long deadline_ms)
 {
 	static long polls = 0;
-	if (++polls % 200 == 0) logf(LogDebug, "still waiting (%ld polls, %lld ms to deadline)", polls, deadline_ms - mono_ms());
+	if (++polls % 200 == 0) {
+		char remaining[22];
+		os9::decimal_signed(deadline_ms - mono_ms(), remaining, sizeof remaining);
+		logf(LogDebug, "still waiting (%ld polls, %s ms to deadline)", polls, remaining);
+	}
 	if (net && net->yield && !net->yield(*net)) return WaitCancelled;
 	long fin;
 	Delay(kSliceTicks, &fin);
@@ -291,15 +298,13 @@ long long os9_now(Net &)
 	GetDateTime(&mac);
 	MachineLocation loc;
 	ReadLocation(&loc);
-	long delta = loc.u.gmtDelta & 0x00FFFFFF;
-	if (delta & 0x00800000) delta |= ~0x00FFFFFFL;
+	long delta = os9::gmt_offset(static_cast<uint32_t>(loc.u.gmtDelta));
 	bool dst = (loc.u.gmtDelta & 0x80000000UL) != 0;
-	long long local = static_cast<long long>(mac) - 2082844800LL;   // 1904 -> 1970
 	static bool shown = false;
 	if (!shown) { shown = true; logf(LogDebug, "clock: mac=%lu gmtDelta=%ld dstflag=%d raw=0x%lx", static_cast<unsigned long>(mac), delta, dst ? 1 : 0, static_cast<unsigned long>(loc.u.gmtDelta)); }
 	// Verified against OS X on the real machine (2026-10-25, CDT): gmtDelta is -18000 and ALREADY includes daylight saving,
 	// the flag in the high byte is informational. Subtracting another hour for the flag made the clock an hour slow.
-	return local - delta;
+	return os9::mac_to_unix(mac, static_cast<uint32_t>(loc.u.gmtDelta));
 }
 
 // The installation seed is provisioned from a modern OS CSPRNG. Timing samples
@@ -337,6 +342,10 @@ bool os9_entropy(Net &, void *buf, size_t len)
 }
 
 } // namespace
+
+void os9_credit_modal_ticks(uint32_t begin, uint32_t end) { g_active_clock.credit(begin, end); }
+uint32_t os9_active_ticks() { return g_active_clock.ticks(TickCount()); }
+long long os9_active_milliseconds() { return mono_ms(); }
 
 const char *os9_entropy_error() { return g_exit_ready ? g_seed_pool.error() : "cannot register TLS seed cleanup"; }
 

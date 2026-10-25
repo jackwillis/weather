@@ -2,6 +2,7 @@
 #include "ui/os9/window.hpp"
 #include "platform/os9/seed_store_os9.hpp"
 #include "platform/os9/config_os9.hpp"
+#include "platform/os9/net_os9.hpp"
 #include "app/config_load.hpp"
 #include <OSUtils.h>
 #include <cstdio>
@@ -46,6 +47,12 @@ void setup(Config &cfg) {
 	check(f && !load_config(store,probe).ok(),"overlong native config rejected");
 	check(os9_delete_file("weather-ui-test.conf"),"remove diagnostic config");
 	check(load_config(store,probe).ok(),"missing native config uses existing defaults");
+	uint32_t active_ticks=os9_active_ticks(), raw_ticks=TickCount();
+	long long active_ms=os9_active_milliseconds();
+	long done; Delay((cfg.timeout_s+1)*60,&done);
+	os9_credit_modal_ticks(raw_ticks,TickCount());
+	check(static_cast<uint32_t>(os9_active_ticks()-active_ticks)<30,"DNS clock excludes simulated modal pause longer than timeout");
+	check(os9_active_milliseconds()-active_ms<500,"socket clock excludes same simulated modal pause");
 }
 void idle() {
 	if(static_cast<unsigned long>(TickCount()-started)>36000) {
@@ -77,13 +84,26 @@ void idle() {
 wx::Status fetch(const Config &cfg,Net &net,Forecast *f) {
 	++fetches; waiting_fetch=false;
 	if(stage==12) {
-		os9_window_action(WindowAction::Quit);
+		os9_window_menu_selection((129L<<16)|3); // File > Quit command, while fetching.
 		check(!net.yield(net),"quit cancels a yielding fetch");
 		wx::Status s=os9_window_fetch_live(cfg,net,f);
 		check(s.err==Err::Cancelled,"quit propagates through production fetch without retry/fallback");
 		return s;
 	}
-	if(stage==11) return os9_window_fetch_live(cfg,net,f);
+	if(stage==11) {
+		unsigned long began=TickCount();
+		for(;;) {
+			if(!net.yield(net)) return make(Err::Cancelled,"test cancelled");
+			FILE *go=std::fopen("weather-ui.live-go","r");
+			if(go) { std::fclose(go); break; }
+			if(static_cast<unsigned long>(TickCount()-began)>4200) return make(Err::Timeout,"live-start watchdog");
+			long done; Delay(1,&done);
+		}
+		check(!os9_window_foreground(),"production live fetch starts in background");
+		wx::Status s=os9_window_fetch_live(cfg,net,f);
+		check(!os9_window_foreground(),"production live fetch completes in background");
+		return s;
+	}
 	if(stage==9) return make(Err::Timeout,"simulated service timeout");
 	*f=Forecast{}; f->metric=cfg.metric;
 	f->temp_t10=cfg.metric?185:653; f->wind_t10=cfg.metric?129:80; f->humidity=67;
@@ -93,14 +113,27 @@ wx::Status fetch(const Config &cfg,Net &net,Forecast *f) {
 	f->code=stage<7?codes[stage]:2; f->is_day=stage!=1;
 	if(stage==10) {
 		unsigned long updates=os9_window_updates();
+		unsigned long suspends=os9_window_suspends(), resumes=os9_window_resumes();
 		os9_window_invalidate();
-		for(int i=0;i<120;i++) {
+		FILE *ready=std::fopen("weather-ui.ready","w");
+		if(ready) { std::fprintf(ready,"10\n"); std::fclose(ready); announced=true; }
+		bool non_reentrant=true;
+		unsigned long began=TickCount();
+		unsigned long pumps=0;
+		while(!advance() && static_cast<unsigned long>(TickCount()-began)<5400) {
 			os9_window_action(WindowAction::Refresh);
-			check(os9_window_model().phase()==Phase::Fetching && fetches==10,"refresh did not reenter fetch");
+			non_reentrant=non_reentrant && os9_window_model().phase()==Phase::Fetching && fetches==10;
 			if(!net.yield(net)) return make(Err::Cancelled,"test cancelled");
+			if(++pumps%20==0) {
+				FILE *progress=std::fopen("weather-ui.pumps","w");
+				if(progress) { std::fprintf(progress,"%lu\n",pumps); std::fclose(progress); }
+			}
 			long done; Delay(1,&done);
 		}
+		check(static_cast<unsigned long>(TickCount()-began)<5400,"background stage acknowledged before watchdog");
+		check(non_reentrant,"refresh did not reenter fetch");
 		check(os9_window_updates()>updates,"update event repainted during yielding fetch");
+		check(os9_window_suspends()>suspends && os9_window_resumes()>resumes,"native suspend and resume events handled during fetch");
 	}
 	return okay();
 }

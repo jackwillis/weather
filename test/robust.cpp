@@ -13,6 +13,7 @@
 #include "core/settings.hpp"
 #include "core/version.hpp"
 #include "tls/seed_pool.hpp"
+#include "platform/os9/portable.hpp"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -53,6 +54,28 @@ static void exercise(const char *p, size_t n)
 		EXPECT(loaded.lat_e4==430747 && loaded.lon_e4==-893841);
 		EXPECT(!loaded.metric && loaded.auto_refresh && !strcmp(loaded.name,"Madison, WI"));
 	}
+	// Format adapter: bounded output, failure empties it, deterministic prefix.
+	char full[257], small[18];
+	memset(small, 0x5a, sizeof small);
+	bool adapted = os9::rewrite_log_format(in, full, sizeof full);
+	bool bounded = os9::rewrite_log_format(in, small, sizeof small - 1);
+	EXPECT(small[17] == 0x5a);
+	if (bounded) { EXPECT(adapted); EXPECT(strlen(small) < 17); EXPECT(!strcmp(full, small)); }
+	else EXPECT(small[0] == 0);
+	if (adapted) { EXPECT(strlen(full) == n); EXPECT(n < sizeof full); }
+	// Compare full-width integer formatting with the host's independent formatter.
+	unsigned long long number = 0;
+	for (size_t i = 0; i < n && i < 8; ++i)
+		number = (number << 8) | static_cast<unsigned char>(p[i]);
+	char decimal[22], expected[22];
+	EXPECT(os9::decimal_unsigned(number, decimal, sizeof decimal));
+	snprintf(expected, sizeof expected, "%llu", number);
+	EXPECT(!strcmp(decimal, expected));
+	long long signed_number = static_cast<long long>(number >> 1);
+	if (number & 1) signed_number = -signed_number;
+	EXPECT(os9::decimal_signed(signed_number, decimal, sizeof decimal));
+	snprintf(expected, sizeof expected, "%lld", signed_number);
+	EXPECT(!strcmp(decimal, expected));
 	unsigned char seed_out[32], encoded[kSeedRecordSize];
 	if (seed_decode(reinterpret_cast<const unsigned char *>(p), n, seed_out)) {
 		seed_encode(seed_out, encoded);
@@ -206,6 +229,8 @@ int main(int argc, char **argv)
 	static const char cfg[] = "# my weather\nlatitude = 43.0747  # home\nlongitude=-89.3841\nname = Madison, WI\nunits = metric\n"
 	    "timeout = 15\nattempts = 3\nproviders = open-meteo\nlog = info\nautorefresh = off\n";
 	mutate_all(cfg, sizeof cfg - 1, iterations, rng);
+	static const char formats[] = "%zu %%zu %08zu %.*zu %lld %s %ld %.2f %%";
+	mutate_all(formats, sizeof formats - 1, iterations, rng);
 	unsigned char synthetic_seed[32], record[kSeedRecordSize];
 	for (size_t i = 0; i < sizeof synthetic_seed; ++i) synthetic_seed[i] = static_cast<unsigned char>(i + 1);
 	seed_encode(synthetic_seed, record);

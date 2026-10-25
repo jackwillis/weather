@@ -18,6 +18,7 @@
 #include "platform/posix/settings_posix.hpp"
 #include "tls/timeconv.hpp"
 #include "platform/os9/dns_resolve.hpp"
+#include "platform/os9/modal_clock.hpp"
 #include <arpa/inet.h>
 #include <cstdio>
 #include <cstdlib>
@@ -37,6 +38,7 @@ using namespace wx;
 static int g_fail = 0, g_run = 0;
 #define CHECK(c) do { g_run++; if (!(c)) { g_fail++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
 #include "seed_tests.hpp"
+#include "os9_helper_tests.hpp"
 
 static char g_fixbuf[2][8192];
 static const char *fixture(int slot, const char *name)
@@ -232,6 +234,15 @@ static void test_fetch()
 		Net n = make_net(&f);
 		Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
 		CHECK(s.err == Err::Truncated && f.connects == 3 && f.closes == 3);
+	}
+	{ // connection closed before the status line is complete (hangup, or cut early): truncated, retried
+		const char *cuts[] = {"", "HTTP/", "HTTP/1.1 20"};
+		for (const char *cut : cuts) {
+			Fake f; f.steps[0] = {okay(), cut, Err::Ok}; f.nsteps = 1;
+			Net n = make_net(&f);
+			Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
+			CHECK(s.err == Err::Truncated && f.connects == 3 && f.closes == 3);
+		}
 	}
 	{ // read error mid-response is an Io/Timeout error and the socket is still closed
 		Fake f; f.steps[0] = {okay(), "HTTP/1.0 200 OK\r\n", Err::Timeout}; f.nsteps = 1;
@@ -944,6 +955,35 @@ static void test_os9_dns()
 	  CHECK(r.resolve("h", 0).err == Err::Timeout); CHECK(f.opens == 0); }
 }
 
+static void test_modal_clock()
+{
+	os9::ModalClock clock;
+	CHECK(clock.ticks(100)==100);
+	CHECK(clock.milliseconds(100)==0);
+	CHECK(clock.milliseconds(160)==1000);
+	clock.credit(160,760);
+	CHECK(clock.ticks(760)==160);
+	CHECK(clock.milliseconds(760)==1000);
+	CHECK(clock.milliseconds(820)==2000);
+	os9::ModalClock wrap;
+	CHECK(wrap.milliseconds(UINT32_MAX-20)==0);
+	CHECK(wrap.milliseconds(39)==1000);
+	os9::ModalClock paused_wrap;
+	CHECK(paused_wrap.milliseconds(UINT32_MAX-10)==0);
+	paused_wrap.credit(UINT32_MAX-10,49);
+	CHECK(paused_wrap.milliseconds(49)==0);
+	CHECK(paused_wrap.milliseconds(109)==1000);
+	os9::ModalClock counter_wrap;
+	counter_wrap.credit(0,UINT32_MAX-10);
+	counter_wrap.credit(0,20);
+	CHECK(counter_wrap.ticks(40)==31);
+	os9::ModalClock dns;
+	uint32_t start=dns.ticks(40);
+	dns.credit(40,5000);
+	CHECK(static_cast<uint32_t>(dns.ticks(5000)-start)==0);
+	CHECK(static_cast<uint32_t>(dns.ticks(5060)-start)==60);
+}
+
 static void test_config_load()
 {
 	SettingsStore store;
@@ -976,6 +1016,8 @@ static void test_window_actions()
 	actions.apply(WindowAction::ToggleAuto, cfg, model, 1);
 	CHECK(cfg.auto_refresh);
 	actions.apply(WindowAction::About, cfg, model, 1);
+	CHECK(actions.about);
+	actions.apply(WindowAction::DismissAbout, cfg, model, 1);
 	CHECK(!actions.about);
 	actions.apply(WindowAction::Refresh, cfg, model, 1);
 	Forecast forecast;
@@ -1000,6 +1042,10 @@ static void test_window_actions()
 	model.finish(7, make(Err::Cancelled, "quit"), nullptr);
 	actions.apply(WindowAction::Refresh, cfg, model, 8);
 	CHECK(!model.tick(8)); // Quit is terminal for command dispatch.
+	CHECK(window_seed_failure(make(Err::Tls,"no source of random numbers"),"locked"));
+	CHECK(!window_seed_failure(make(Err::Dns,"cannot resolve"),"locked"));
+	CHECK(!window_seed_failure(make(Err::Tls,"handshake failed"),"locked"));
+	CHECK(!window_seed_failure(make(Err::Tls,"no source of random numbers"),""));
 }
 
 int main()
@@ -1016,10 +1062,12 @@ int main()
 	test_model();
 	test_window_actions();
 	test_config_load();
+	test_modal_clock();
 	test_forms();
 	test_metno();
 	test_os9_dns();
 	test_seed_pool();
+	test_os9_helpers();
 	printf("%d checks, %d failed\n", g_run, g_fail);
 	return g_fail ? 1 : 0;
 }

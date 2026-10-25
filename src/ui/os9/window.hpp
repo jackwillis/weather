@@ -15,5 +15,9 @@ const Model &os9_window_model();
 void os9_window_invalidate();
 unsigned long os9_window_updates();
 bool os9_window_buffered();
+void os9_window_menu_selection(long selection);
+unsigned long os9_window_suspends();
+unsigned long os9_window_resumes();
+bool os9_window_foreground();
 Status os9_window_fetch_live(const Config &, Net &, Forecast *);
 }
