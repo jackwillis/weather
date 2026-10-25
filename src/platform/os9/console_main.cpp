@@ -6,6 +6,7 @@
 #include "core/providers.hpp"
 #include "core/version.hpp"
 #include "net_os9.hpp"
+#include "portable.hpp"
 #include "tls/tls.hpp"
 #include <Events.h>
 #include <cstdio>
@@ -82,7 +83,9 @@ int main()
 		os9_net_init(&net);
 		net.yield = console_yield;
 		tls_net_init(&net);
-		logf(LogInfo, "clock: unix %lu UTC", static_cast<unsigned long>(net.now(net)));   // Retro68 printf has no %lld
+		char clock[22];
+		os9::decimal_signed(net.now(net), clock, sizeof clock);
+		logf(LogInfo, "clock: unix %s UTC", clock);
 		Query q;
 		q.lat_e4 = cfg.lat_e4;
 		q.lon_e4 = cfg.lon_e4;

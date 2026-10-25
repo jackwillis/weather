@@ -85,6 +85,8 @@ expect "-l drops configured name" 0 $W -l 59.91,10.75 -H 127.0.0.1:$P_OK
 contains "no name after -l" "Weather from open-meteo"
 expect "-n sets name" 0 $W -l 59.91,10.75 -n Bergen -H 127.0.0.1:$P_OK
 contains "-n shown" "Weather for Bergen from"
+expect "-n before -l: -l still drops the name (options apply in order)" 0 $W -n Bergen -l 59.91,10.75 -H 127.0.0.1:$P_OK
+contains "no name after -n then -l" "Weather from open-meteo"
 expect "-l reaches the request" 0 $W -d -l 59.91,10.75 -1 -H 127.0.0.1:$P_OK
 contains "-l in request" "latitude=59.9100&longitude=10.7500"
 echo "attempts = 3" > "$CFG"
@@ -162,6 +164,38 @@ if [ "$(id -u)" != 0 ]; then
 fi
 expect "-S with a bad name" 64 -c "$RC" -n 'a#b' -S
 HOME= expect "-S with no HOME and no -c" 78 -S
+
+# -c must be honoured wherever it appears: clustered (-Sc FILE), attached (-cFILE) or after other flags. The default
+# rc in HOME must stay untouched, and FILE must receive the change.
+HD=$(mktemp -d); OTHER=$HD/other.rc
+c_case() {  # c_case NAME ARGS...
+	name=$1; shift
+	printf 'latitude = 1.0\n' > "$OTHER"; printf 'latitude = 2.0\n' > "$HD/.weatherrc"
+	OUT=$(HOME=$HD "$BIN" "$@" 2>&1); got=$?
+	if [ "$got" = 0 ]; then ok; else bad "$name: exit $got ($OUT)"; fi
+	case "$(cat "$OTHER")" in *"name = Z"*) ok;; *) bad "$name: -c file not updated: $(cat "$OTHER")";; esac
+	case "$(cat "$HD/.weatherrc")" in "latitude = 2.0") ok;; *) bad "$name: default rc was modified: $(cat "$HD/.weatherrc")";; esac
+}
+c_case "-Sc FILE" -Sc "$OTHER" -n Z
+c_case "-cFILE" -c"$OTHER" -n Z -S
+c_case "-c after other flags" -n Z -S -c "$OTHER"
+# the last -c wins; and a flood of config options is refused, not silently truncated
+printf 'latitude = 3.0\n' > "$HD/first.rc"; printf 'latitude = 4.0\n' > "$HD/second.rc"
+OUT=$(HOME=$HD "$BIN" -c "$HD/first.rc" -c "$HD/second.rc" -n Z -S 2>&1); got=$?
+if [ "$got" = 0 ]; then ok; else bad "two -c: exit $got ($OUT)"; fi
+case "$(cat "$HD/second.rc")" in *"name = Z"*) ok;; *) bad "two -c: last file not updated";; esac
+case "$(cat "$HD/first.rc")" in "latitude = 3.0") ok;; *) bad "two -c: first file was modified";; esac
+many=""; i=0; while [ $i -lt 33 ]; do many="$many -n x"; i=$((i+1)); done
+OUT=$(HOME=$HD "$BIN" $many 2>&1); got=$?
+if [ "$got" = 64 ]; then ok; else bad "33 config options: exit $got, wanted 64 ($OUT)"; fi
+case "$OUT" in *"too many options"*) ok;; *) bad "33 config options: no 'too many options' message ($OUT)";; esac
+printf 'bogus = 1\n' > "$HD/bad.rc"
+OUT=$("$BIN" -V -c "$HD/bad.rc" 2>&1); got=$?
+if [ "$got" = 0 ]; then ok; else bad "-V with a malformed config: exit $got ($OUT)"; fi
+contains "-V with a malformed config prints the version" "weather 0."
+OUT=$("$BIN" -h -c "$HD/bad.rc" 2>&1); got=$?
+if [ "$got" = 0 ]; then ok; else bad "-h with a malformed config: exit $got ($OUT)"; fi
+rm -rf "$HD"
 rm -f "$RC"
 
 # stdout must carry only the result; diagnostics go to stderr
