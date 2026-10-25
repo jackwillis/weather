@@ -14,6 +14,9 @@ EXTRA_CXXFLAGS += -fsanitize=address
 EXTRA_LDFLAGS  += -fsanitize=address
 SAN_NOTE = with AddressSanitizer
 else
+ifeq ($(REQUIRE_ASAN),1)
+$(error AddressSanitizer is required but its runtime was not found by $(CXX))
+endif
 SAN_NOTE = UBSan (trap mode) only: install libasan for AddressSanitizer
 endif
 CHECK_TARGET   = check-native

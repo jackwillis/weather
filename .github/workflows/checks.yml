@@ -29,7 +29,7 @@ jobs:
       - name: Host checks, including GUI and provisioning
         run: make check
       - name: Address and undefined-behavior sanitizers
-        run: make check-san
+        run: make REQUIRE_ASAN=1 check-san
       - name: Save GUI diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
