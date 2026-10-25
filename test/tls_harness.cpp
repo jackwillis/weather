@@ -1,6 +1,6 @@
-// Harness for test/tls_local.sh: tls_harness HOST PORT CLOCK_UNIX_SECONDS
+// Harness for test/tls_local.sh: tls_harness HOST PORT CLOCK_UNIX_SECONDS [DEADLINE_S]
 // One HTTPS fetch of https://HOST:PORT/ through the real fetch_once and the real tls.cpp (built by the script with a
-// throwaway trust anchor, see WEATHER_TEST_ANCHORS), with a fixed clock. Prints one line: RESULT err=NAME detail=NAME|N
+// throwaway trust anchor, see WEATHER_TEST_ANCHORS), with a clock that starts at the given time. Prints one line: RESULT err=NAME detail=NAME|N
 #include "core/fetch.hpp"
 #include "core/log.hpp"
 #include "platform/posix/net_posix.hpp"
@@ -8,11 +8,16 @@
 #include <bearssl.h>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
+#include <unistd.h>
 
 using namespace wx;
 
+// The clock starts at the requested time and then runs in real time, so certificate checks see the chosen date while the
+// fetch deadline sees time pass.
 static long long g_clock;
-static long long fixed_now(Net &) { return g_clock; }
+static time_t g_started;
+static long long fixed_now(Net &) { return g_clock + static_cast<long long>(time(nullptr) - g_started); }
 
 static const char *x509_name(int d)
 {
@@ -28,9 +33,11 @@ static const char *x509_name(int d)
 
 int main(int argc, char **argv)
 {
-	if (argc != 4) { fprintf(stderr, "usage: tls_harness HOST PORT CLOCK_UNIX_SECONDS\n"); return 2; }
+	if (argc != 4 && argc != 5) { fprintf(stderr, "usage: tls_harness HOST PORT CLOCK_UNIX_SECONDS [DEADLINE_S]\n"); return 2; }
+	alarm(40);                      // safety net: a hang fails the test (no RESULT line) instead of stalling it
 	log_init(LogError, false, "tls_harness");
 	g_clock = atoll(argv[3]);
+	g_started = time(nullptr);
 	Net net;
 	posix_net_init(&net);
 	tls_net_init(&net);
@@ -38,6 +45,7 @@ int main(int argc, char **argv)
 	FetchOpts o;
 	o.timeout_s = 5;
 	o.attempts = 1;
+	if (argc == 5) o.deadline_s = atoi(argv[4]);
 	static char buf[4096];
 	sv body;
 	Status s = fetch_once(net, argv[1], argv[2], true, "/", o, buf, sizeof buf, &body);

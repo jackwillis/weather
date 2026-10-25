@@ -227,7 +227,7 @@ static void test_fetch()
 		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1; f.read_secs = 1;     // one second per read, timeout_s = 1
 		Net n = make_net(&f);
 		Status s = fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
-		CHECK(s.err == Err::Timeout && f.closes == 1 && f.reads <= 6);                    // gave up after about 3 s, not after the whole answer
+		CHECK(s.err == Err::Timeout && f.closes == 1 && f.reads == 4);                     // reads at 0, 1, 2 and 3 s elapsed; the next is refused (limit 3 s)
 		Fake g; g.steps[0] = {okay(), kGood, Err::Ok}; g.nsteps = 1;                      // the same answer at full speed is fine
 		Net gn = make_net(&g);
 		CHECK(fetch_once(gn, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
@@ -237,6 +237,10 @@ static void test_fetch()
 		CHECK(rs.err == Err::Timeout && r.connects == 3 && r.closes == 3);
 		Fake e; e.steps[0] = {okay(), kGood, Err::Ok}; e.nsteps = 1; e.read_secs = 1;
 		Net en = make_net(&e);
+		Fake t; t.steps[0] = {okay(), kGood, Err::Ok}; t.nsteps = 1; t.read_secs = 1;
+		Net tn = make_net(&t);
+		FetchOpts tight = o; tight.deadline_s = 2;                                            // a deadline below 3 x timeout wins
+		CHECK(fetch_once(tn, "h", "80", false, "/", tight, buf, sizeof buf, &body).err == Err::Timeout && t.reads == 3);
 		FetchOpts roomy = o; roomy.deadline_s = 100;                                         // an explicit deadline replaces 3 x timeout
 		CHECK(fetch_once(en, "h", "80", false, "/", roomy, buf, sizeof buf, &body).ok());
 		Fake b; b.steps[0] = {okay(), kGood, Err::Ok}; b.nsteps = 1; b.read_secs = -100;     // the clock steps back mid-fetch: never a false timeout

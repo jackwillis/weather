@@ -69,15 +69,13 @@ expect "read timeout" 75 $W -t 1 -H 127.0.0.1:$P_SLOW
 t0=$(date +%s)
 "$BIN" $W -t 1 -H 127.0.0.1:$P_DRIP >/dev/null 2>"$CFG.drip" &
 wp=$!
-i=0; while kill -0 $wp 2>/dev/null && [ $i -lt 12 ]; do sleep 1; i=$((i+1)); done
-if kill -0 $wp 2>/dev/null; then
-	kill $wp; wait $wp 2>/dev/null; bad "dribbling server: still running after 12 s with -t 1"
-else
-	wait $wp; got=$?; t1=$(date +%s)
-	if [ "$got" = 75 ]; then ok; else bad "dribbling server: exit $got, wanted 75 ($(cat "$CFG.drip"))"; fi
-	if [ $((t1 - t0)) -le 8 ]; then ok; else bad "dribbling server: took $((t1 - t0)) s with -t 1"; fi
-	grep -q "time limit" "$CFG.drip" && ok || bad "dribbling server: no 'time limit' message ($(cat "$CFG.drip"))"
-fi
+( sleep 12; kill $wp 2>/dev/null ) &         # watchdog: a missing deadline fails the test instead of stalling it
+wd=$!
+wait $wp; got=$?; t1=$(date +%s)
+kill $wd 2>/dev/null; wait $wd 2>/dev/null
+if [ "$got" = 75 ]; then ok; else bad "dribbling server: exit $got, wanted 75 ($(cat "$CFG.drip"))"; fi
+if [ $((t1 - t0)) -le 8 ]; then ok; else bad "dribbling server: took $((t1 - t0)) s with -t 1"; fi
+grep -q "time limit" "$CFG.drip" && ok || bad "dribbling server: no 'time limit' message ($(cat "$CFG.drip"))"
 rm -f "$CFG.drip"
 expect "connection refused" 69 $W -H 127.0.0.1:1
 expect "unknown host" 68 $W -H no-such-host.invalid:80

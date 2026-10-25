@@ -26,6 +26,40 @@ static Status io_fail(const Io &io, const char *what)
 	return make(e, io.msg ? io.msg : what, io.detail);
 }
 
+// The attempt's stream as the rest of fetch_once and the TLS layer see it: every read and write first checks the attempt's
+// deadline. A check only between reads would miss the TLS handshake and each TLS record, which are single blocking calls
+// (many raw reads, each within the timeout) underneath. Lives on the stack; no heap.
+namespace {
+struct DeadlineIo {
+	Io io;                       // io.ctx points back at this struct
+	Io *inner;
+	Net *net;
+	long long start, limit;
+};
+long dl_late(DeadlineIo *d)
+{
+	d->io.err = Err::Timeout; d->io.detail = 0; d->io.msg = "answer not complete within the time limit";
+	return -1;
+}
+bool dl_expired(const DeadlineIo *d) { return d->net->now && d->net->now(*d->net) - d->start > d->limit; }
+long dl_read(Io &io, void *buf, size_t len)
+{
+	DeadlineIo *d = static_cast<DeadlineIo *>(io.ctx);
+	if (dl_expired(d)) return dl_late(d);
+	long r = d->inner->read(*d->inner, buf, len);
+	if (r < 0) { io.err = d->inner->err; io.detail = d->inner->detail; io.msg = d->inner->msg; }
+	return r;
+}
+long dl_write(Io &io, const void *buf, size_t len)
+{
+	DeadlineIo *d = static_cast<DeadlineIo *>(io.ctx);
+	if (dl_expired(d)) return dl_late(d);
+	long r = d->inner->write(*d->inner, buf, len);
+	if (r < 0) { io.err = d->inner->err; io.detail = d->inner->detail; io.msg = d->inner->msg; }
+	return r;
+}
+} // namespace
+
 Status fetch_once(Net &net, const char *host, const char *port, bool tls, const char *path,
     const FetchOpts &o, char *buf, size_t cap, sv *body)
 {
@@ -42,11 +76,14 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 	Status s = net.connect(net, host, port, o.timeout_s, &raw);
 	if (!s.ok()) return s;
 
+	DeadlineIo dio;
+	dio.io.ctx = &dio; dio.io.read = dl_read; dio.io.write = dl_write;
+	dio.inner = &raw; dio.net = &net; dio.start = start; dio.limit = limit;
 	Io tio;
-	Io *io = &raw;
+	Io *io = &dio.io;
 	if (tls) {
 		if (!net.tls_open) { net.close(net, raw); return make(Err::Tls, "no TLS support built in"); }
-		s = net.tls_open(net, raw, host, &tio);
+		s = net.tls_open(net, dio.io, host, &tio);
 		if (!s.ok()) { net.close(net, raw); return s; }
 		io = &tio;
 	}
@@ -65,7 +102,6 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 
 	size_t got = 0;
 	while (s.ok()) {
-		if (net.now && net.now(net) - start > limit) { s = make(Err::Timeout, "answer not complete within the time limit"); break; }
 		if (got == cap) { s = make(Err::BadData, "response too large"); break; }
 		long r = io->read(*io, buf + got, cap - got);
 		if (r < 0) { s = io_fail(*io, "reading response failed"); break; }
