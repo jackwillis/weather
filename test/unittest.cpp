@@ -9,6 +9,7 @@
 #include "core/version.hpp"
 #include "app/locform.hpp"
 #include "app/model.hpp"
+#include "app/window_actions.hpp"
 #include "app/textedit.hpp"
 #include "core/providers.hpp"
 #include "core/settings.hpp"
@@ -942,6 +943,43 @@ static void test_os9_dns()
 	  CHECK(r.resolve("h", 0).err == Err::Timeout); CHECK(f.opens == 0); }
 }
 
+static void test_window_actions()
+{
+	Config cfg;
+	Model model;
+	WindowActions actions;
+	CHECK(model.tick(0));
+	actions.apply(WindowAction::Metric, cfg, model, 1);
+	CHECK(!cfg.metric);
+	actions.apply(WindowAction::ToggleAuto, cfg, model, 1);
+	CHECK(cfg.auto_refresh);
+	actions.apply(WindowAction::About, cfg, model, 1);
+	CHECK(!actions.about);
+	actions.apply(WindowAction::Refresh, cfg, model, 1);
+	Forecast forecast;
+	model.finish(2, okay(), &forecast);
+	CHECK(!model.tick(3)); // No queued refresh from a click during the request.
+	actions.apply(WindowAction::Metric, cfg, model, 3);
+	CHECK(cfg.metric && !model.has_forecast());
+	CHECK(model.tick(3));
+	model.finish(4, okay(), &forecast);
+	actions.apply(WindowAction::Metric, cfg, model, 4);
+	CHECK(model.has_forecast() && !model.tick(4)); // Same units do not fetch again.
+	actions.apply(WindowAction::About, cfg, model, 4);
+	CHECK(actions.about);
+	actions.apply(WindowAction::DismissAbout, cfg, model, 4);
+	CHECK(!actions.about);
+	actions.apply(WindowAction::ToggleAuto, cfg, model, 5);
+	CHECK(!cfg.auto_refresh && model.seconds_until_refresh(5) == -1);
+	actions.apply(WindowAction::Refresh, cfg, model, 6);
+	CHECK(model.tick(6)); // Manual refresh still works with automatic refresh off.
+	actions.apply(WindowAction::Quit, cfg, model, 6);
+	CHECK(actions.quit);
+	model.finish(7, make(Err::Cancelled, "quit"), nullptr);
+	actions.apply(WindowAction::Refresh, cfg, model, 8);
+	CHECK(!model.tick(8)); // Quit is terminal for command dispatch.
+}
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -954,6 +992,7 @@ int main()
 	test_settings_text();
 	test_settings_store();
 	test_model();
+	test_window_actions();
 	test_forms();
 	test_metno();
 	test_os9_dns();

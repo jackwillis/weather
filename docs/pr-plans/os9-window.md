@@ -1,6 +1,17 @@
 # OS 9 window: first usable slice
 
-Status: draft scope and acceptance criteria; implementation has not started.
+Status: draft implementation in progress. Native window and separate console
+targets cross-build with Retro68. The portable command policy has regression
+tests for overlapping refreshes, units changes, automatic refresh, About and
+terminal quit. No native window hardware acceptance has been completed yet.
+
+Remaining before review readiness:
+- Share bounded, atomic config loading with the console; the window currently
+  uses default configuration only.
+- Add the separate scripted diagnostic executable and complete the hardware
+  screenshot/interaction matrix below.
+- Wrap long status/error text, surface the specific seed-store failure, and
+  verify menu availability and idle timer repaint on hardware.
 
 Replace the console as the normal OS 9 entry point with a native document window,
 while retaining the console build for diagnostics. Reuse Model, the shared weather
