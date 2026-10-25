@@ -17,3 +17,10 @@ endif()
 add_application(Probe4 CONSOLE probe3.cc ${OS9SRC}/ot_glue.cc)
 target_link_libraries(Probe4 OpenTransportLib OpenTptInternetLib)
 target_compile_definitions(Probe4 PRIVATE PROBE_NAME="probe4")
+
+# Standalone async DNS lifecycle diagnostic.
+add_application(DnsProbe CONSOLE dns_probe.cc ${OS9SRC}/ot_glue.cc)
+target_compile_options(DnsProbe PRIVATE -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
+# Existing glue checks a linked function's address; GCC diagnoses that old check.
+set_source_files_properties(${OS9SRC}/ot_glue.cc PROPERTIES COMPILE_OPTIONS "-Wno-error=address")
+target_link_libraries(DnsProbe OpenTransportLib OpenTptInternetLib)

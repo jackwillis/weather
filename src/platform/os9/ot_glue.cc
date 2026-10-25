@@ -66,4 +66,10 @@ OSStatus OTCloseProvider(ProviderRef ref)
 	return OTCloseProviderPriv(ref, &g_record);
 }
 
+// Verified by DnsProbe on maul: immediate and delayed completion, close pending query.
+OSStatus weather_async_open_internet(WeatherOTNotify proc, void *context)
+{
+	return OTAsyncOpenInternetServicesPriv(kOTDefaultInternetServicesPath, 0, proc, context, &g_record);
+}
+
 }

@@ -22,7 +22,7 @@
 
 ## Known gaps and risks
 * OS 9 entropy is a jitter pool plus a seed file, weaker than a kernel RNG (documented in ARCHITECTURE.md).
-* OS 9 DNS lookup cannot be cancelled or timed out; POSIX `getaddrinfo` has the same limit.
+* OS 9 DNS now uses an async provider with yield/cancel and a wrap-safe deadline. Host lifecycle tests pass; DnsProbe and DnsNetProbe passed on maul (2026-10-25), including closing a pending query and reconnecting. A deliberately stalled DNS server and delayed-open cancellation remain unverified on hardware. POSIX `getaddrinfo` still blocks.
 * The GitHub repository is not created (the owner's call); Open-Meteo and MET Norway terms still need a final read before publishing.
 * Delivery of OS 9 apps depends on the Mac being in OS X with a console login; a stuck `hdiutil attach` must be killed with `kill -9`.
 

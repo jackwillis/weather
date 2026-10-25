@@ -3,8 +3,7 @@
 // of the documented public API. Layouts and signatures were checked against Apple's OpenTransport.h and
 // OpenTptInternet.h (OT SDK 1.3, read locally, never copied here) and by running them on a real Mac OS 9.2.2.
 //
-// Linking needs two Apple object files that we cannot ship (OpenTransportAppPPC.o and OpenTptInetPPC.o, from Apple's
-// Open Transport SDK): they supply the "client record" handshake with the OS (Apple TN1173). Point OT_SDK at them.
+// Our ot_glue.cc supplies the client-record handshake; no Apple object files are needed.
 #ifndef WEATHER_OT_MIN_H
 #define WEATHER_OT_MIN_H
 #include <MacTypes.h>
@@ -17,6 +16,7 @@ typedef void *ProviderRef;
 typedef long OTResult;
 typedef UInt32 OTFlags;
 typedef UInt32 OTOpenFlags;
+typedef pascal void (*WeatherOTNotify)(void *, UInt32, OTResult, void *);
 
 struct TNetbuf { UInt32 maxlen; UInt32 len; UInt8 *buf; };
 struct TCall { TNetbuf addr; TNetbuf opt; TNetbuf udata; long sequence; };
@@ -31,6 +31,7 @@ void CloseOpenTransport(void);
 OTConfiguration *OTCreateConfiguration(const char *path);
 EndpointRef OTOpenEndpoint(OTConfiguration *cfg, OTOpenFlags oflag, TEndpointInfo *info, OSStatus *err);
 InetSvcRef OTOpenInternetServices(OTConfiguration *cfg, OTOpenFlags oflag, OSStatus *err);
+OSStatus weather_async_open_internet(WeatherOTNotify proc, void *context);
 OSStatus OTCloseProvider(ProviderRef ref);
 OSStatus OTBind(EndpointRef ep, TBind *req, TBind *ret);
 OSStatus OTConnect(EndpointRef ep, TCall *snd, TCall *rcv);
@@ -52,6 +53,7 @@ OSStatus InitOpenTransportPriv(UInt32 flags, void *client);
 void CloseOpenTransportPriv(void *client);
 EndpointRef OTOpenEndpointPriv(OTConfiguration *cfg, OTOpenFlags oflag, TEndpointInfo *info, OSStatus *err, void *client);
 InetSvcRef OTOpenInternetServicesPriv(OTConfiguration *cfg, OTOpenFlags oflag, OSStatus *err, void *client);
+OSStatus OTAsyncOpenInternetServicesPriv(OTConfiguration *cfg, OTOpenFlags oflag, WeatherOTNotify proc, void *context, void *client);
 OSStatus OTCloseProviderPriv(ProviderRef ref, void *client);
 }
 // Error codes (values checked against Apple's header) and event codes returned by OTLook.

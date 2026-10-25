@@ -15,6 +15,7 @@
 #include "platform/posix/net_posix.hpp"
 #include "platform/posix/settings_posix.hpp"
 #include "tls/timeconv.hpp"
+#include "platform/os9/dns_resolve.hpp"
 #include <arpa/inet.h>
 #include <cstdio>
 #include <cstdlib>
@@ -872,6 +873,74 @@ static void test_metno()
 	CHECK(resolve_providers("met-no,open-meteo", kProviders, kNumProviders, res, 4, &nres).ok() && nres == 2 && res[0] == &kMetNo);
 }
 
+// OS-independent lifecycle tests for the actual OS 9 resolver controller.
+struct DnsFake {
+	uint32_t clock = 0, open_at = 0, query_at = 0;
+	uint32_t open_delay = 0, query_delay = 0;
+	int opens = 0, queries = 0, closes = 0, yields = 0, cancel_at = 0;
+	int open_error = 0, open_result_code = 0, query_error = 0, query_result_code = 0, close_error = 0;
+	bool address = true;
+	uint32_t now() { return clock; }
+	bool yield() { return ++yields != cancel_at; }
+	void sleep() { clock += 3; }
+	int open(const char *) { ++opens; open_at = clock; return open_error; }
+	bool opened() { return static_cast<uint32_t>(clock - open_at) >= open_delay; }
+	int open_result() { return open_result_code; }
+	int query() { ++queries; query_at = clock; return query_error; }
+	bool resolved() { return static_cast<uint32_t>(clock - query_at) >= query_delay; }
+	int query_result() { return query_result_code; }
+	bool has_address() { return address; }
+	int close() { ++closes; return close_error; }
+};
+
+static void test_os9_dns()
+{
+	{ DnsFake f; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 60).ok()); CHECK(f.opens == 1 && f.queries == 1 && f.closes == 1); }
+	{ DnsFake f; f.open_delay = 6; f.query_delay = 9; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 60).ok()); CHECK(f.clock == 15 && f.yields > 2); }
+	{ DnsFake f; f.open_error = -1; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 60).err == Err::Dns); CHECK(f.queries == 0 && f.closes == 0); }
+	{ DnsFake f; f.open_result_code = -1; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 60).err == Err::Dns); CHECK(f.queries == 0 && f.closes == 1); }
+	{ DnsFake f; f.query_error = -1; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 60).err == Err::Dns); CHECK(f.closes == 1); }
+	{ DnsFake f; f.query_result_code = -1; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 60).err == Err::Dns); CHECK(f.closes == 1); }
+	{ DnsFake f; f.address = false; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 60).err == Err::Dns); CHECK(f.closes == 1); }
+	{ DnsFake f; f.query_delay = 100; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 6).err == Err::Timeout); CHECK(f.clock == 6 && f.closes == 1);
+	  f.query_delay = 0; CHECK(r.resolve("h", 60).ok()); CHECK(f.closes == 2); }
+	{ DnsFake f; f.cancel_at = 1; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 60).err == Err::Cancelled); CHECK(f.opens == 0); }
+	{ DnsFake f; f.query_delay = 100; f.cancel_at = 4; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 60).err == Err::Cancelled); CHECK(f.closes == 1 && f.queries == 1); }
+	{ // Pending open is retained; a retry drains it before starting another open.
+	  DnsFake f; f.open_delay = 12; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("first", 6).err == Err::Timeout); CHECK(f.closes == 0 && f.queries == 0);
+	  CHECK(r.resolve("second", 60).ok()); CHECK(f.opens == 2 && f.closes == 2 && f.queries == 1); }
+	{ // Repeated cancellation while the same open is still pending never reuses its context.
+	  DnsFake f; f.open_delay = 100; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("first", 3).err == Err::Timeout);
+	  f.cancel_at = f.yields + 1; CHECK(r.resolve("second", 60).err == Err::Cancelled);
+	  CHECK(f.opens == 1 && f.closes == 0); }
+	{ // A failed close quarantines the backend rather than reusing live OT storage.
+	  DnsFake f; f.close_error = -1; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 60).err == Err::Dns);
+	  CHECK(r.resolve("h", 60).err == Err::Dns); CHECK(f.opens == 1 && f.closes == 1); }
+	{ // Expiry wins over simultaneous completion.
+	  DnsFake f; f.query_delay = 6; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 6).err == Err::Timeout); }
+	{ // Cancellation wins over simultaneous expiry and completion.
+	  DnsFake f; f.query_delay = 6; f.cancel_at = 5; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 6).err == Err::Cancelled); }
+	{ DnsFake f; f.clock = UINT32_MAX - 2; f.query_delay = 6; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 12).ok()); CHECK(f.clock == 3); }
+	{ DnsFake f; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 0).err == Err::Timeout); CHECK(f.opens == 0); }
+}
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -886,6 +955,7 @@ int main()
 	test_model();
 	test_forms();
 	test_metno();
+	test_os9_dns();
 	printf("%d checks, %d failed\n", g_run, g_fail);
 	return g_fail ? 1 : 0;
 }
