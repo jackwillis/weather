@@ -61,7 +61,7 @@ expect "http 404" 76 $W -H 127.0.0.1:$P_404
 expect "chunked refused" 65 $W -H 127.0.0.1:$P_CHUNK
 expect "truncated body" 74 $W -H 127.0.0.1:$P_TRUNC
 expect "garbage reply" 65 $W -H 127.0.0.1:$P_GARB
-expect "hangup" 65 $W -H 127.0.0.1:$P_HANG
+expect "hangup" 74 $W -H 127.0.0.1:$P_HANG
 expect "bad json" 65 $W -H 127.0.0.1:$P_BADJ
 expect "read timeout" 75 $W -t 1 -H 127.0.0.1:$P_SLOW
 expect "connection refused" 69 $W -H 127.0.0.1:1
@@ -71,6 +71,8 @@ expect "unknown host" 68 $W -H no-such-host.invalid:80
 echo "attempts = 3" > "$CFG"
 expect "retries on 5xx" 76 $W -H 127.0.0.1:$P_500
 contains "attempt 3 logged" "attempt 3/3"
+expect "hangup is retried" 74 $W -H 127.0.0.1:$P_HANG
+contains "hangup attempt 3 logged" "attempt 3/3"
 expect "no retry on 404" 76 $W -H 127.0.0.1:$P_404
 case "$OUT" in *"attempt 2/3"*) bad "404 was retried";; *) ok;; esac
 
