@@ -23,8 +23,11 @@ static_assert(!parse_fixed("1e5", 0).ok, "no exponent");
 static_assert(!parse_fixed("", 0).ok && !parse_fixed("-", 0).ok && !parse_fixed(".5", 0).ok, "empty");
 static_assert(!parse_fixed("1.", 1).ok, "trailing dot");
 static_assert(!parse_fixed("1234567890", 0).ok, "too many digits");
-static_assert(!parse_fixed("999999999.0000", 4).ok, "reject scaled overflow on 32-bit");
-static_assert(!parse_fixed("2147483647.5", 0).ok || sizeof(long) > 4, "rounding overflow on 32-bit");
+static_assert(!parse_fixed("999999999.0000", 4).ok || sizeof(long) > 4, "reject scaled overflow on 32-bit");
+static_assert(!parse_fixed("214748364.75", 1).ok || sizeof(long) > 4, "rounding overflow on 32-bit");
+static_assert(!parse_fixed("3", 9).ok || sizeof(long) > 4, "single digit scaled overflow on 32-bit");
+static_assert(parse_fixed("2.147483647", 9).v == 2147483647L, "32-bit limit fits");
+static_assert(!parse_fixed("2.1474836475", 9).ok || sizeof(long) > 4, "fractional rounding overflow");
 static_assert(!parse_fixed("1", -1).ok && !parse_fixed("1", 10).ok, "invalid decimal scale");
 
 constexpr bool buf_ok()

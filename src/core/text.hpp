@@ -76,7 +76,8 @@ constexpr Num parse_fixed(sv t, int decimals)
 	while (i < t.size() && t[i] >= '0' && t[i] <= '9') {
 		if (++idig > 9) return {};
 		int digit = t[i] - '0';
-		if (ip > (max / scale - digit) / 10) return {};
+		const long limit = max / scale;
+		if (ip > limit / 10 || (ip == limit / 10 && digit > limit % 10)) return {};
 		ip = ip * 10 + digit;
 		i++;
 	}
