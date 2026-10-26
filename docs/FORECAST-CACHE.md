@@ -51,7 +51,25 @@ re-encodes byte-for-byte. Forward extensions must keep rejection behavior safe.
 
 ## Current scope
 
-The codec, model policy, POSIX adapter, CLI and X11 implementation are present.
-OS 9 storage and window integration are still pending; PR #15 remains draft.
-The OS 9 window integration follows #11. Provider terms/attribution review remains
-part of release readiness; this change makes no new external service contacts.
+The codec, model policy, POSIX adapter, CLI and X11 implementation are verified.
+OS 9 has a cross-built File Manager adapter plus console/window wiring, but its
+runtime acceptance is pending a Tiger boot. PR #15 is based on #11 and stays draft.
+Provider terms/attribution review remains part of release readiness.
+
+OS 9 stores `Weather Forecast Cache` in Preferences, separate from all TLS files.
+A uniquely named `WXC...` temporary file is created exclusively, written and closed
+with checked lengths/results, and volume-flushed before rename/exchange. Replacement,
+old temporary deletion and subsequent flushes are checked. The adapter copies file
+specifications around mutable Toolbox APIs. Concurrent writers may leave the last
+complete entry; no seed lock is reused or stolen. A crash may leave an app-owned
+temporary cache file; no automatic secret or lock recovery is performed.
+
+`CacheProbe` is a seed-free, separate diagnostic covering read/write/close/flush/
+exchange/rename/delete failures in a fresh disposable folder. `WeatherCacheUITest`
+uses a disposable store and explicitly simulated forecasts, then the same live
+stage as `WeatherUITest`. Both compile, but have not been run on OS 9 yet. After
+building/delivering the diagnostic app, use
+`python3 tools/check-os9-window.py OUTPUT --app WeatherCacheUITest`.
+Production startup never reads diagnostic marker files or fixture overrides.
+Initialized platform adapters carry context pointers; keep them at stable addresses
+and do not copy them after initialization.

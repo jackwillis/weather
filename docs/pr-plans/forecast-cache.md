@@ -1,7 +1,8 @@
 # Last-good forecast cache
 
-Status: draft implementation; portable/POSIX milestone verified. OS 9 adapter
-and window integration are not implemented yet.
+Status: draft implementation based on #11. Portable/POSIX milestones are verified;
+OS 9 storage and window/console integration are cross-built, with native runtime
+acceptance pending a Tiger boot.
 
 Implemented:
 - Canonical 160-byte big-endian record with CRC, known source IDs, bounded fields,
@@ -37,8 +38,8 @@ Verification:
   GUI behavior are not claimed tested. GitHub's 32-bit job runs on this PR.
 
 See docs/FORECAST-CACHE.md for the record and policy. Remaining before ready:
-OS 9 storage/fault handling, console/window wiring, and native OS 9 acceptance
-when Jack boots Tiger. The window integration follows #11. Keep this PR draft.
+Native OS 9 storage-fault and cache-window acceptance when Jack boots Tiger.
+The window integration follows #11; this PR is stacked on that branch. Keep draft.
 
 Scope: add a bounded, versioned on-disk forecast cache through a platform storage
 seam. Serve matching last-good data when providers fail, visibly marked stale.
@@ -59,3 +60,22 @@ Acceptance:
 
 Dependencies: existing Model and settings seams; coordinate OS 9 persistence with
 #12. Provider/geocoding work is not required for this slice.
+
+Combined-tree follow-up (after bringing in #11 at 8086781): host `make check` and
+ASan/UBSan pass with 968 unit checks, 230242 mutation inputs and 30 GUI checks.
+Actual NetBSD/macppc unit/robustness passed with 968 checks / 86242 inputs. Portable
+code compiles for Retro68 PowerPC and 68k; Weather, WeatherConsole, CacheProbe,
+WeatherUITest and WeatherCacheUITest cross-build successfully. No new native OS 9
+runtime claim: maul is booted into NetBSD. Production Weather contains no marker
+or fixture-label strings. The same adapter instance has an explicit native-probe
+replacement/read regression ready to run; probe data stays in owned test folders.
+
+Cached clock-rollback status now says its fetch time is ahead of the clock instead
+of `just now`; age conversion clamps huge forward jumps safely on 32-bit long.
+The initial failing rollback test was reproduced. A concurrent header edit left
+one stale host test object; affected objects were forced to rebuild and the full
+combined suite passed. No source edits overlapped the final verification builds.
+
+Merge interaction: #35 also changes Model age/backward-clock semantics; preserve
+its live-data behavior together with these cached-status/overflow guards. #41's
+wall-clock total deadline also needs to respect #11's modal active-time decision.

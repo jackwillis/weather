@@ -154,4 +154,7 @@ static void test_cache_model()
 	CHECK(!model.restore_cached(f,300,200));
 	CHECK(!model.restore_cached(f,0,86401));
 	CHECK(model.restore_cached(f,200,200));
+	Buf<256> rollback; model.status_line(rollback,100);
+	CHECK(find(rollback.view(),"ahead of clock")!=sv::npos);
+	CHECK(model.age(9223372036854775807LL)>0 && model.stale(9223372036854775807LL));
 }

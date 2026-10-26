@@ -215,7 +215,7 @@ void draw_status(Drawable d)
 	long long now = now_s();
 	Buf<220> st;
 	if (g.fetching) {
-		if(g.model.cached()) { st.add("Cached / stale, fetched "); Model::add_age(st,g.model.age(now)); st.add(". "); }
+		g.model.cached_status(st,now);
 		static const char *dots[] = {"", ".", "..", "..."};
 		st.add("Fetching").add(dots[(mono_ms() / 300) % 4]);
 		if (g.model.has_forecast() && !g.model.cached()) { st.add(" (showing data from "); Model::add_age(st, g.model.age(now)); st.add(")"); }

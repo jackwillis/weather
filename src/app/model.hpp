@@ -112,7 +112,14 @@ public:
 	long long next_refresh_at() const { return next_at_; }
 
 	// Seconds since the data was fetched; -1 if there is none.
-	long age(long long now) const { return have_ ? (now >= at_ ? static_cast<long>(now - at_) : 0) : -1; }
+	long age(long long now) const
+	{
+		if(!have_) return -1;
+		if(now<at_) return 0;
+		unsigned long long delta=static_cast<unsigned long long>(now)-static_cast<unsigned long long>(at_);
+		unsigned long long limit=static_cast<unsigned long long>(std::numeric_limits<long>::max());
+		return static_cast<long>(delta>limit?limit:delta);
+	}
 	// Showing data that may no longer be true: the last refresh failed or it is over two intervals old.
 	bool stale(long long now) const { return have_ && (cached_ || phase_ == Phase::Failed || age(now) > 2 * cfg_.interval_s); }
 	// Seconds until the next automatic refresh; -1 if automatic refresh is off or a fetch is running.
@@ -126,7 +133,7 @@ public:
 	template <size_t N>
 	void status_line(Buf<N> &o, long long now) const
 	{
-		if (cached_) { o.add("Cached / stale, fetched "); add_age(o, age(now)); o.add(". "); }
+		cached_status(o,now);
 		switch (phase_) {
 		case Phase::Idle:
 			o.add("Waiting to load"); break;
@@ -145,6 +152,15 @@ public:
 			o.add(". Next update in ");
 			add_dur(o, left);
 		}
+	}
+	template <size_t N>
+	void cached_status(Buf<N> &o,long long now) const
+	{
+		if(!cached_) return;
+		o.add("Cached / stale, ");
+		if(now<at_) o.add("fetch time is ahead of clock");
+		else { o.add("fetched "); add_age(o,age(now)); }
+		o.add(". ");
 	}
 
 	template <size_t N>

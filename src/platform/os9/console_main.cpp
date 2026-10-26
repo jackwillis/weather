@@ -1,6 +1,10 @@
 // "weather" for Mac OS 9, console edition: fetch the forecast and print it. The real OS 9 window UI comes later;
 // this proves the whole stack (Open Transport -> TLS -> HTTP -> JSON -> core) on the real machine.
 #include "core/config.hpp"
+#include "app/config_load.hpp"
+#include "config_os9.hpp"
+#include "cache_os9.hpp"
+#include "app/model.hpp"
 #include "core/fetch.hpp"
 #include "core/log.hpp"
 #include "core/providers.hpp"
@@ -44,25 +48,11 @@ static void wait_for_click()
 int main()
 {
 	Config cfg;
-	// Optional "weather.conf" next to the app: same key = value lines as ~/.weatherrc.
-	if (FILE *f = fopen("weather.conf", "r")) {
-		char line[160];
-		int n = 0;
-		while (fgets(line, sizeof line, f)) {
-			n++;
-			sv l(line);
-			while (!l.empty() && (l.back() == '\n' || l.back() == '\r' || l.back() == ' ')) l.remove_suffix(1);
-			while (!l.empty() && l.front() == ' ') l.remove_prefix(1);
-			if (l.empty() || l.front() == '#') continue;
-			size_t eq = l.find('=');
-			if (eq == sv::npos) continue;
-			sv k = l.substr(0, eq), v = l.substr(eq + 1);
-			while (!k.empty() && k.back() == ' ') k.remove_suffix(1);
-			while (!v.empty() && v.front() == ' ') v.remove_prefix(1);
-			wx::Status s = config_set(&cfg, k, v, n);
-			if (!s.ok()) fprintf(stderr, "weather.conf line %d: %s\n", n, s.msg);
-		}
-		fclose(f);
+	SettingsStore store = os9_config_store();
+	wx::Status loaded = load_config(store, cfg);
+	if (!loaded.ok()) {
+		fprintf(stderr, "weather.conf line %d: %s\n", loaded.detail, loaded.msg);
+		return exit_code(loaded.err);
 	}
 	log_init(cfg.level == LogWarn ? LogInfo : cfg.level, false, "weather");
 	printf("weather %s for Mac OS 9\n\n", WEATHER_VERSION);
@@ -93,11 +83,29 @@ int main()
 		static char buf[64 * 1024];
 		Forecast f;
 		s = fetch_forecast(net, chosen, nchosen, q, fo, buf, sizeof buf, &f);
-		if (s.ok()) {
+		bool cached=false;
+		long long at=0,now=net.now(net);
+		Os9Cache cache;
+		if(cfg.cache) {
+			wx::Status initialized=os9_cache_init(&cache);
+			if(!initialized.ok()) logf(LogWarn,"%s",initialized.msg);
+			else if(s.ok()) {
+				wx::Status saved=write_cached_forecast(cache.base,cache_key(cfg),f,now);
+				if(!saved.ok()) logf(LogWarn,"%s",saved.msg);
+			} else if(s.err!=Err::Cancelled) {
+				CachedForecast previous; bool found=false;
+				wx::Status loaded=read_cached_forecast(cache.base,cache_key(cfg),now,&previous,&found);
+				if(loaded.ok() && found) { f=previous.forecast; at=previous.fetched_at; cached=true; }
+				else if(!loaded.ok()) logf(LogWarn,"%s",loaded.msg);
+			}
+		}
+		if (s.ok() || cached) {
 			Buf<512> out;
+			if(cached) { out.add("STALE cached forecast (fetched "); Model::add_age(out,static_cast<long>(now-at)); out.add("): "); }
 			format_full(out, f, cfg.name);
 			fputs(out.c_str(), stdout);
-		} else {
+		}
+		if(!s.ok()) {
 			printf("weather: %s: %s", err_name(s.err), s.msg);
 			if (s.detail) printf(" (detail %d)", s.detail);
 			putchar('\n');
