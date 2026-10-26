@@ -17,6 +17,7 @@
 #include "tls/timeconv.hpp"
 #include "platform/os9/dns_resolve.hpp"
 #include <arpa/inet.h>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -614,6 +615,24 @@ static void test_settings_store()
 	struct stat lsb;
 	CHECK(lstat(link, &lsb) == 0 && S_ISLNK(lsb.st_mode));
 	CHECK(slurp(real, text, sizeof text) && strstr(text, "name = Oslo") != nullptr);
+
+	// Atomic replacement must not bypass the existing file's protection or split links.
+	CHECK(chmod(real, 0444) == 0);
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	CHECK(stat(real, &sb) == 0 && (sb.st_mode & 0777) == 0444);
+	CHECK(chmod(real, 0600) == 0);
+	char alias[300];
+	snprintf(alias, sizeof alias, "%s/alias", dir);
+	CHECK(::link(real, alias) == 0);
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	struct stat asb;
+	CHECK(stat(real, &sb) == 0 && stat(alias, &asb) == 0 && sb.st_ino == asb.st_ino && sb.st_nlink == 2);
+	CHECK(unlink(alias) == 0);
+	CHECK(unlink(real) == 0); // the dotfile is now a dangling symlink
+	CHECK(posix_settings_init(&ls, link, false).ok());
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	CHECK(lstat(link, &lsb) == 0 && S_ISLNK(lsb.st_mode));
+	CHECK(stat(real, &sb) != 0 && errno == ENOENT);
 
 	// a directory we cannot write to: a clean Io error, original untouched
 	if (geteuid() != 0) {

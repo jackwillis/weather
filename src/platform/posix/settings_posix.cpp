@@ -39,11 +39,24 @@ static Status px_save(SettingsStore &st, const char *text, size_t n)
 	char real[PATH_MAX];
 	if (!realpath(p->path, real)) {            // not there yet: write at the plain path
 		if (errno != ENOENT) return make(Err::Io, "cannot resolve settings path", errno);
+		struct stat unresolved;
+		if (lstat(p->path, &unresolved) == 0)
+			return make(Err::Io, "settings path is a dangling symlink");
+		if (errno != ENOENT) return make(Err::Io, "cannot inspect settings path", errno);
 		snprintf(real, sizeof real, "%s", p->path);
 	}
 	mode_t mode = 0644;
 	struct stat sb;
-	if (stat(real, &sb) == 0) mode = sb.st_mode & 0777;
+	if (stat(real, &sb) == 0) {
+		if (!S_ISREG(sb.st_mode)) return make(Err::Io, "settings file is not regular");
+		if (sb.st_nlink != 1) return make(Err::Io, "settings file has hard links");
+		if (sb.st_uid != geteuid()) return make(Err::Io, "settings file has a different owner");
+		if (!(sb.st_mode & 0222) || access(real, W_OK) != 0)
+			return make(Err::Io, "settings file is not writable");
+		mode = sb.st_mode & 0777;
+	} else if (errno != ENOENT) {
+		return make(Err::Io, "cannot inspect settings file", errno);
+	}
 	char tmp[PATH_MAX + 32];
 	snprintf(tmp, sizeof tmp, "%s.tmp.%ld", real, static_cast<long>(getpid()));
 	int fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL, mode);

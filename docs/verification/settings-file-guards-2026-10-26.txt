@@ -1,0 +1,21 @@
+Issue #54: POSIX settings replacement safeguards (partial)
+
+Regression tests first reproduced five assertion failures: read-only target
+replacement, hard-link splitting, and replacement of a dangling symlink.
+The fix refuses these saves with specific Io messages before creating a temp
+file. Valid symlink targets retain the existing successful-save regression.
+Non-regular targets and files owned by another effective uid are also refused.
+No privileged ownership changes are attempted.
+
+This is a partial fix. The fixed 4096-byte settings rewrite limit remains;
+files whose edited output exceeds it still fail with "settings file too large".
+ACL preservation, concurrent path replacement races, directory fsync and exact
+group/mode preservation under unusual umasks are not addressed by this slice.
+Atomic replacement still requires a writable containing directory.
+
+Verified: make check (530 unit, 230242 mutations, 106 CLI, 12 local TLS,
+21 serialized GUI checks); make check-san explicitly enabled ASan and UBSan
+(530 unit, 230242 mutations, 106 CLI). make check-maul passed on the actual
+NetBSD/macppc G4: 530 unit and 86242 mutation inputs, status=0. Cross-compilation
+was on Linux only. No OS 9/Tiger or macOS-host runtime verification.
+Logs: /tmp/weather-settings-{red,check,san,maul}.log.

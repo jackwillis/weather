@@ -1,0 +1,1 @@
+- Refuse atomic settings replacement for read-only files, hard-linked files, dangling symlinks, non-regular files, and files owned by another user. Valid symlinks still update their target.
