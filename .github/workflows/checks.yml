@@ -1,0 +1,57 @@
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host:
+    name: Host, GUI and sanitizers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install build and GUI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make python3 openssl libx11-dev xvfb imagemagick xfonts-base xfonts-75dpi
+      - name: Host checks, including GUI and provisioning
+        run: make check
+      - name: Address and undefined-behavior sanitizers
+        run: make REQUIRE_ASAN=1 check-san
+      - name: Save GUI diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gui-diagnostics
+          path: |
+            build/gui-host/*.png
+            build/gui-host/log.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+  host-32:
+    name: 32-bit parser and CLI checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install 32-bit build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-multilib make python3 openssl
+      - name: Unit, mutation and CLI checks with 32-bit long and UBSan
+        run: make TARGET=host-32 check
