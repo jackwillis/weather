@@ -27,3 +27,15 @@ application/diagnostic cross-build and actual-source layout mutation gate pass.
 Counts reflect this branch's older base, not the independent #91 controller.
 No new parser input path. No hardware runtime claim. Logs retained at
 /tmp/weather-ot-layout-{os9,mutations,check,san}.log.
+
+Synchronized lifecycle-test integration: assertions now select __powerpc__ or
+__POWERPC__, retaining pointer32/record40/all offsets for the native target.
+Non-PPC stand-ins from #91 are lifecycle models, not record ABI evidence.
+The exact same guard/assertion body is in #91. The native mutation gate still
+must reject changed size and offset, catching an inactive architecture guard.
+The #91 G4 lifecycle test also compiles with these PowerPC assertions enabled.
+No production test switch or assertion suppression in the host test is used.
+After guard synchronization, actual Retro68 production compile, both negative
+layout checks and full PowerPC OS9 build pass again. Logs at
+/tmp/weather-ot-layout-synced.log and weather-ot-layout-synced-os9.log.
+No core/host execution path changed; prior full host/san checks above retained.

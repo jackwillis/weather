@@ -22,12 +22,15 @@ struct ClientRecord {
 };
 // Validate the only ABI exercised so far: 32-bit PowerPC CFM/PEF.
 // These assertions do NOT establish compatibility with another OT release.
+// Non-PPC host stand-ins exercise lifecycle behavior, not this native ABI.
+#if defined(__powerpc__) || defined(__POWERPC__)
 static_assert(sizeof(void *) == 4, "Open Transport glue requires 32-bit pointers");
 static_assert(sizeof(ClientRecord) == 40, "OT client record layout changed");
 static_assert(offsetof(ClientRecord, library_manager) == 8, "OT client record offset changed");
 static_assert(offsetof(ClientRecord, slm_global) == 12, "OT client record offset changed");
 static_assert(offsetof(ClientRecord, exit_patch_rd) == 16, "OT client record offset changed");
 static_assert(offsetof(ClientRecord, flag) == 32, "OT client record flag offset changed");
+#endif
 ClientRecord g_record;
 UInt32 g_library_manager = 0;
 UInt32 g_slm_global = 0;
