@@ -101,6 +101,8 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 	Status last = make(Err::NoSource, "no data sources configured");
 	for (size_t i = 0; i < n; i++) {
 		const Provider &p = *providers[i];
+		if (p.steps < 1 || p.steps > 3 || (p.steps > 1 && !p.next_path))
+			return make(Err::BadData, "invalid provider request chain");
 		char path[320];
 		if (!p.path(q, path, sizeof path)) {
 			last = make(Err::BadData, "request path too long");
@@ -116,7 +118,14 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 		bool tls = o.force_host == nullptr;
 		logf(LogInfo, "trying %s (%s:%s)", p.name, host, port);
 		sv body;
-		Status s = fetch_retry(net, host, port, tls, path, o, buf, cap, &body);
+		Status s;
+		for (unsigned step = 1; step <= p.steps; ++step) {
+			if (net.yield && !net.yield(net)) { s = make(Err::Cancelled, "cancelled between provider requests"); break; }
+			s = fetch_retry(net, host, port, tls, path, o, buf, cap, &body);
+			if (!s.ok() || step == p.steps) break;
+			s = p.next_path(body, step, path, sizeof path);
+			if (!s.ok()) break;
+		}
 		if (s.ok()) {
 			Forecast f;
 			s = p.parse(body, q, &f);

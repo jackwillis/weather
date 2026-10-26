@@ -2,10 +2,11 @@
 #pragma once
 #include "metno.hpp"
 #include "openmeteo.hpp"
+#include "nws.hpp"
 
 namespace wx {
 
-inline constexpr const Provider *kProviders[] = { &kOpenMeteo, &kMetNo };
+inline constexpr const Provider *kProviders[] = { &kOpenMeteo, &kMetNo, &kNws };
 inline constexpr size_t kNumProviders = sizeof kProviders / sizeof kProviders[0];
 
 } // namespace wx

@@ -21,6 +21,10 @@ struct Provider {
 	Status (*parse)(sv body, const Query &, Forecast *);
 	// The service's terms require identifying ourselves: we refuse to ask until 'contact' is set.
 	bool needs_contact = false;
+	// Bounded response chain. next_path copies a validated relative path before
+	// the shared response buffer is reused; parse consumes the final response.
+	unsigned steps = 1;
+	Status (*next_path)(sv body, unsigned completed, char *out, size_t cap) = nullptr;
 };
 
 // "open-meteo,other" -> pointers into `all`, in order. Unknown names are a usage error.

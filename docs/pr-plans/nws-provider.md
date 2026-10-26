@@ -1,26 +1,59 @@
 # NWS provider
 
-Status: draft scope; verify current official API documentation before implementation.
+Status: implemented and locally verified, draft pending hosted CI and review. This PR adds an
+opt-in `nws` source without changing the default or either existing provider.
 
-Scope: extend the provider/fetch seam for bounded multi-step requests and add
-api.weather.gov as a US-only source. Preserve current Open-Meteo/MET Norway
-behavior, error values, fallback and cancellation semantics. Define step count,
-buffer ownership, station-selection policy and missing-observation behavior first.
+The provider seam supports one to three responses. NWS uses points -> gridpoint
+stations with limit=1 -> first station's latest observation. Each step copies only
+a validated relative path before reusing the caller's fixed response buffer.
+The host remains api.weather.gov with normal TLS/hostname verification, and the
+next source is tried if the first station has no usable observation. No station
+pagination/search or redirects are followed. Contact is optional under the current
+NWS policy; the actual application User-Agent is always present.
 
-Acceptance:
-- Use official API policy/docs when implementing; verify contact/User-Agent,
-  attribution and usage requirements. Never invent contact details.
-- Fixture-test the full request chain, coordinates outside coverage, missing fields,
-  station lists, no observations, units and condition mapping, 404/429/5xx responses,
-  malformed data and certificate/hostname failures.
-- Test cancellation/deadlines at each step, no fallback after cancellation, bounded
-  loops and response buffers, and compatibility of both existing providers.
-- Mutation coverage for every new parser path; host, 32-bit, sanitizers and real
-  PowerPC validation. Live verification is separate from deterministic fixture CI.
-- Connect only to api.weather.gov. Validate every API-returned absolute URL and
-  reject any different host, scheme or nonstandard port; never follow an absolute
-  URL to another host or forward contact details there. Fixture-test hostile URLs.
-- Review trust-anchor changes separately; never bypass TLS verification.
+All followed links are constrained to HTTPS api.weather.gov (optional explicit
+443), approved endpoint shapes and a narrow path alphabet. Credentials, foreign
+hosts, other ports, escaped URLs, query/fragment/dot segments and doubled slashes
+are rejected. The only generated query is the station-list limit.
 
-Dependencies: provider interface design; caching can remain independent. No daemon
-or geocoding requirement is introduced by this PR.
+Temperature/optional measurements validate units and bounds before conversion.
+UTC timestamps validate calendar ranges. Conditions use structured NWS METAR
+weather/cloud enums, with explicit unknown conditions and unset day/night.
+The latest observation may be older than the fetch time; no station observation
+age cutoff is currently implemented. See docs/NWS.md for detailed scope/policy.
+
+## Tests and verification
+
+- Tests added before implementation; timestamp/date regressions then failed three
+  checks before calendar validation, and the limit regression failed before the
+  generated station-list limit was added.
+- 651 host unit checks and 299168 mutation inputs passed. New mutations exercise
+  every observation, point/station link and URL parser; failures preserve outputs.
+- Real CLI fixtures exercise the full three-request chain in both units and
+  outside-coverage 404 behavior. 104 feature checks passed.
+- Fake-network tests cover cancellation/yield between every step, TLS rejection,
+  404/429/500 at every step, retrying only the current step, and provider fallback.
+  TLS tests here test error propagation; they are not an independent certificate
+  verifier implementation or a substitute for the existing TLS tests.
+- Actual NetBSD/macppc: 651 unit checks and 101168 mutation inputs passed.
+- Portable PPC and 68k compilation and full OS 9 application cross-build passed.
+  No new OS 9 runtime claim: Tiger is still required.
+- Initial live host run failed with `response too large`. Official API schema
+  inspection and a public limit=1 request confirmed a 3777-byte one-station body;
+  the generated limit fixed the live chain. A subsequent host verified-TLS run
+  returned 60.8F clear sky, source nws, observation 2026-10-26T00:15.
+- Final host check: all 651 unit, 299168 mutation, 104 CLI and 21 GUI checks
+  passed, plus anchors/flags/provisioning. ASan and UBSan passed. The native
+  PowerPC CLI independently completed the live verified-TLS NWS chain and
+  returned the same observation. Result lines are preserved in
+  docs/verification/nws-2026-10-25.txt. Existing GUI checks cover UI regression,
+  not a scripted native NWS window fetch.
+
+No trust anchor, privileged machine configuration, API contact address or Apple
+material was added. The independently pending cache PR needs an NWS source ID
+before it can persist this source. The separate whole-attempt deadline PR #41
+needs integration review around the three-step loop and OS 9 active-time clock.
+
+Official docs checked 2026-10-25:
+https://www.weather.gov/documentation/services-web-api
+https://api.weather.gov/openapi.json

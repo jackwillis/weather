@@ -36,6 +36,7 @@ serve hangup; P_HANG=$P
 serve badjson; P_BADJ=$P
 serve metno; P_MET=$P
 serve fallback; P_FALL=$P
+serve nws; P_NWS=$P
 sleep 1
 
 CFG=$(mktemp); echo "attempts = 1" > "$CFG"
@@ -217,6 +218,12 @@ if [ -n "$ONLINE" ]; then
 	if [ "$got" = 76 ] && grep -q "cert" "$CFG.err"; then ok; else bad "no-anchor run: exit $got $(cat $CFG.err)"; fi
 	rm -f "$CFG.err"
 fi
+
+expect "NWS complete observation chain" 0 $W -1 -p nws -H 127.0.0.1:$P_NWS
+contains "NWS imperial output" "54.5F Partly cloudy, wind 11.2mph W, humidity 72% (nws 2026-10-25T23:53)"
+expect "NWS metric observation" 0 $W -1 -u metric -p nws -H 127.0.0.1:$P_NWS
+contains "NWS metric output" "12.5C Partly cloudy, wind 18.0km/h W"
+expect "NWS outside coverage" 76 $W -1 -p nws -H 127.0.0.1:$P_404
 
 rm -f "$CFG"
 echo "feature tests: $pass passed, $fail failed"

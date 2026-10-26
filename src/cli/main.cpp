@@ -31,7 +31,7 @@ static void usage(FILE *f)
 	      "  -t  network timeout, secs    -u  units\n"
 	      "  -v  more logging (repeat)    -V  print version\n"
 	      "  -H host:port  (testing) plain HTTP to host:port instead of the provider\n"
-	      "sources: open-meteo, met-no (met-no needs 'contact' in the config file)\n", f);
+	      "sources: open-meteo, met-no, nws (met-no needs 'contact' in the config file)\n", f);
 }
 
 static volatile sig_atomic_t g_stop;

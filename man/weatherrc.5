@@ -55,13 +55,15 @@ Default
 Seconds to wait for each network step, 1 to 300.
 Default 15.
 .It Ic attempts
-Tries per data source before giving up on it, 1 to 300.
+Tries per request before giving up on it, 1 to 300.
+NWS uses three requests; other sources use one.
 Default 3.
 .It Ic providers
 Comma separated data sources in the order to try them:
-.Ql open-meteo
+.Ql open-meteo ,
+.Ql met-no ,
 and
-.Ql met-no .
+.Ql nws .
 Default
 .Ql open-meteo .
 .It Ic contact

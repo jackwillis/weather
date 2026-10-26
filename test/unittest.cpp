@@ -11,6 +11,7 @@
 #include "app/model.hpp"
 #include "app/textedit.hpp"
 #include "core/providers.hpp"
+#include "core/nws.hpp"
 #include "core/settings.hpp"
 #include "platform/posix/net_posix.hpp"
 #include "platform/posix/settings_posix.hpp"
@@ -126,6 +127,8 @@ struct Fake {
 	long sleeps[8] = {};
 	long long clock = 1790000000LL;
 	bool cancel_sleep = false;
+	int yields = 0, cancel_yield_at = 0, tls_calls = 0, tls_fail_at = 0;
+	char last_host[64] = {};
 	const char *cur = ""; size_t pos = 0; Err cur_err = Err::Ok;
 	char request[512] = {};
 };
@@ -152,10 +155,11 @@ static long fk_write(Io &io, const void *buf, size_t len)
 	if (have + len < sizeof f->request) { memcpy(f->request + have, buf, len); f->request[have + len] = 0; }
 	return static_cast<long>(len);
 }
-static Status fk_connect(Net &n, const char *, const char *, int, Io *out)
+static Status fk_connect(Net &n, const char *host, const char *, int, Io *out)
 {
 	Fake *f = F(n);
 	f->connects++;
+	snprintf(f->last_host, sizeof f->last_host, "%s", host);
 	Step &s = f->steps[f->next < f->nsteps ? f->next : f->nsteps - 1];
 	f->next++;
 	if (!s.connect_result.ok()) return s.connect_result;
@@ -952,6 +956,8 @@ static void test_os9_dns()
 	  CHECK(r.resolve("h", 0).err == Err::Timeout); CHECK(f.opens == 0); }
 }
 
+#include "nws_tests.hpp"
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -966,6 +972,7 @@ int main()
 	test_model();
 	test_forms();
 	test_metno();
+	test_nws();
 	test_os9_dns();
 	test_seed_pool();
 	test_os9_helpers();
