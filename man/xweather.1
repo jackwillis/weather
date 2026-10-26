@@ -77,6 +77,21 @@ Settings, see
 .Xr weatherrc 5 .
 Changes made in the window are written here.
 .El
+.Sh PLACE SEARCH
+In Location, click Find or press Ctrl-F to search by name.
+Search sends the explicit query to Open-Meteo geocoding over verified TLS;
+opening the panel and typing send no requests.
+Choose a result using the mouse or arrow keys, then Use to fill editable fields.
+Location's OK saves separately; Cancel preserves the previous location.
+The list credits Open-Meteo / GeoNames and shows country and coordinates.
+Non-ASCII labels are simplified with an explicit note.
+The free geocoding endpoint is for non-commercial use.
+.Pp
+Tab and Shift-Tab change focus; Ctrl-U clears the query.
+Escape cancels a search, including while waiting for the network.
+Ctrl-Q or closing the window cancels and quits.
+Automatic weather refresh pauses while either Location panel is open.
+A failed location save keeps the panel open and preserves the current forecast.
 .Sh ENVIRONMENT
 .Bl -tag -width "DISPLAY"
 .It Ev DISPLAY

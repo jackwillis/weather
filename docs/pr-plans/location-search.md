@@ -1,8 +1,8 @@
 # Location-name search
 
 Status: draft implementation. Portable parser, TLS lookup, explicit-selection
-logic and read-only CLI search are implemented; X11/OS 9 controls and runtime UI
-acceptance remain pending. Service choice and limits are recorded in `docs/GEOCODING.md`.
+logic, read-only CLI search and X11 controls are implemented; OS 9 controls and
+first-run flow remain pending. Service choice and limits are recorded in `docs/GEOCODING.md`.
 
 Scope: let users search by place name, choose among ambiguous results and save
 coordinates/name. Define a first-run location-selection flow without making
@@ -62,3 +62,30 @@ and confirmed configuration unchanged, including a rejected -g/-S combination.
 Both portable Retro68 probes pass. Updated manual renders without warnings.
 Evidence: docs/verification/geocoding-cli-2026-10-26.txt. No native OS 9 runtime
 claim, and no new window-search behavior is claimed at this milestone.
+
+
+X11 milestone: Location Find (Ctrl-F) opens a bounded search panel without
+sending a query. Search returns region/country/coordinates with attribution;
+selection is explicit and Use fills fields, then Location OK saves separately.
+Search/cancel/failure never applies a location. Query edits discard results.
+Escape cancels blocked lookup; Ctrl-Q/window close quits. Location/search pause
+weather refresh. Production HTTP test mode refuses lookup; an explicitly linked
+fixture executable has the only synthetic search callback. Production contains
+no fixture labels. Failed location saves now keep the old active config/forecast
+and the dialog open for retry. Same-coordinate/name saves avoid needless fetches.
+
+A GUI regression reproduced the previous save-before-apply failure (two failed
+assertions), then passed. Supplementary ASan/UBSan GUI found the pre-existing
+empty-string null memcpy trap in cde::fit_text (SIGILL / exit132), now fixed.
+The CDE helper also guards zero/tiny output capacities and empty Xlib text calls.
+95 focused tests run in normal GUI checks and automatically in check-san when
+X11 headers are available. Full sanitizer GUI additionally runs locally with
+LeakSanitizer disabled; no UI leak-freedom claim.
+
+Host and sanitizer core checks: 644 unit, 231002 mutation, 108 CLI cases pass.
+44 GUI checks pass on host, ASan/UBSan, and actual NetBSD/macppc (Xvfb), including
+explicit choice, save failure/retry, restart and cancellation. Actual PowerPC
+core: 644 unit / 87002 mutation inputs pass. No builds on maul. Native screenshots
+were inspected; this does not replace Jack's physical-display acceptance.
+Remote GUI tests use mktemp-owned directories and retain failure evidence.
+OS 9 search controls/diagnostics and first-run behavior remain unfinished.

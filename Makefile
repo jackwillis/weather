@@ -56,6 +56,17 @@ $(BUILD)/xweather.debug: $(XW_OBJS) $(BEARSSL_LIB)
 $(BUILD)/xweather: $(BUILD)/xweather.debug
 	$(STRIP)
 
+# Separate diagnostic executable: production links no fixture generator.
+$(OBJ)/ui/xweather/search_runner.o: src/ui/xweather/main.cpp $(OBJ)/.flags
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS_ALL) -DWEATHER_XWEATHER_LIBRARY -c -o $@ $<
+
+$(BUILD)/xweather-search-test: $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_search.o $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_search.o $(BEARSSL_LIB) $(X11_LIBS)
+
+$(BUILD)/cde-text-test: $(OBJ)/test/cde_text.o $(OBJ)/ui/xweather/cde.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
+
 $(BUILD)/xdrive: $(OBJ)/test/xdrive.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(X11_LIBS)
 
@@ -173,15 +184,20 @@ check-san:
 	build/host-san/unittest
 	build/host-san/robust
 	sh test/feature.sh build/host-san/weather
+	@if [ -f /usr/include/X11/Xlib.h ]; then \
+	    $(MAKE) TARGET=host-san X11_LIBS=-lX11 build/host-san/cde-text-test && \
+	    build/host-san/cde-text-test; \
+	else echo "check-san: CDE text skipped (no X11 headers)"; fi
 
 san-note:
 	@echo "check-san: $(SAN_NOTE)"
 
-check-gui: $(BUILD)/xweather $(BUILD)/xdrive
+check-gui: $(BUILD)/xweather $(BUILD)/xdrive $(BUILD)/xweather-search-test $(BUILD)/cde-text-test
+	$(BUILD)/cde-text-test
 	sh test/gui-host.sh
 
 check-gui-maul:
-	$(MAKE) TARGET=netbsd-macppc all build/netbsd-macppc/xdrive
+	$(MAKE) TARGET=netbsd-macppc all build/netbsd-macppc/xdrive build/netbsd-macppc/xweather-search-test
 	sh test/gui-maul.sh
 
 check-cross:

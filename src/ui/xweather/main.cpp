@@ -2,6 +2,8 @@
 // drawn as overlays inside it. All refresh behaviour comes from app/Model; the (blocking)
 // fetch keeps the window alive through Net::yield, and can be cancelled by closing it.
 #include "app/locform.hpp"
+#include "app/location_search.hpp"
+#include "run.hpp"
 #include "app/model.hpp"
 #include "cde.hpp"
 #include "core/config.hpp"
@@ -32,9 +34,9 @@ constexpr int W = 440, H = 300, MB_H = 26, ITEM_H = 22;
 constexpr unsigned kF5 = 0xffc2;       // XK_F5 (named here to keep the includes small)
 constexpr unsigned kLeftTab = 0xfe20;  // XK_ISO_Left_Tab
 
-enum Mode { Normal, MenuOpen, Location, About };
+enum Mode { Normal, MenuOpen, Location, About, PlaceSearch };
 enum Cmd { CmdRefresh = 1, CmdLocation, CmdExit, CmdAuto, CmdImperial, CmdMetric, CmdAbout };
-enum Press { PNone = 0, PRefresh, PLocation, POk, PCancel, PAboutOk };
+enum Press { PNone = 0, PRefresh, PLocation, POk, PCancel, PAboutOk, PFind, PSearch, PUsePlace, PSearchCancel };
 
 struct MenuItem { const char *label, *accel; int cmd; int kind; };   // kind: 0 plain, 1 check, 2 radio
 const MenuItem kFile[] = {{"Refresh", "F5", CmdRefresh, 0}, {"Location...", "Ctrl+L", CmdLocation, 0}, {"Exit", "Ctrl+Q", CmdExit, 0}};
@@ -63,6 +65,12 @@ struct App {
 	bool menu_by_press = false;   // opened by a click (a second click on its title closes it), not by hovering
 	Press pressed = PNone;
 	LocationForm form;
+    LocationSearch search;
+    TextEdit<64> search_query;
+    PlaceLookup lookup=nullptr;
+    int selected_place=-1, search_focus=0;
+    bool searching=false, search_cancel=false;
+    const char *search_message="Enter a place, then Search.";
 	char notice[160] = "";
 	long long notice_until = 0;
 	bool quit = false, fetching = false, dirty = true;
@@ -85,11 +93,18 @@ Rect r_locbtn() { return Rect{130, 218, 104, 26}; }
 Rect r_status() { return Rect{8, 254, W - 16, 40}; }
 Rect d_panel() { return Rect{50, 30, 340, 238}; }
 Rect d_field(int i) { Rect p = d_panel(); return Rect{p.x + 104, p.y + 42 + i * 34, 200, 24}; }
-Rect d_units() { Rect p = d_panel(); return Rect{p.x + 16, p.y + 148, 300, 22}; }
+Rect d_units() { Rect p = d_panel(); return Rect{p.x + 16, p.y + 148, 214, 22}; }
 Rect d_ok() { Rect p = d_panel(); return Rect{p.x + 60, p.y + 200, 96, 26}; }
 Rect d_cancel() { Rect p = d_panel(); return Rect{p.x + 184, p.y + 200, 96, 26}; }
 Rect a_panel() { return Rect{70, 60, 300, 170}; }
 Rect a_ok() { Rect p = a_panel(); return Rect{p.x + 102, p.y + 130, 96, 26}; }
+
+Rect d_find() { return Rect{290,178,84,22}; }
+Rect s_query() { return Rect{26,44,280,24}; }
+Rect s_search() { return Rect{316,44,96,24}; }
+Rect s_row(int i) { return Rect{26,76+28*i,386,28}; }
+Rect s_use() { return Rect{130,255,80,24}; }
+Rect s_cancel() { return Rect{230,255,88,24}; }
 
 bool menu_checked(const MenuItem &m)
 {
@@ -264,8 +279,33 @@ void draw_location(Drawable d)
 		cde::fit_text(t.normal, g.form.error, p.w - 32, buf, sizeof buf);
 		cde::text(t, d, t.normal, p.x + 16, p.y + 186, buf, t.rgb(150, 20, 20));
 	}
+    cde::button(t,d,d_find(),"Find...",g.pressed==PFind,false);
 	cde::button(t, d, d_ok(), "OK", g.pressed == POk, true);
 	cde::button(t, d, d_cancel(), "Cancel", g.pressed == PCancel, false);
+}
+
+void draw_search(Drawable d)
+{
+    auto &t=g.th; draw_panel(d,Rect{12,12,416,276},"Find a place (ASCII query)");
+    cde::field(t,d,s_query(),g.search_query.s,g.search_query.n,g.search_query.cur,g.search_focus==0);
+    cde::button(t,d,s_search(),"Search",g.pressed==PSearch,g.search_focus==1);
+    for(size_t i=0;i<g.search.results.count;i++) {
+        Rect row=s_row(static_cast<int>(i));
+        if(g.selected_place==static_cast<int>(i)) cde::fill(t,d,row,t.sel);
+        const Place &p=g.search.results.items[i]; Buf<128> label;
+        label.add(p.name); if(p.region[0]) label.add(", ").add(p.region);
+        char fitted[128]; cde::fit_text(t.normal,label.view(),row.w-8,fitted,sizeof fitted);
+        cde::text(t,d,t.normal,row.x+4,row.y+12,fitted,t.fg);
+        Buf<80> coordinates; if(p.country[0]) coordinates.add(p.country).add(" ");
+        coordinates.add_fixed(p.lat_e4,4).add(", ").add_fixed(p.lon_e4,4);
+        if(p.simplified) coordinates.add(" (ASCII simplified)");
+        cde::text(t,d,t.normal,row.x+4,row.y+25,coordinates.view(),t.fg);
+    }
+    cde::text(t,d,t.normal,26,232,"Open-Meteo / GeoNames",t.fg);
+    char message[128]; cde::fit_text(t.normal,g.searching?"Searching... Escape cancels":g.search_message,386,message,sizeof message);
+    cde::text(t,d,t.normal,26,247,message,t.fg);
+    cde::button(t,d,s_use(),"Use",g.pressed==PUsePlace,g.search_focus==3);
+    cde::button(t,d,s_cancel(),"Cancel",g.pressed==PSearchCancel,g.search_focus==4);
 }
 
 void draw_about(Drawable d)
@@ -294,6 +334,7 @@ void redraw()
 	draw_dropdown(d);
 	if (g.mode == Location) draw_location(d);
 	if (g.mode == About) draw_about(d);
+    if(g.mode==PlaceSearch) draw_search(d);
 	XCopyArea(g.dpy, g.pm, g.win, t.gc, 0, 0, W, H, 0, 0);
 	XFlush(g.dpy);
 	g.dirty = false;
@@ -331,20 +372,46 @@ void apply_location()
 {
 	Config c = g.cfg;
 	if (!g.form.read(&c).ok()) { g.dirty = true; return; }
-	g.cfg = c;
-	if (g.have_store) {
-		Status s = settings_save(g.store.base, g.cfg);
-		if (!s.ok()) {
-			char m[160];
-			snprintf(m, sizeof m, "Could not save settings: %s", s.msg);
-			set_notice(m);
-		}
-	} else {
-		set_notice("Location not saved: no HOME and no -c file");
-	}
-	g.model.location_changed();
+    if(!g.have_store) { g.form.error="No settings file is available; location was not changed."; g.dirty=true; return; }
+    Status saved=settings_save(g.store.base,c);
+    if(!saved.ok()) { g.form.error=saved.msg; g.dirty=true; return; }
+    bool changed=c.lat_e4!=g.cfg.lat_e4 || c.lon_e4!=g.cfg.lon_e4 || c.metric!=g.cfg.metric;
+    g.cfg=c;
+    if(changed) g.model.location_changed();
 	g.mode = Normal;
 	g.dirty = true;
+}
+
+void open_search()
+{
+    g.search.clear(); g.search_query.set(g.form.name.view());
+    g.selected_place=-1; g.search_focus=0; g.search_cancel=false;
+    g.search_message="Enter a place, then Search."; g.mode=PlaceSearch; g.dirty=true;
+}
+void use_place()
+{
+    if(g.selected_place<0) { g.search_message="Select a result first."; return; }
+    Status s=g.search.choose(static_cast<size_t>(g.selected_place),g.form);
+    if(s.ok()) { g.mode=Location; g.form.focus=LocationForm::Name; }
+    else g.search_message=s.msg;
+}
+void do_search()
+{
+    g.search.clear(); g.selected_place=-1;
+    char path[256]; Status status=geocoding_path(g.search_query.view(),path,sizeof path);
+    if(!status.ok()) { g.search_message=status.msg; return; }
+    if(g.fo.force_host && !g.lookup) { g.search_message="Place search requires TLS; leave HTTP test mode."; return; }
+    g.searching=true; g.search_cancel=false; redraw();
+    static char buffer[40*1024]; FetchOpts opts=g.fo;
+    if(opts.attempts>3) opts.attempts=3;
+    if(opts.timeout_s>60) opts.timeout_s=60;
+    status=(g.lookup?g.lookup:search_places)(g.net,g.search_query.view(),opts,buffer,sizeof buffer,&g.search.results);
+    g.searching=false; g.dirty=true;
+    if(g.quit) return;
+    if(g.search_cancel || status.err==Err::Cancelled) { g.mode=Location; g.search.clear(); }
+    else if(!status.ok()) { g.search.clear(); g.search_message=status.msg; }
+    else g.search_message=g.search.results.count?"Select a result, then Use; OK saves the location.":"No matching places.";
+    g.search_cancel=false;
 }
 
 void run_command(int cmd)
@@ -420,7 +487,16 @@ void on_button_press(const XButtonEvent &e)
 		g.mode = Normal; g.menu_open = -1;
 		return;
 	}
+    if(g.mode==PlaceSearch) {
+        if(s_query().contains(e.x,e.y)) { g.search_focus=0; g.search_query.end(); }
+        else if(s_search().contains(e.x,e.y)) g.pressed=PSearch;
+        else if(s_use().contains(e.x,e.y)) g.pressed=PUsePlace;
+        else if(s_cancel().contains(e.x,e.y)) g.pressed=PSearchCancel;
+        else for(size_t i=0;i<g.search.results.count;i++) if(s_row(static_cast<int>(i)).contains(e.x,e.y)) { g.selected_place=static_cast<int>(i); g.search_focus=2; }
+        return;
+    }
 	if (g.mode == Location) {
+        if(d_find().contains(e.x,e.y)) { g.pressed=PFind; return; }
 		for (int i = 0; i < 3; i++)
 			if (d_field(i).contains(e.x, e.y)) { g.form.focus = i; field_click(i, e.x); return; }
 		if (d_units().contains(e.x, e.y)) { g.form.focus = LocationForm::Units; g.form.metric = !g.form.metric; return; }
@@ -439,12 +515,16 @@ void on_button_release(const XButtonEvent &e)
 	g.pressed = PNone;
 	g.dirty = true;
 	if (p == PNone) return;
-	Rect r = p == PRefresh ? r_refresh() : p == PLocation ? r_locbtn() : p == POk ? d_ok() : p == PCancel ? d_cancel() : a_ok();
+	Rect r = p == PRefresh ? r_refresh() : p == PLocation ? r_locbtn() : p == POk ? d_ok() : p == PCancel ? d_cancel() : p==PFind?d_find():p==PSearch?s_search():p==PUsePlace?s_use():p==PSearchCancel?s_cancel():a_ok();
 	if (!r.contains(e.x, e.y)) return;
 	switch (p) {
 	case PRefresh: g.model.request_refresh(); break;
 	case PLocation: open_location(); break;
 	case POk: apply_location(); break;
+    case PFind: open_search(); break;
+    case PSearch: do_search(); break;
+    case PUsePlace: use_place(); break;
+    case PSearchCancel: g.mode=Location; g.search.clear(); break;
 	case PCancel: case PAboutOk: g.mode = Normal; break;
 	default: break;
 	}
@@ -467,7 +547,36 @@ void on_key(XKeyEvent &e)
 	bool ctrl = (e.state & ControlMask) != 0;
 	g.dirty = true;
 	if (ctrl && (ks == XK_q || ks == XK_Q)) { g.quit = true; return; }
+    if(g.mode==PlaceSearch) {
+        if(ks==XK_Escape) { g.mode=Location; g.search.clear(); return; }
+        if(ks==XK_Tab || ks==kLeftTab) { g.search_focus=(g.search_focus+(ks==kLeftTab?4:1))%5; return; }
+        if(ks==XK_Down || ks==XK_Up) {
+            int count=static_cast<int>(g.search.results.count);
+            if(count) { g.selected_place=g.selected_place<0?(ks==XK_Down?0:count-1):(g.selected_place+(ks==XK_Down?1:count-1))%count; g.search_focus=2; }
+            return;
+        }
+        if(ks==XK_Return || ks==XK_KP_Enter || (ks==XK_space && g.search_focus!=0)) {
+            if(g.search_focus==4) { g.mode=Location; g.search.clear(); }
+            else if(g.search_focus==2 || g.search_focus==3) use_place(); else do_search();
+            return;
+        }
+        if(g.search_focus!=0) return;
+        bool edited=false;
+        if(ctrl && (ks==XK_u || ks==XK_U)) { g.search_query.set(""); edited=true; }
+        else switch(ks) {
+        case XK_BackSpace: edited=g.search_query.backspace(); break;
+        case XK_Delete: edited=g.search_query.del(); break;
+        case XK_Left: g.search_query.left(); break;
+        case XK_Right: g.search_query.right(); break;
+        case XK_Home: g.search_query.home(); break;
+        case XK_End: g.search_query.end(); break;
+        default: if(!ctrl && n==1) edited=g.search_query.insert(buf[0]); break;
+        }
+        if(edited) { g.search.clear(); g.selected_place=-1; g.search_message="Enter searches; arrows select; Use fills fields."; }
+        return;
+    }
 	if (g.mode == Location) {
+		if(ctrl && (ks==XK_f || ks==XK_F)) { open_search(); return; }
 		LocationForm &f = g.form;
 		TextEdit<16> *t16 = f.focus == LocationForm::Lat ? &f.lat : f.focus == LocationForm::Lon ? &f.lon : nullptr;
 		switch (ks) {
@@ -515,10 +624,11 @@ void handle_event(XEvent &e, bool busy)
 		if (busy) {
 			char b[8]; KeySym ks = NoSymbol;
 			XLookupString(&e.xkey, b, sizeof b, &ks, nullptr);
+			if(g.searching && ks==XK_Escape) g.search_cancel=true;
 			if ((e.xkey.state & ControlMask) && (ks == XK_q || ks == XK_Q)) g.quit = true;
 		} else on_key(e.xkey);
 		break;
-	case ButtonPress: if (!busy) on_button_press(e.xbutton); break;
+	case ButtonPress: if(busy && g.searching && s_cancel().contains(e.xbutton.x,e.xbutton.y)) g.search_cancel=true; else if (!busy) on_button_press(e.xbutton); break;
 	case ButtonRelease: if (!busy) on_button_release(e.xbutton); break;
 	case MotionNotify: if (!busy) on_motion(e.xmotion); break;
 	}
@@ -539,7 +649,7 @@ bool app_yield(Net &)
 	pump(true);
 	long long t = mono_ms();
 	if (g.dirty || t - g.last_spin_ms >= 250) { g.last_spin_ms = t; redraw(); }
-	return !g.quit;
+	return !g.quit && !(g.searching && g.search_cancel);
 }
 
 void do_fetch()
@@ -567,8 +677,9 @@ void usage(FILE *f)
 
 } // namespace
 
-int main(int argc, char **argv)
+int wx::run_xweather(int argc, char **argv, PlaceLookup lookup)
 {
+	g.lookup=lookup;
 	const char *dispname = nullptr;
 	for (int i = 1; i + 1 < argc; i++)        // X toolkit style "-display NAME", removed before getopt
 		if (!strcmp(argv[i], "-display")) {
@@ -671,7 +782,7 @@ int main(int argc, char **argv)
 	long long last_sec = 0;
 	while (!g.quit) {
 		long long t = now_s();
-		if (g.model.tick(t)) { do_fetch(); continue; }
+		if (g.mode!=Location && g.mode!=PlaceSearch && g.model.tick(t)) { do_fetch(); continue; }
 		pump(false);
 		if (g.quit) break;
 		if (g.dirty || t != last_sec) { last_sec = t; redraw(); }
@@ -683,3 +794,7 @@ int main(int argc, char **argv)
 	XCloseDisplay(g.dpy);
 	return 0;
 }
+
+#ifndef WEATHER_XWEATHER_LIBRARY
+int main(int argc,char **argv) { return wx::run_xweather(argc,argv); }
+#endif

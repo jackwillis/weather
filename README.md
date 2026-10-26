@@ -17,8 +17,8 @@ up to five matches with region/country and coordinates, then exits. Choose the
 coordinates deliberately and use a separate command such as
 `weather -l 43.0731,-89.4012 -n Madison -S` to save. Search credits Open-Meteo /
 GeoNames; its public endpoint is for non-commercial use. See
-[search behavior and privacy](docs/GEOCODING.md). The window search controls are
-still in progress; existing coordinate dialogs continue to work.
+[search behavior and privacy](docs/GEOCODING.md). X11 Location has Find... (Ctrl-F) with explicit result selection; OK saves
+separately. OS 9 search controls are still in progress.
 
 See `docs/PLAN.md` (goals, milestones, decision log), `docs/ARCHITECTURE.md` (layers, seams, targets, build, tests, releases) and `TODO.md`.
 

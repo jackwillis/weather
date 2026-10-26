@@ -1,8 +1,8 @@
 # Location search
 
 PR #17 implements the portable foundation and explicit read-only CLI search
-(`weather -g "place"`, also `--search`). X11/OS 9 result lists and scripted UI
-acceptance are still pending. Normal forecast requests and startup do not search.
+(`weather -g "place"`, also `--search`). X11 result selection is implemented; OS 9 controls and native OS 9
+acceptance remain pending. Normal forecast requests and startup do not search.
 The CLI prints numbered matches, region/country and coordinates, with attribution
 and a simplification note when needed. It never automatically selects or saves;
 use chosen coordinates with -l, an optional -n, and -S in a separate command.
@@ -48,3 +48,33 @@ Search retries at most three times with bounded backoff, supports cancellation,
 and propagates TLS, HTTP and transport failures. This is not a global IP quota
 manager. Interfaces must submit on an explicit action rather than per keystroke,
 serialize searches and avoid automatic repeated queries on service failure.
+
+## X11 window
+
+Location now has **Find...** (also Ctrl-F while editing Location). Enter a query
+and press Search/Return; opening the dialog and typing send no requests. Pick a
+row using the mouse or arrow keys, then Use/Return to fill Location's editable
+fields. Location's OK still saves separately. No row is chosen by default.
+Tab/Shift-Tab moves among query, Search, list, Use and Cancel; Ctrl-U clears the
+query. Escape/Cancel returns to Location, including during a blocked search;
+Ctrl-Q/window close cancels and quits. Changing query text discards old results.
+Country and coordinates remain on the second line when a long place/region
+label is shortened. Attribution and ASCII simplification are visible.
+
+Location OK now saves before applying. Read/write failure leaves the dialog
+open with an explanation, preserving active configuration and current forecast.
+The user can repair storage and retry, or cancel. Without an available settings
+file, editing fails rather than silently changing only memory. Automatic weather
+refresh pauses while Location or search is open, preventing nested requests.
+
+Production HTTP fixture mode refuses place lookup. The GUI test links a separate
+`xweather-search-test` with an explicit C++ lookup callback; production `xweather`
+contains no fixture generator or environment/marker-based geocoding override.
+
+Supplemental GUI memory checks run the same scripted scenario under ASan/UBSan
+with LeakSanitizer disabled; they do not establish UI leak freedom. A first run
+trapped before search because the existing status renderer copied from an empty
+string view's null data pointer with length zero. A focused test reproduced exit
+132. The renderer now avoids null empty-string calls and checks zero/tiny output
+capacities before copying or measuring ellipses. The standalone CDE text suite
+covers these paths without an X server.
