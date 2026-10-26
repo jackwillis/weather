@@ -63,7 +63,9 @@ Retro68 container. Layers: the same core, app and tls code; `src/platform/os9/` 
 * **Network I/O** (`net_os9.cpp`): endpoints are synchronous and non-blocking; "no data yet" is polled every 50 ms with
   `Net::yield`, so the event loop keeps running and Cmd-. cancels. DNS uses an asynchronous service provider with a host-tested
   controller (2026-10-25). The foreground loop yields and enforces a wrap-safe deadline. An abandoned open retains its callback
-  storage until a later request drains it, or OT shuts down; a failed close quarantines the resolver until restart.
+  storage until a later request drains it, or OT shuts down; a failed close quarantines the resolver until restart. A completed,
+  validated answer remains usable for the current connection even if cleanup fails;
+  the caller logs a warning, and subsequent lookups refuse to reopen the provider.
   POSIX `getaddrinfo` still blocks. See `spike/os9/DNS-PROBE.md` for hardware coverage and limits.
 * **Clock**: UTC is derived from the Date & Time time zone (`gmtDelta` plus the daylight-saving flag); TLS certificate dates
   use it, and `fetch` refuses a clock before 2025. Verified against OS X on the real machine: gmtDelta already includes daylight saving (an extra DST term made it an hour slow).

@@ -8,6 +8,7 @@ template<class Backend> class DnsResolver {
 	enum class Phase { Idle, Opening, Resolving, Quarantined };
 	Backend &b_;
 	Phase phase_ = Phase::Idle;
+	Status cleanup_ = okay();
 
 	Status wait(bool opening, uint32_t start, uint32_t budget)
 	{
@@ -25,11 +26,13 @@ template<class Backend> class DnsResolver {
 	{
 		int e = b_.close();
 		phase_ = e ? Phase::Quarantined : Phase::Idle;
-		return e ? make(Err::Dns, "cannot close name service", e) : okay();
+		cleanup_ = e ? make(Err::Dns, "cannot close name service", e) : okay();
+		return cleanup_;
 	}
 
 public:
 	explicit DnsResolver(Backend &b) : b_(b) {}
+	Status cleanup_status() const { return cleanup_; }
 	Status resolve(const char *host, uint32_t budget)
 	{
 		uint32_t start = b_.now();
@@ -60,8 +63,10 @@ public:
 			e = b_.query_result();
 			if (e || !b_.has_address()) s = make(Err::Dns, "cannot resolve host name", e);
 		}
-		Status cleanup = close();
-		return s.ok() ? cleanup : s;
+		// Completion owns a valid answer already. Cleanup failure quarantines the
+		// backend for later calls but does not discard that answer or mask errors.
+		close();
+		return s;
 	}
 };
 } // namespace wx

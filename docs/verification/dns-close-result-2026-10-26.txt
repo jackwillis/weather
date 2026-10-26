@@ -1,0 +1,31 @@
+Issue #60, E5 only: keep a completed DNS answer after failed resolver cleanup.
+
+The production DnsResolver already validates completion, callback cookie,
+query status and a nonempty address before closing its provider. A failed
+close previously discarded the answer. Now it preserves the lookup result,
+records cleanup_status separately and keeps the existing quarantine. Every
+later request still fails before another open, so callback-owned storage is
+never reset or reused after uncertain cleanup. The OS9 caller warns that it is
+using the completed answer and later lookups require a restart.
+
+Regression first: changed success-after-failed-close expectation and added
+failed-query, timeout and abandoned-open cleanup cases. Original implementation:
+FAIL test/unittest.cpp:1008: r.resolve("h", 60).ok()
+524 checks, 1 failed
+Final suite also checks separately retained cleanup code. Query errors retain
+original detail; timeout remains timeout; failure closing a drained abandoned
+open cannot start the next query. No parser input path added.
+
+Partial issue #60 only. Exit-handler order (E6), clock wrap integration (E7)
+and client record assertion (E10) remain separate work on existing branches.
+No OS9 runtime fault injection claimed while Tiger is parked. Host and NetBSD
+G4 test the exact production controller with a deterministic backend; native
+OS9 warning integration is cross-built only. No private seed or owner data.
+
+Final checks: host525unit /230242mutation /106CLI /12localTLS /21serializedGUI;
+explicit ASan+UBSan525/230242/106 (log confirms with AddressSanitizer);
+actual NetBSD/macppc G4525unit /86242mutation, status0. Retro68 portable probes
+for PowerPC and68k and full OS9 application/diagnostic cross-build passed.
+The architecture probes are generic portable gates; full backend instantiation
+is exercised by the PowerPC OS9 build. No native runtime claim. Logs retained
+in /tmp/weather-dns-close-{red,check,san,maul,probe,os9}.log.

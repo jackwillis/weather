@@ -250,6 +250,9 @@ Status os9_connect(Net &net, const char *host, const char *port, int timeout_s, 
 	g_dns.net = &net;
 	Status dns = g_resolver.resolve(host, static_cast<uint32_t>(timeout_s) * 60);
 	if (!dns.ok()) return dns;
+	Status cleanup = g_resolver.cleanup_status();
+	if (!cleanup.ok())
+		logf(LogWarn, "%s (detail %d); using completed answer, later lookups require restart", cleanup.msg, cleanup.detail);
 	InetHostInfo hi = g_dns.info;
 
 	Status last = make(Err::Connect, "cannot connect");
