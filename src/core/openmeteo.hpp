@@ -36,14 +36,18 @@ constexpr Status om_field(sv cur, sv key, int dec, bool required, long *out, con
 constexpr bool om_units_match(sv body, bool metric)
 {
 	JsonLookup u = json_get(body, "current_units");
-	if (u.r != JsonFind::Found) return true;
+	if (u.r == JsonFind::Absent) return true;
+	if (u.r != JsonFind::Found) return false;
 	sv name;
 	JsonLookup tu = json_get(u.value, "temperature_2m");
-	if (tu.r == JsonFind::Found && json_str(tu.value, &name) && (name.empty() || name[name.size() - 1] != (metric ? 'C' : 'F')))
+	if (tu.r == JsonFind::Malformed || (tu.r == JsonFind::Found &&
+	    (!json_str(tu.value, &name) || !(metric ? (name == sv("C") || name == sv("°C"))
+	                                           : (name == sv("F") || name == sv("°F"))))))
 		return false;
 	JsonLookup wu = json_get(u.value, "wind_speed_10m");
-	if (wu.r == JsonFind::Found && json_str(wu.value, &name) &&
-	    !(metric ? (name == sv("km/h") || name == sv("kmh")) : (name == sv("mp/h") || name == sv("mph"))))
+	if (wu.r == JsonFind::Malformed || (wu.r == JsonFind::Found &&
+	    (!json_str(wu.value, &name) ||
+	     !(metric ? (name == sv("km/h") || name == sv("kmh")) : (name == sv("mp/h") || name == sv("mph"))))))
 		return false;
 	return true;
 }
