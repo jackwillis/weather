@@ -10,16 +10,22 @@ target_include_directories(bearssl PUBLIC ${ROOT}/third_party/bearssl/inc PRIVAT
 target_compile_options(bearssl PRIVATE -Os)
 
 set(WEATHER_VERSION_STR "0.1.0")
-add_application(Weather CONSOLE
+set(WEATHER_COMMON
   ${ROOT}/src/core/fetch.cpp
+  ${ROOT}/src/platform/os9/config_os9.cpp
   ${ROOT}/src/tls/tls.cpp
   ${ROOT}/src/platform/os9/net_os9.cpp
   ${ROOT}/src/platform/os9/seed_store_os9.cpp
   ${ROOT}/src/platform/os9/ot_glue.cc
   ${ROOT}/src/platform/os9/log_os9.cpp
-  ${ROOT}/src/platform/os9/console_main.cpp
   ${ROOT}/src/platform/posix/nocxx.cpp
   ${ROOT}/os9/weather.r)
+add_application(Weather ${WEATHER_COMMON} ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/main.cpp)
+add_application(WeatherConsole CONSOLE ${WEATHER_COMMON} ${ROOT}/src/platform/os9/console_main.cpp)
+target_include_directories(WeatherConsole PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+target_compile_definitions(WeatherConsole PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
+target_compile_options(WeatherConsole PRIVATE -O2 -fno-exceptions -fno-rtti)
+target_link_libraries(WeatherConsole bearssl OpenTransportLib OpenTptInternetLib)
 target_include_directories(Weather PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
 target_compile_definitions(Weather PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
 target_compile_options(Weather PRIVATE -O2 -fno-exceptions -fno-rtti)
@@ -35,6 +41,12 @@ target_link_libraries(SeedInstall bearssl)
 
 option(WEATHER_BUILD_DIAGNOSTICS "Build self-running OS 9 network checks" OFF)
 if(WEATHER_BUILD_DIAGNOSTICS)
+  add_application(WeatherUITest CONSOLE ${WEATHER_COMMON}
+    ${ROOT}/src/ui/os9/window.cpp ${ROOT}/spike/os9/window_probe.cc)
+  target_include_directories(WeatherUITest PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+  target_compile_definitions(WeatherUITest PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
+  target_compile_options(WeatherUITest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
+  target_link_libraries(WeatherUITest bearssl OpenTransportLib OpenTptInternetLib)
   add_application(PortableProbe CONSOLE
     ${ROOT}/spike/os9/portable_probe.cc
     ${ROOT}/src/platform/posix/nocxx.cpp)

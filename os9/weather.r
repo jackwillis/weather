@@ -1,12 +1,12 @@
-/* Memory partition: TLS (about 34 KB I/O buffer), the 64 KB HTTP buffer and the console window need more than the
+/* Memory partition: TLS (about 34 KB I/O buffer), the 64 KB HTTP buffer and the buffered native window need more than the
    1 MB default. This SIZE resource overrides the toolchain's default one. */
 #include "Processes.r"
 
 resource 'SIZE' (-1) {
 	reserved,
-	ignoreSuspendResumeEvents,
+	acceptSuspendResumeEvents,
 	reserved,
-	cannotBackground,
+	canBackground,
 	needsActivateOnFGSwitch,
 	backgroundAndForeground,
 	dontGetFrontClicks,
