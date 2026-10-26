@@ -43,7 +43,7 @@ addresses classic CR-only text. UI saves generate normal LF-separated text.
 Files are bounded to 4095 bytes. The File Manager adapter creates an exclusive
 process/tick-named temporary in the same folder, checks write count and close,
 flushes, then exchanges with an existing file or renames into a missing path.
-Replacement, cleanup and subsequent flush results are checked. A failure after
+Before exchanging an existing file, a native write-open and checked close ensure that its lock/write permissions are respected; Classic file exchange alone did not reject a locked target in hardware testing. Replacement, cleanup and subsequent flush results are checked. A failure after
 replacement may leave a complete new file on disk despite the reported error;
 the current in-memory settings still stay unchanged. Physical power-loss durability
 is unverified, and simultaneous GUI writers are not serialized. Settings use their

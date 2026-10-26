@@ -2,6 +2,7 @@
 
 ## 0.1.0 (unreleased)
 First version.
+- OS 9 Preferences replacement checks native write access before exchanging files, preserving locked settings.
 - `weather`: current conditions over TLS (built-in BearSSL, no proxy) from Open-Meteo; retries with backoff,
   data-source fallback, sysexits exit codes, settings file (`~/.weatherrc`), `-S` to save the location,
   clean cancel on SIGINT/SIGTERM.

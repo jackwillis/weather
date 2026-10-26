@@ -69,8 +69,15 @@ Status save(SettingsStore &base,const char *data,size_t n)
 	if(!err) {
 		FInfo info; OSErr exists=FSpGetFInfo(&store.file,&info);
 		if(exists==noErr) {
-			FSSpec primary=store.file,replacement=temp;
-			err=store.ops->exchange(&primary,&replacement);
+			// File exchange can replace a locked file under Classic. Require the
+			// primary to permit a write-open first; opening does not truncate it.
+			short primary_fd=0;
+			err=FSpOpenDF(&store.file,fsWrPerm,&primary_fd);
+			if(!err) err=store.ops->close(primary_fd);
+			if(!err) {
+				FSSpec primary=store.file,replacement=temp;
+				err=store.ops->exchange(&primary,&replacement);
+			}
 		}
 		else if(exists==fnfErr) {
 			FSSpec moving=temp;
