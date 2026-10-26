@@ -1,12 +1,13 @@
 # TODO
 
-## Now
-- [ ] OS 9 window UI (classic Toolbox: window, menus, dialogs; Platinum look) on top of the existing Model; settings store (Preferences folder), proper event loop (WaitNextEvent) instead of the console app
+## Now — release-critical
+- [ ] Review and integrate audit fixes #32, #35, #36, #38, #39, #41 in dependency/conflict order, then rerun host, 32-bit, NetBSD and OS 9 gates appropriate to each change.
+- [ ] **Integrate and re-test PR #11**: native OS 9 QuickDraw window has an implementation on a branch, not on `main`; then finish PR #12 location/dialog/Preferences. Do not describe the GUI as unstarted.
 - [ ] OS 9 hardening acceptance: DNS delayed-open/stalled-server hardware coverage; NetBSD hardware regression after DNS/seed changes (cross-build passes); run under 68k only if a target needs it
 - [ ] M3c last step: jack runs `xweather` once on maul's real X display (window manager, depth, feel); fix what that shows
 - [ ] Reinstall the rebuilt NetBSD package on maul (`doas pkg_add -u`; staged at /tmp/weather-0.1.0.tgz, lost at reboot: rebuild with tools/mkpkg-netbsd.sh)
 
-## Next
+## Next — Weather functionality
 - [ ] On-disk stale cache (serve the last good forecast when every source is down)
 - [ ] Third source: api.weather.gov (NWS, US only; TLS verified: chains to ISRG X1) needs multi-step requests (points -> stations -> observation) so the Provider interface must grow a step mechanism
 - [ ] Location by place name (geocoding), default location prompt
@@ -17,6 +18,13 @@
 - [ ] app-defaults file for xweather resources (optional)
 - [ ] pkgsrc source package (Makefile, DESCR, PLIST, distinfo), verified in a NetBSD VM
 - [ ] Verify Open-Meteo terms/attribution; create the GitHub repo and push (jack's call)
+
+## Separate infrastructure research (not blockers for Weather 0.1)
+- [ ] #40: prototype independently updateable certificate trust snapshots; replacement and distrust take priority over blindly accumulating roots.
+- [ ] #42: demonstrate real CFM/PEF shared fragment and separate client; host ABI probe alone is not proof.
+- [ ] #43: compare private OT client-record glue with Apple documented context APIs; establish OS/OT version matrix through targeted execution.
+- [ ] #27: extract Macintosh-first static SDK only after a second test consumer justifies the abstraction.
+- [ ] #37: probe modern C++20/23 before raising the project-wide C++17 baseline.
 
 ## Later
 - [ ] CI with a big-endian check; Mac OS X Tiger native build (parked)
