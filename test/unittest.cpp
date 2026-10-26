@@ -142,7 +142,7 @@ struct Step {
 struct Fake {
 	Step steps[8];
 	int nsteps = 0, next = 0, connects = 0, closes = 0, nsleeps = 0;
-	long sleeps[8] = {};
+	long sleeps[64] = {};
 	long long clock = 1790000000LL;
 	bool cancel_sleep = false;
 	const char *cur = ""; size_t pos = 0; Err cur_err = Err::Ok;
@@ -184,7 +184,7 @@ static Status fk_connect(Net &n, const char *, const char *, int, Io *out)
 	return okay();
 }
 static void fk_close(Net &n, Io &) { F(n)->closes++; }
-static bool fk_sleep(Net &n, long ms) { Fake *f = F(n); if (f->nsleeps < 8) f->sleeps[f->nsleeps++] = ms; return !f->cancel_sleep; }
+static bool fk_sleep(Net &n, long ms) { Fake *f = F(n); if (f->nsleeps < 64) f->sleeps[f->nsleeps++] = ms; return !f->cancel_sleep; }
 static long long fk_now(Net &n) { return F(n)->clock; }
 
 static Net make_net(Fake *f)
@@ -238,6 +238,22 @@ static void test_fetch()
 		Net n = make_net(&f);
 		Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
 		CHECK(s.ok() && f.connects == 2 && f.nsleeps == 1);
+	}
+	{ // backoff doubles but is capped (default 30 s): a long run of attempts never sleeps for hours or overflows a 32-bit long
+		Fake f; f.steps[0] = {okay(), k500, Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f);
+		FetchOpts many = o; many.attempts = 40; many.backoff_ms = 100;
+		Status s = fetch_retry(n, "h", "80", false, "/", many, buf, sizeof buf, &body);
+		CHECK(s.err == Err::HttpStatus && f.connects == 40 && f.nsleeps == 39);
+		bool in_range = true;
+		for (int i = 0; i < f.nsleeps; i++) if (f.sleeps[i] <= 0 || f.sleeps[i] > 30000) in_range = false;
+		CHECK(in_range);
+		CHECK(f.sleeps[0] == 100 && f.sleeps[8] == 25600 && f.sleeps[9] == 30000 && f.sleeps[38] == 30000);
+		Fake g; g.steps[0] = {okay(), k500, Err::Ok}; g.nsteps = 1;
+		Net gn = make_net(&g);
+		FetchOpts tight = o; tight.attempts = 4; tight.backoff_ms = 5000; tight.max_backoff_ms = 1000;   // a first delay above the cap is capped too
+		fetch_retry(gn, "h", "80", false, "/", tight, buf, sizeof buf, &body);
+		CHECK(g.nsleeps == 3 && g.sleeps[0] == 1000 && g.sleeps[1] == 1000 && g.sleeps[2] == 1000);
 	}
 	{ // chunked response: refused, not retried
 		Fake f; f.steps[0] = {okay(), kChunked, Err::Ok}; f.nsteps = 1;
