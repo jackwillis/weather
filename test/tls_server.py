@@ -5,7 +5,7 @@ One listening socket per NAME on an ephemeral port of 127.0.0.1, each presenting
 When every socket is listening it writes 'NAME PORT' lines to PORTS_FILE. Each time a complete HTTP request arrives over
 a finished handshake it appends NAME to REQUESTS_FILE and answers 200 {} : so a name that never appears there was
 refused by the client before any request bytes were sent. Not shipped; it only runs on the build machine."""
-import socket, ssl, sys, threading
+import os, socket, ssl, sys, threading
 
 ports_file, requests_file = sys.argv[1], sys.argv[2]
 lock = threading.Lock()
@@ -32,8 +32,16 @@ def handle(name, ctx, conn):
         with lock:
             with open(requests_file, 'a') as f:
                 f.write(name + '\n')
-        tls.sendall(REPLY)
-        tls.close()
+        if name == 'abruptcut':
+            tls.sendall(b'HTTP/1.0 200 OK\r\n\r\n{"cur')
+        elif name == 'cleanclose':
+            tls.sendall(b'HTTP/1.0 200 OK\r\n\r\n{}')
+        else:
+            tls.sendall(REPLY)
+        if name in ('abrupt', 'abruptcut'):
+            os.close(tls.detach())  # deliberate missing close_notify, not fixture shutdown
+        else:
+            tls.unwrap().close()   # send/receive close_notify before closing TCP
     except (ssl.SSLError, OSError):
         pass            # the client refused the handshake: that is the point of most cases
 
