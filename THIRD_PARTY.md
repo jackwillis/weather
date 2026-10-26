@@ -1,5 +1,7 @@
 # Third-party notices
 
+Weather itself is licensed GPL-3.0-or-later (`LICENSE`). Everything below is compatible with that licence.
+
 The `weather` binaries statically link BearSSL. Its license requires this notice to
 accompany copies, so it ships in every release tarball and binary package.
 

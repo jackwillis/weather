@@ -133,4 +133,7 @@ pkg_add installs exactly the PLIST and settings are a per-user dotfile.
 - `mk/` per-target build fragments; `test/` unit tests, fixtures, fixture server, feature and maul smoke scripts; `spike/` experiments
 
 ## License
-BSD 2-clause (`LICENSE`). BearSSL (MIT) is linked statically; its notice is in `THIRD_PARTY.md`.
+GNU General Public License, version 3 or (at your option) any later version (`LICENSE`). Copyright (c) 2026 Jack Willis.
+BearSSL (MIT) is linked statically, and the Mac OS 9 build links the Retro68 runtime (GPL-3.0+ with the GCC runtime
+exception) and the Multiversal Interfaces (MIT); their notices are in `THIRD_PARTY.md`. Versions before the GPL change
+were published under the BSD 2-clause licence.
