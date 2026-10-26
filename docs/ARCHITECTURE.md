@@ -66,6 +66,9 @@ Retro68 container. Layers: the same core, app and tls code; `src/platform/os9/` 
   storage until a later request drains it, or OT shuts down; a failed close quarantines the resolver until restart. A completed,
   validated answer remains usable for the current connection even if cleanup fails;
   the caller logs a warning, and subsequent lookups refuse to reopen the provider.
+  The glue invokes registered endpoint cleanup before closing OT, for explicit close
+  and process exit; a host regression exercises the real LIFO exit path. Native OS9
+  shutdown acceptance remains pending.
   POSIX `getaddrinfo` still blocks. See `spike/os9/DNS-PROBE.md` for hardware coverage and limits.
 * **Clock**: UTC is derived from the Date & Time time zone (`gmtDelta` plus the daylight-saving flag); TLS certificate dates
   use it, and `fetch` refuses a clock before 2025. Verified against OS X on the real machine: gmtDelta already includes daylight saving (an extra DST term made it an hour slow).

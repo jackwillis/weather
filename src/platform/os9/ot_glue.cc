@@ -24,6 +24,7 @@ UInt32 g_library_manager = 0;
 UInt32 g_slm_global = 0;
 UInt32 g_exit_patch_rd = 0xaafe0700;   // initial value observed in Apple's glue; meaning unknown, kept identical
 bool g_open = false;
+void (*g_before_close)() = nullptr;
 
 void close_at_exit() { CloseOpenTransport(); }
 }
@@ -44,10 +45,13 @@ OSStatus InitOpenTransport(void)
 	return e;
 }
 
+void weather_ot_before_close(void (*cleanup)(void)) { g_before_close = cleanup; }
+
 void CloseOpenTransport(void)
 {
 	if (!g_open) return;
 	g_open = false;
+	if (g_before_close) g_before_close();
 	CloseOpenTransportPriv(&g_record);
 }
 

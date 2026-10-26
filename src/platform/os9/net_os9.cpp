@@ -27,6 +27,10 @@ struct Conn {
 	Net *net = nullptr;
 };
 Conn g_conn;
+void close_endpoint()
+{
+	if (g_conn.ep) { OTCloseProvider(g_conn.ep); g_conn.ep = nullptr; }
+}
 bool g_ot_ok = false;
 
 // Callback-owned storage has process lifetime. The controller only resets it
@@ -345,12 +349,13 @@ bool os9_entropy(Net &, void *buf, size_t len)
 void os9_net_shutdown()
 {
 	if (!g_seed_pool.shutdown()) logf(LogWarn, "%s", g_seed_pool.error());
-	if (g_conn.ep) { OTCloseProvider(g_conn.ep); g_conn.ep = nullptr; }
+	close_endpoint();
 	if (g_ot_ok) { CloseOpenTransport(); g_ot_ok = false; }
 }
 
 void os9_net_init(Net *net)
 {
+	weather_ot_before_close(close_endpoint);
 	static bool registered = false;
 	if (!registered) { g_exit_ready = std::atexit(os9_net_shutdown) == 0; registered = true; }
 	net->connect = os9_connect;

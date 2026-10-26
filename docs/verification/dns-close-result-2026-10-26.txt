@@ -29,3 +29,37 @@ for PowerPC and68k and full OS9 application/diagnostic cross-build passed.
 The architecture probes are generic portable gates; full backend instantiation
 is exercised by the PowerPC OS9 build. No native runtime claim. Logs retained
 in /tmp/weather-dns-close-{red,check,san,maul,probe,os9}.log.
+
+E6 shutdown-order follow-up
+
+os9_net_init registers seed/network cleanup before the first lazy OT init.
+The glue then registers its own atexit callback later, so LIFO previously closed
+OT first. The backend's subsequent OTCloseProvider ran after transport shutdown.
+New internal weather_ot_before_close hook registers process-lifetime endpoint
+cleanup in net_init. Both explicit and exit OT close invoke it before the
+private close call. The open flag clears before invoking the hook, so a
+reentrant close cannot recursively close OT twice. Explicit network shutdown
+uses the same idempotent endpoint cleanup. Seed cleanup registration remains
+early, before acquisition; no seed-store behavior changed.
+
+The test compiles actual ot_glue.cc against test-owned MacTypes/Gestalt stand-ins
+and fake OT entry points. These are NOT SDK files or ABI/layout verification.
+It uses libc's real atexit path and registers an older callback as net_init does.
+Before hook invocation was wired, test aborted with exit134 because OT closed
+while an endpoint remained live. Three cases check explicit repeated/reentrant
+close, process exit with older handler, and failed OT init (no close). The test
+requires provider close while OT is active and exact endpoint-before-transport
+output. It runs in make check and check-san using project compiler/link flags.
+-Wno-address only suppresses the existing dead weak-import check, tracked by
+E10/#43; the production check is unchanged here. No new production test switch.
+
+This also addresses E6 at source/host-test level. Native OS9 shutdown acceptance
+remains pending Tiger. E7 (window clock), E10 (#43) and the original unchecked
+glue atexit registration remain separate limits; no claim of fixing all #60.
+Final E6 follow-up: host525unit/230242mutation/106CLI/12TLS/21serializedGUI plus
+3glue shutdown cases; explicit ASan+UBSan525/230242/106 plus3glue cases. Actual
+NetBSD G4 runs all3glue cases with libc's exit path; readelf shows libc.so.12
+only, no libstdc++. Earlier E5 head G4525/86242 remains controller verification;
+controller unchanged by E6. Full Retro68 PowerPC OS9 app/diagnostics build passed.
+All compilation on Linux. Private G4 test files removed, no owner config read.
+Logs /tmp/weather-ot-shutdown-{red,check,san,os9,maul,cross}.log.
