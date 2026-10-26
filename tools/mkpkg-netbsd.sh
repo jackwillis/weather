@@ -26,6 +26,7 @@ CDE-look X11 window with a weather picture, menus, a Location dialog and automat
 refresh every 15 minutes. Data comes from Open-Meteo and MET Norway (CC BY 4.0) over
 TLS (built-in BearSSL, no proxy needed). Settings live in ~/.weatherrc and are shared
 by both programs. Free software under the GNU GPL, version 3 or later.
+Source code: https://github.com/jackwillis/weather
 EOC
 
 # shared libraries the binaries need (all part of the base system), as pkgsrc's REQUIRES lines
