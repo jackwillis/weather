@@ -9,6 +9,7 @@
 #include "core/log.hpp"
 #include "core/openmeteo.hpp"
 #include "core/version.hpp"
+#include "app/credits.hpp"
 #include "app/locform.hpp"
 #include "app/model.hpp"
 #include "app/config_load.hpp"
@@ -1120,6 +1121,23 @@ static void test_window_actions()
 
 #include "preferences_tests.hpp"
 
+static bool credits_mention(const char *const *lines, size_t n, const char *what)
+{
+	for (size_t i = 0; i < n; i++) if (strstr(lines[i], what)) return true;
+	return false;
+}
+static void test_credits()
+{
+	const size_t nfull = sizeof kCreditsFull / sizeof *kCreditsFull, nshort = sizeof kCreditsShort / sizeof *kCreditsShort;
+	// Everything THIRD_PARTY.md names, and both data sources and the licence, must be credited in full.
+	for (const char *what : {"Open-Meteo", "MET Norway", "CC BY 4.0", "BearSSL", "Retro68", "Multiversal", "GNU General Public License", "NO WARRANTY",
+	                         "Jack Willis", "THIRD_PARTY.md"})
+		CHECK(credits_mention(kCreditsFull, nfull, what));
+	for (const char *what : {"Jack Willis", "GPL-3.0-or-later", "Open-Meteo", "MET Norway"})
+		CHECK(credits_mention(kCreditsShort, nshort, what));
+	for (size_t i = 0; i < nfull; i++) CHECK(strlen(kCreditsFull[i]) <= 62); // fits a terminal and the OS 9 About box
+}
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -1132,6 +1150,7 @@ int main()
 	test_settings_text();
 	test_settings_store();
 	test_model();
+	test_credits();
 	test_window_actions();
 	test_config_load();
 	test_preferences();
