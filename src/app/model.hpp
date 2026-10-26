@@ -100,10 +100,11 @@ public:
 	int failures() const { return failures_; }
 	long long next_refresh_at() const { return next_at_; }
 
-	// Seconds since the data was fetched; -1 if there is none.
+	// Seconds since the data was fetched; -1 if there is none. Never negative: see age_unknown().
 	long age(long long now) const { return have_ ? (now >= at_ ? static_cast<long>(now - at_) : 0) : -1; }
-	// Showing data that may no longer be true: the last refresh failed or it is over two intervals old.
-	bool stale(long long now) const { return have_ && (phase_ == Phase::Failed || age(now) > 2 * cfg_.interval_s); }
+	// Showing data that may no longer be true: the last refresh failed, it is over two intervals old, or the clock was
+	// stepped back past the moment it was fetched (its age is then unknown).
+	bool stale(long long now) const { return have_ && (phase_ == Phase::Failed || age_unknown(now) || age(now) > 2 * cfg_.interval_s); }
 	// Seconds until the next automatic refresh; -1 if automatic refresh is off or a fetch is running.
 	long seconds_until_refresh(long long now) const
 	{
@@ -119,12 +120,12 @@ public:
 		case Phase::Idle:
 			o.add("Waiting to load"); break;
 		case Phase::Fetching:
-			o.add("Fetching"); if (have_) { o.add(" (showing data from "); add_age(o, age(now)); o.add(")"); } else o.add("..."); break;
+			o.add("Fetching"); if (have_) { o.add(" (showing data from "); add_data_age(o, now); o.add(")"); } else o.add("..."); break;
 		case Phase::Ok:
-			o.add("Updated "); add_age(o, age(now)); break;
+			o.add("Updated "); if (age_unknown(now)) o.add("at "); add_data_age(o, now); break;
 		case Phase::Failed:
 			o.add("Update failed: ").add(last_.msg);
-			if (have_) { o.add(". Showing data from "); add_age(o, age(now)); }
+			if (have_) { o.add(". Showing data from "); add_data_age(o, now); }
 			break;
 		}
 		long left = seconds_until_refresh(now);
@@ -132,6 +133,14 @@ public:
 			o.add(". Next update in ");
 			add_dur(o, left);
 		}
+	}
+
+	// How old the data is, in words; "an unknown time" if the clock was stepped back since it was fetched.
+	template <size_t N>
+	void add_data_age(Buf<N> &o, long long now) const
+	{
+		if (age_unknown(now)) o.add("an unknown time, clock changed");
+		else add_age(o, age(now));
 	}
 
 	template <size_t N>
@@ -148,6 +157,9 @@ public:
 	}
 
 private:
+	// The clock now reads earlier than when the data was fetched, so how old it is cannot be known.
+	bool age_unknown(long long now) const { return have_ && now < at_; }
+
 	ModelConfig cfg_;
 	Phase phase_ = Phase::Idle, prev_ = Phase::Idle;
 	Forecast fc_;

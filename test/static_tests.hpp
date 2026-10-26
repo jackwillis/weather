@@ -57,6 +57,13 @@ static_assert(!json_num(R"("54.8")", 1).ok, "string is not a number");
 static_assert(json_get("{\"a\":1", "a").r == JsonFind::Malformed, "truncated object");
 static_assert(json_get("[1]", "a").r == JsonFind::Malformed, "not an object");
 
+// Line breaks: LF, CRLF and a lone CR; CRLF is one break, LF then CR is two.
+static_assert(line_break("ab\ncd", 0) == 2 && line_break("ab\rcd", 0) == 2 && line_break("abcd", 0) == 4 && line_break("", 0) == 0 &&
+    line_break("ab\ncd", 3) == 5, "line_break");
+static_assert(after_break("ab\r\ncd", 2) == 4 && after_break("ab\rcd", 2) == 3 && after_break("ab\ncd", 2) == 3 &&
+    after_break("ab\r", 2) == 3 && after_break("ab", 2) == 2 && after_break("a\r\r\nb", 1) == 2 && after_break("a\n\rb", 1) == 2,
+    "after_break");
+
 constexpr sv kHttp = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}";
 static_assert(http_parse(kHttp).st.ok() && http_parse(kHttp).code == 200 && http_parse(kHttp).body == sv("{}"),
     "http ok");
@@ -108,5 +115,84 @@ constexpr bool metno_rejects()
 	    metno_parse(R"({"properties":{"timeseries":[{"data":)", q, &f).err == Err::Parse;
 }
 static_assert(metno_rejects(), "bad MET Norway documents are refused");
+
+// Field ranges: a provider answer with an impossible humidity, wind, direction, day flag or code is refused (so the next source
+// is tried), not shown. Boundaries are exact.
+// Append t to doc (capacity cap, current length n); returns the new length. A plain function, not a lambda, for older compilers.
+constexpr size_t append(char *doc, size_t n, size_t cap, sv t)
+{
+	for (char c : t) if (n + 1 < cap) doc[n++] = c;
+	return n;
+}
+constexpr bool om_status(sv current_fields, bool metric, Err want, sv units = sv())
+{
+	char doc[600] = {};
+	size_t n = append(doc, 0, sizeof doc, "{");
+	if (!units.empty()) n = append(doc, append(doc, append(doc, n, sizeof doc, "\"current_units\":"), sizeof doc, units), sizeof doc, ",");
+	n = append(doc, append(doc, n, sizeof doc, "\"current\":{\"temperature_2m\":20.0,\"weather_code\":0"), sizeof doc, current_fields);
+	n = append(doc, n, sizeof doc, "}}");
+	doc[n] = 0;
+	Forecast f;
+	Query q;
+	q.metric = metric;
+	return openmeteo_parse(sv(doc, n), q, &f).err == want;
+}
+static_assert(om_status("", false, Err::Ok), "baseline");
+static_assert(om_status(",\"relative_humidity_2m\":0", false, Err::Ok) && om_status(",\"relative_humidity_2m\":100", false, Err::Ok), "humidity limits");
+static_assert(om_status(",\"relative_humidity_2m\":101", false, Err::BadData) && om_status(",\"relative_humidity_2m\":-1", false, Err::BadData) &&
+    om_status(",\"relative_humidity_2m\":850", false, Err::BadData), "humidity out of range");
+static_assert(om_status(",\"wind_speed_10m\":0", false, Err::Ok) && om_status(",\"wind_speed_10m\":-12.3", false, Err::BadData) &&
+    om_status(",\"wind_speed_10m\":300.1", false, Err::BadData) && om_status(",\"wind_speed_10m\":300", false, Err::Ok), "mph limits");
+static_assert(om_status(",\"wind_speed_10m\":500", true, Err::Ok) && om_status(",\"wind_speed_10m\":500.1", true, Err::BadData), "km/h limits");
+static_assert(om_status(",\"wind_direction_10m\":360", false, Err::Ok) && om_status(",\"wind_direction_10m\":0", false, Err::Ok) &&
+    om_status(",\"wind_direction_10m\":361", false, Err::BadData) && om_status(",\"wind_direction_10m\":4000", false, Err::BadData) &&
+    om_status(",\"wind_direction_10m\":-1", false, Err::BadData), "direction limits");
+static_assert(om_status(",\"is_day\":1", false, Err::Ok) && om_status(",\"is_day\":7", false, Err::BadData) &&
+    om_status(",\"is_day\":-1", false, Err::BadData), "is_day is 0 or 1");
+
+// Units: when the response says what it is in, that must match what was asked for. The Open-Meteo spelling of mph is "mp/h".
+constexpr sv kImpUnits = R"({"temperature_2m":"°F","wind_speed_10m":"mp/h"})";
+constexpr sv kMetUnits = R"({"temperature_2m":"°C","wind_speed_10m":"km/h"})";
+static_assert(om_status("", false, Err::Ok, kImpUnits) && om_status("", true, Err::Ok, kMetUnits), "matching units");
+static_assert(om_status("", true, Err::BadData, kImpUnits) && om_status("", false, Err::BadData, kMetUnits), "units differ from the request");
+static_assert(om_status("", false, Err::BadData, R"({"temperature_2m":"°F","wind_speed_10m":"m/s"})") &&
+    om_status("", true, Err::BadData, R"({"temperature_2m":"°C","wind_speed_10m":"kn"})"), "unknown wind unit");
+static_assert(om_status("", false, Err::Ok, R"({"temperature_2m":"°F"})") && om_status("", false, Err::Ok), "units absent: nothing to check");
+
+constexpr bool met_status(sv details, bool metric, Err want)
+{
+	char doc[400] = {};
+	size_t n = append(doc, 0, sizeof doc, R"({"properties":{"timeseries":[{"time":"t","data":{"instant":{"details":{"air_temperature":5.0,"cloud_area_fraction":50.0)");
+	n = append(doc, n, sizeof doc, details);
+	n = append(doc, n, sizeof doc, R"(}}}}]}})");
+	doc[n] = 0;
+	Forecast f;
+	Query q;
+	q.metric = metric;
+	return metno_parse(sv(doc, n), q, &f).err == want;
+}
+static_assert(met_status("", false, Err::Ok), "MET baseline");
+static_assert(met_status(",\"relative_humidity\":100.0", false, Err::Ok) && met_status(",\"relative_humidity\":100.6", false, Err::BadData) &&
+    met_status(",\"relative_humidity\":-0.6", false, Err::BadData) && met_status(",\"relative_humidity\":850", false, Err::BadData), "MET humidity");
+static_assert(met_status(",\"wind_speed\":0.0", false, Err::Ok) && met_status(",\"wind_speed\":-3.0", false, Err::BadData) &&
+    met_status(",\"wind_speed\":100.1", false, Err::BadData), "MET wind speed");
+static_assert(met_status(",\"wind_from_direction\":359.9", false, Err::Ok) && met_status(",\"wind_from_direction\":4000", false, Err::BadData) &&
+    met_status(",\"wind_from_direction\":-5", false, Err::BadData), "MET wind direction");
+constexpr bool met_cloud_out_of_range()
+{
+	Forecast f;
+	Query q;
+	return metno_parse(R"({"properties":{"timeseries":[{"time":"t","data":{"instant":{"details":{"air_temperature":5.0,"cloud_area_fraction":150.0}}}}]}})", q, &f).err == Err::BadData;
+}
+static_assert(met_cloud_out_of_range(), "MET cloud cover above 100 %");
+// On 32-bit targets (PowerPC, Retro68) long is 32 bits: these must be refused before they are multiplied by the unit factors.
+static_assert(met_status(",\"wind_speed\":47721858.8", false, Err::BadData) && met_status(",\"wind_speed\":9700.0", true, Err::BadData), "MET wind overflow");
+constexpr bool met_huge_temp()
+{
+	Forecast f;
+	Query q;
+	return metno_parse(R"({"properties":{"timeseries":[{"time":"t","data":{"instant":{"details":{"air_temperature":47721858.8,"cloud_area_fraction":50.0}}}}]}})", q, &f).err == Err::BadData;
+}
+static_assert(met_huge_temp(), "MET huge temperature is refused, not wrapped");
 
 } // namespace wx_static_tests

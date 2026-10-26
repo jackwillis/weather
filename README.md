@@ -42,6 +42,7 @@ GNU make is required (`gmake` on BSD and under Homebrew; Apple's make 3.81 works
     make check-maul               # cross-build the unit and robustness tests and run them on maul (big-endian ground truth)
     make smoke-maul               # cross-build, push to maul, test the real binary there
     make check-san                # unit + robustness + feature tests with UBSan (trap mode; ASan too if libasan is installed)
+    make check-tls                # certificate verification, offline: real tls.cpp vs a local TLS server with generated certificates (openssl, python3)
     make check-gui                # xweather in a private Xvfb on this machine, with screenshots in build/gui-host/
     make check-gui-maul           # the same scenario with the real PowerPC xweather in Xvfb on maul (build/gui/)
     ONLINE=1 sh test/feature.sh build/host/weather   # also test against the real server
@@ -56,6 +57,8 @@ the cross target the toolchain from `~/scratch/netbsd-xc` (see its README-repro.
 `mk/netbsd-macppc.mk`). Trust anchors: `src/tls/anchors.h` is generated from `src/tls/roots.pem` (`make anchors`) and `make check` verifies
 the header matches the PEM and that the PEM holds exactly ISRG Root X1, ISRG Root X2 and HARICA TLS RSA Root CA 2021 (checked by SHA-256
 fingerprint; `test/anchors.sh` tests the check itself). Refreshing them is a release task.
+
+Project tracking (issues, milestones, labels, the board, PR flow): see [docs/PROJECT-MANAGEMENT.md](docs/PROJECT-MANAGEMENT.md).
 
 ### Host platforms
 Developed on Linux; `make check` (everything except the GUI scenario) also passes on macOS (arm64) with Apple's GNU make 3.81 and with

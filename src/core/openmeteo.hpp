@@ -31,6 +31,23 @@ constexpr Status om_field(sv cur, sv key, int dec, bool required, long *out, con
 	return okay();
 }
 
+// If the response says what units it is in, they must be the ones the request asked for: the labels we print come from the
+// request, so a server that ignored the unit parameters would otherwise show Fahrenheit as Celsius. Open-Meteo spells mph "mp/h".
+constexpr bool om_units_match(sv body, bool metric)
+{
+	JsonLookup u = json_get(body, "current_units");
+	if (u.r != JsonFind::Found) return true;
+	sv name;
+	JsonLookup tu = json_get(u.value, "temperature_2m");
+	if (tu.r == JsonFind::Found && json_str(tu.value, &name) && (name.empty() || name[name.size() - 1] != (metric ? 'C' : 'F')))
+		return false;
+	JsonLookup wu = json_get(u.value, "wind_speed_10m");
+	if (wu.r == JsonFind::Found && json_str(wu.value, &name) &&
+	    !(metric ? (name == sv("km/h") || name == sv("kmh")) : (name == sv("mp/h") || name == sv("mph"))))
+		return false;
+	return true;
+}
+
 constexpr Status openmeteo_parse(sv body, const Query &q, Forecast *f)
 {
 	JsonLookup root_err = json_get(body, "error");
@@ -55,8 +72,12 @@ constexpr Status openmeteo_parse(sv body, const Query &q, Forecast *f)
 	s = om_field(cur.value, "is_day", 0, false, &f->is_day, "");
 	if (!s.ok()) return s;
 
+	if (!om_units_match(body, q.metric))
+		return make(Err::BadData, "units in the response do not match the request");
 	if (!plausible_temp_t10(f->temp_t10, q.metric))
 		return make(Err::BadData, "temperature out of plausible range");
+	s = check_fields(*f, q.metric);
+	if (!s.ok()) return s;
 	JsonLookup t = json_get(cur.value, "time");
 	sv ts;
 	if (t.r == JsonFind::Found && json_str(t.value, &ts)) {
