@@ -2,6 +2,7 @@
 
 ## 0.1.0 (unreleased)
 First version.
+- Both windows ignore manual refresh requests within five seconds of the last fetch starting; automatic refresh and location changes remain immediate.
 - `weather`: current conditions over TLS (built-in BearSSL, no proxy) from Open-Meteo; retries with backoff,
   data-source fallback, sysexits exit codes, settings file (`~/.weatherrc`), `-S` to save the location,
   clean cancel on SIGINT/SIGTERM.

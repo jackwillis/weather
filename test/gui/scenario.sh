@@ -39,14 +39,16 @@ echo "ok   virtual X server up on $DISPLAY"
 # ---------------------------------------------------------------- A: normal use, good server
 printf '# my weather file\nattempts = 1\n' > rcA
 if start_xw rcA $PORT_OK; then
-	./xdrive sleep 3000
+	./xdrive sleep 1000
 	check "A: first fetch happens by itself" "$(fetches)" 1
 	snap A01-main
-	./xdrive click 64 231 sleep 1500
+	./xdrive click 64 231 key F5 key F5 key F5 sleep 500
+	check "A: rapid button and F5 refreshes are ignored" "$(fetches)" 1
+	./xdrive sleep 5000 click 64 231 sleep 1500
 	check "A: Refresh button fetches" "$(fetches)" 2
-	./xdrive key F5 sleep 1500
+	./xdrive sleep 5000 key F5 sleep 1500
 	check "A: F5 fetches" "$(fetches)" 3
-	./xdrive click 28 13 sleep 300 snap snap/A02-file-menu.$EXT click 30 40 sleep 1500
+	./xdrive sleep 5000 click 28 13 sleep 300 snap snap/A02-file-menu.$EXT click 30 40 sleep 1500
 	check "A: File > Refresh fetches" "$(fetches)" 4
 	./xdrive click 80 13 sleep 300 snap snap/A03-options-menu.$EXT
 	./xdrive click 28 13 sleep 300 snap snap/A04-switch-to-file.$EXT click 80 13 sleep 300      # a click on another title switches menus
@@ -90,7 +92,7 @@ if start_xw rcC $PORT_500; then
 	./xdrive sleep 2500 snap snap/C01-failed.$EXT
 	check "C: failure is tried once" "$(fetches)" 1
 	check "C: failure is logged" "$(grep -c 'http: server returned an error status' xw.log)" 2
-	./xdrive click 64 231 sleep 1500
+	./xdrive sleep 5000 click 64 231 sleep 1500
 	check "C: Refresh retries a failed fetch" "$(fetches)" 2
 	keeplog C
 	quit_xw C

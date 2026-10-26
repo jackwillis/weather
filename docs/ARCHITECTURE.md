@@ -35,7 +35,7 @@ build on a hit, so the rule is enforced, not hoped for. No heap in `core/`; no e
 ## 3. The Model (portable, drives every UI; implemented in src/app/model.hpp)
 State: Idle, Fetching, Ok(forecast, fetched_at), Error(status, last good forecast kept as Stale).
 Inputs: `refresh()`, `tick(now)`, `settings_changed()`. Output: what to draw. Rules: auto-refresh every
-15 min (Open-Meteo's update interval) when enabled; manual refresh always; failure backs off (1, 2, 4... up to
+15 min (Open-Meteo's update interval) when enabled; manual refresh requests within five seconds of the last fetch starting are ignored (never queued); automatic refresh and location changes bypass that floor; failure backs off (1, 2, 4... up to
 15 min) and keeps showing the last good data marked stale with its age; never fetches while one is running.
 The UI is a thin renderer on top, so all refresh behaviour is tested natively with a fake clock and fake Net.
 
