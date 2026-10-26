@@ -6,6 +6,7 @@
 // Only the calls the weather app uses are provided. A call we have not verified on real hardware is not added.
 #include <Gestalt.h>
 #include <cstdlib>
+#include <cstddef>
 #include "ot_min.h"
 
 namespace {
@@ -19,6 +20,17 @@ struct ClientRecord {
 	UInt8 flag;                    // +32 (set to 1 by the glue)
 	UInt8 pad[7];
 };
+// Validate the only ABI exercised so far: 32-bit PowerPC CFM/PEF.
+// These assertions do NOT establish compatibility with another OT release.
+// Non-PPC host stand-ins exercise lifecycle behavior, not this native ABI.
+#if defined(__powerpc__) || defined(__POWERPC__)
+static_assert(sizeof(void *) == 4, "Open Transport glue requires 32-bit pointers");
+static_assert(sizeof(ClientRecord) == 40, "OT client record layout changed");
+static_assert(offsetof(ClientRecord, library_manager) == 8, "OT client record offset changed");
+static_assert(offsetof(ClientRecord, slm_global) == 12, "OT client record offset changed");
+static_assert(offsetof(ClientRecord, exit_patch_rd) == 16, "OT client record offset changed");
+static_assert(offsetof(ClientRecord, flag) == 32, "OT client record flag offset changed");
+#endif
 ClientRecord g_record;
 UInt32 g_library_manager = 0;
 UInt32 g_slm_global = 0;
@@ -35,7 +47,6 @@ OSStatus InitOpenTransport(void)
 {
 	long resp = 0;
 	if (Gestalt('otan', &resp) != noErr || !(resp & 1)) return -3201;   // Open Transport not present (same code as Apple's glue)
-	if (reinterpret_cast<void *>(InitOpenTransportPriv) == nullptr) return -3201;
 	g_record.library_manager = &g_library_manager;
 	g_record.slm_global = &g_slm_global;
 	g_record.exit_patch_rd = &g_exit_patch_rd;

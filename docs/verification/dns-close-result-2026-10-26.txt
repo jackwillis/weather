@@ -83,3 +83,21 @@ Registration follow-up final: host525unit/230242mutation/106CLI/12TLS/
 PowerPC cross-build passed. Native OS9 exit/failure injection remains pending.
 No private config read; disposable G4 test files cleaned. All builds Linux.
 Logs /tmp/weather-ot-registration-{red,check,san,os9,maul,cross}.log.
+
+Native layout/shutdown-test integration
+
+Carried #43's identical pointer32/record40/offset guards and ineffective-address-
+check removal into this branch. Host test initially failed its build with the
+expected64bit pointer/offset assertions. The guard now selects __powerpc__ or
+__POWERPC__: the actual supported target retains every assertion; non-PPC host
+stand-ins test lifecycle only. PPC64 still fails the pointer32 assertion.
+No native ABI assertions are suppressed inside the test or replaced by mocks.
+The repeatable make check-ot-layout probe is carried identically from43. It
+requires the actual Retro68 compiler to reject both bad record-size and flag-
+offset copies, so an accidentally disabled native guard cannot appear green.
+The G4 lifecycle test compiles with PowerPC layout assertions enabled as well.
+Combined verification: full host525/230242/106CLI/12TLS/21serializedGUI plus4
+lifecycle cases; explicit ASan+UBSan525/230242/106 plus4lifecycle cases. Actual
+G4 all4cases with PowerPC assertions active, libc only. Full PowerPC OS9 build
+and native size/offset rejection probe pass. No native OS9 runtime claim.
+Logs /tmp/weather-ot-integration-{red,check,san,os9,layout,maul,cross}.log.
