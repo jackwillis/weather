@@ -1,0 +1,1 @@
+- Share one POSIX connection timeout across all resolved addresses, including elapsed lookup time once the blocking resolver returns. Reject late success and fail closed on missing or regressing monotonic clocks. Blocking DNS interruption remains outstanding.

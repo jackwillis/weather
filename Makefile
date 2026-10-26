@@ -59,6 +59,9 @@ $(BUILD)/xweather: $(BUILD)/xweather.debug
 $(BUILD)/xdrive: $(OBJ)/test/xdrive.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(X11_LIBS)
 
+$(BUILD)/connect-budget-test: $(OBJ)/test/connect_budget.o $(OBJ)/platform/$(PLATFORM)/log_posix.o $(OBJ)/platform/$(PLATFORM)/nocxx.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^
+
 $(BUILD)/robust: $(OBJ)/test/robust.o $(BEARSSL_LIB)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(BEARSSL_LIB)
 
@@ -165,8 +168,9 @@ distcheck: dist
 
 # ---- tests
 check: $(CHECK_TARGET)
-check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather
+check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather $(BUILD)/connect-budget-test
 	$(BUILD)/unittest
+	$(BUILD)/connect-budget-test
 	$(BUILD)/robust
 	sh test/feature.sh $(BUILD)/weather
 	python3 test/seed_provision.py
@@ -174,8 +178,9 @@ check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(B
 # Everything again under AddressSanitizer + UBSan: unit tests, parser robustness, the CLI's feature tests.
 check-san:
 	@$(MAKE) -s TARGET=host-san san-note
-	$(MAKE) TARGET=host-san build/host-san/unittest build/host-san/robust build/host-san/weather
+	$(MAKE) TARGET=host-san build/host-san/unittest build/host-san/robust build/host-san/weather build/host-san/connect-budget-test
 	build/host-san/unittest
+	build/host-san/connect-budget-test
 	build/host-san/robust
 	sh test/feature.sh build/host-san/weather
 
@@ -193,8 +198,8 @@ check-cross:
 	@echo "TARGET=$(TARGET) cannot run here: use 'make smoke-maul' (and later 'make check-maul')"; false
 
 check-maul:
-	$(MAKE) TARGET=netbsd-macppc build/netbsd-macppc/unittest build/netbsd-macppc/robust
-	sh test/check-maul.sh build/netbsd-macppc/unittest build/netbsd-macppc/robust
+	$(MAKE) TARGET=netbsd-macppc build/netbsd-macppc/unittest build/netbsd-macppc/robust build/netbsd-macppc/connect-budget-test
+	sh test/check-maul.sh build/netbsd-macppc/unittest build/netbsd-macppc/robust build/netbsd-macppc/connect-budget-test
 
 smoke-maul:
 	$(MAKE) TARGET=netbsd-macppc all

@@ -24,4 +24,5 @@ Limits: #11's window menu-credit wiring has not been combined/runtime-tested
 with this branch. Tiger is parked. No native OS9 menu-hold acceptance claimed.
 No actual PowerPC slow-TLS relay test performed (host relay and PPC fake-I/O
 unit tests passed). Checks happen before reads/writes; POSIX getaddrinfo remains
-blocking and connect timeouts remain per address (#72).
+blocking. At this recorded head, connect timeouts remained per address (#72);
+see posix-connect-budget-2026-10-26.txt for the later shared-budget correction.

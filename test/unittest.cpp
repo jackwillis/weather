@@ -485,10 +485,12 @@ static void test_posix_net()
 	char buf[64];
 	{ // yield can cancel a blocked read quickly
 		Net n; posix_net_init(&n);
-		n.yield = count_yield; g_yields = 0; g_cancel_at = 3;
+		n.yield = count_yield; g_yields = 0; g_cancel_at = 0;
 		Io io;
 		Status s = n.connect(n, "127.0.0.1", portstr, 10, &io);
 		CHECK(s.ok());
+		if (!s.ok()) { close(ls); return; }
+		g_yields = 0; g_cancel_at = 3; // count only the blocked read, not connection setup
 		long long t0 = now_ms();
 		long r = io.read(io, buf, sizeof buf);
 		long long took = now_ms() - t0;
