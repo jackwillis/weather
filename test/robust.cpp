@@ -35,6 +35,17 @@ static bool inside(sv outer, sv inner)
 	return inner.data() >= outer.data() && inner.data() + inner.size() <= outer.data() + outer.size();
 }
 
+// Independent statement of what an accepted forecast may contain (literal bounds on purpose, not the parser's own predicates).
+static bool sane(const Forecast &f, bool metric)
+{
+	bool t = metric ? (f.temp_t10 >= -900 && f.temp_t10 <= 600) : (f.temp_t10 >= -1300 && f.temp_t10 <= 1400);
+	bool h = f.humidity == kUnset || (f.humidity >= 0 && f.humidity <= 100);
+	bool w = f.wind_t10 == kUnset || (f.wind_t10 >= 0 && f.wind_t10 <= (metric ? 5000 : 3000));
+	bool d = f.wind_dir == kUnset || (f.wind_dir >= 0 && f.wind_dir <= 360);
+	bool day = f.is_day == kUnset || f.is_day == 0 || f.is_day == 1;
+	return t && h && w && d && day && f.code >= 0 && f.code <= 99 && f.metric == metric;
+}
+
 static void exercise(const char *p, size_t n)
 {
 	g_runs++;
@@ -90,18 +101,22 @@ static void exercise(const char *p, size_t n)
 	Status s = openmeteo_parse(in, q, &f);
 	if (s.ok()) {
 		EXPECT(plausible_temp_t10(f.temp_t10, false));
+		EXPECT(sane(f, false));
 		EXPECT(f.code != kUnset && std::strlen(f.time) < sizeof f.time);
 		Buf<300> one; format_oneline(one, f);                         // formatting any accepted forecast must be safe
 		Buf<400> full; format_full(full, f, "Madison, WI");
 	}
-	(void)openmeteo_parse(in, Query{0, 0, true}, &f);
+	Forecast mq;                                                  // the same bytes asked for metric: accepted only if sane as metric
+	if (openmeteo_parse(in, Query{0, 0, true}, &mq).ok()) EXPECT(sane(mq, true));
 	Forecast mf;                                                  // MET Norway: same rules
 	Status ms = metno_parse(in, q, &mf);
 	if (ms.ok()) {
 		EXPECT(plausible_temp_t10(mf.temp_t10, false) && mf.code != kUnset && std::strlen(mf.time) < sizeof mf.time);
+		EXPECT(sane(mf, false));
 		Buf<300> one; format_oneline(one, mf);
 	}
-	(void)metno_parse(in, Query{0, 0, true}, &mf);
+	Forecast mm;
+	if (metno_parse(in, Query{0, 0, true}, &mm).ok()) EXPECT(sane(mm, true));
 
 	// numbers
 	for (int d = 0; d <= 4; d++) { Num x = parse_fixed(in.substr(0, 40), d); if (x.ok) EXPECT(x.v > -2000000000L && x.v < 2000000000L); }
