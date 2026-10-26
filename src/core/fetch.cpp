@@ -30,6 +30,15 @@ static Status io_fail(const Io &io, const char *what)
 // deadline. A check only between reads would miss the TLS handshake and each TLS record, which are single blocking calls
 // (many raw reads, each within the timeout) underneath. Lives on the stack; no heap.
 namespace {
+struct BudgetScope {
+	Net &net;
+	const TimeBudget *previous;
+	TimeBudget current;
+	BudgetScope(Net &n, long long start, long long limit) : net(n), previous(n.budget), current{start, limit} { net.budget = &current; }
+	~BudgetScope() { net.budget = previous; }
+	BudgetScope(const BudgetScope &) = delete;
+	BudgetScope &operator=(const BudgetScope &) = delete;
+};
 struct DeadlineIo {
 	Io io;                       // io.ctx points back at this struct
 	Io *inner;
@@ -82,7 +91,15 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 	const long long start = net.monotonic_ms(net);
 	if (start < 0) return make(Err::Clock, "monotonic clock unavailable");
 	if (o.timeout_s <= 0 || o.deadline_s < 0) return make(Err::Config, "invalid fetch timeout");
-	const long long limit = o.deadline_s > 0 ? 1000LL * o.deadline_s : 3000LL * o.timeout_s;
+	long long limit = o.deadline_s > 0 ? 1000LL * o.deadline_s : 3000LL * o.timeout_s;
+
+	if (net.budget) {
+		long long remaining = net.budget->remaining(start);
+		if (remaining < 0) return make(Err::Clock, "monotonic clock unavailable or moved backwards");
+		if (remaining == 0) return make(Err::Timeout, "answer not complete within the time limit");
+		if (remaining < limit) limit = remaining;
+	}
+	BudgetScope budget_scope(net, start, limit);
 
 	Io raw;
 	logf(LogDebug, "connecting to %s:%s%s", host, port, tls ? " (tls)" : "");

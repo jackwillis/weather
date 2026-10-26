@@ -66,3 +66,41 @@ did not read saved user settings or invent a contact. Private remote files were
 removed on success. No OS9/Tiger access or native runtime claim; this refinement
 changes only POSIX code. The previous #41 OS9 compile evidence remains historical.
 Logs /tmp/weather-connect-final-{check,san,maul}.log and weather-connect-live.log.
+
+Scoped outer-budget follow-up (supersedes the shorter-explicit-limit gap above)
+
+Net carries an optional borrowed TimeBudget. fetch_once installs a stack-owned
+budget for the earlier of its attempt limit and an existing caller budget;
+a scope guard restores the old pointer on success and every failure. Net.ctx
+is untouched. Checked subtraction avoids timestamp addition and overflow.
+POSIX connect and socket poll waits use the same Net monotonic clock and clamp
+their own wait to the remaining outer budget, checking again after poll. An
+expired or invalid budget refuses lookup before invoking libc. OS9 currently
+ignores this optional platform budget; its raw-I/O deadline checks still apply.
+Blocked POSIX getaddrinfo remains uninterruptible until it returns.
+
+Initial focused red: 34 backend checks, 5 failures; 542 unit checks, 1 failure.
+Green adds caller-pointer restoration, inherited earlier budget and arithmetic
+boundaries; a real loopback listener that never answers proves a1s attempt
+ends its10s socket wait in900..2999ms. This runs on host and actual NetBSD G4.
+No real resolver stall is simulated by that loopback test.
+
+Full regression initially exposed two expected-output changes:
+FAIL: trickle: got 'RESULT err=timeout detail=110', wanted 'RESULT err=timeout detail=0'
+FAIL: dribbling server: no 'time limit' message (... timed out waiting for the server (detail110))
+The POSIX poll now ends the wait itself, retaining ETIMEDOUT. The TLS harness
+prints the portable errno name; the CLI check accepts the socket timeout message
+as well as the existing raw-wrapper deadline message. Exit75 and elapsed-time
+assertions remain required. An initial restricted run could not create a socket
+(PermissionError: [Errno1] Operation not permitted); rerun with loopback access.
+
+Scoped-budget verification: full host545unit /34backend /230242mutation /
+109CLI /16realTLS /21serializedGUI, all green. Explicit ASan+UBSan545/34/
+230242/109 green (log confirms with AddressSanitizer). Actual NetBSD/macppc
+G4545unit /86242mutation /34backend, status0. Retro68 PowerPC and68k portable
+probes and full OS9 app cross-build passed. No OS9 execution or stalled real
+DNS acceptance claimed. Logs /tmp/weather-outer-{check,san,maul,probe,os9}.log.
+Fresh cross-built G4 CLI also passed live verified-TLS Open-Meteo and negative
+controls: no anchors76, expired certificate clock76, pre2025clock71. Disposable
+public config only; no saved settings read; remote temporary files cleaned.
+Log /tmp/weather-outer-live.log. No privileged action or compilation on maul.

@@ -14,6 +14,16 @@ struct Io {
 	const char *msg = nullptr;  // optional static reason for the error
 };
 
+// Elapsed-time budget, in the Net monotonic clock domain. No timestamp sum.
+struct TimeBudget {
+	long long start_ms, limit_ms;
+	constexpr long long remaining(long long now) const {
+		if (start_ms < 0 || limit_ms < 0 || now < start_ms) return -1;
+		long long elapsed = now - start_ms;
+		return elapsed >= limit_ms ? 0 : limit_ms - elapsed;
+	}
+};
+
 struct Net {
 	void *ctx = nullptr;
 	Status (*connect)(Net &, const char *host, const char *port, int timeout_s, Io *out) = nullptr;
@@ -32,6 +42,9 @@ struct Net {
 	// Optional TLS: wrap an open stream (verifying host), and close it again.
 	Status (*tls_open)(Net &, Io &raw, const char *host, Io *out) = nullptr;
 	void (*tls_close)(Net &, Io &tls) = nullptr;
+	// Optional borrowed operation budget; backend waits use the earlier of this
+	// and their own timeout. Only valid during the operation; never retain it.
+	const TimeBudget *budget = nullptr;
 };
 
 } // namespace wx

@@ -149,6 +149,7 @@ struct Fake {
 	uint32_t ticks = 0xfffffff0U;
 	bool use_active = false, pause_reads = false;
 	long long monotonic = 0;
+	long long seen_budget_limit = -1;
 	long mono_read_ms = 0;
 	long read_secs = 0;      // the clock advances this much on every read (a slow trickle)
 	int reads = 0;
@@ -185,6 +186,7 @@ static long fk_write(Io &io, const void *buf, size_t len)
 static Status fk_connect(Net &n, const char *, const char *, int, Io *out)
 {
 	Fake *f = F(n);
+	f->seen_budget_limit = n.budget ? n.budget->limit_ms : -1;
 	f->connects++;
 	Step &s = f->steps[f->next < f->nsteps ? f->next : f->nsteps - 1];
 	f->next++;
@@ -275,6 +277,22 @@ static void test_fetch()
 		Fake b; b.steps[0] = {okay(), kGood, Err::Ok}; b.nsteps = 1; b.read_secs = -100;     // the clock steps back mid-fetch: never a false timeout
 		Net bn = make_net(&b);
 		CHECK(fetch_once(bn, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+	}
+	{ // The attempt budget reaches backend waits, and restores caller state.
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f); FetchOpts explicit_limit = o; explicit_limit.deadline_s = 1;
+		CHECK(fetch_once(n, "h", "80", false, "/", explicit_limit, buf, sizeof buf, &body).ok());
+		CHECK(f.seen_budget_limit == 1000 && n.budget == nullptr && n.ctx == &f);
+		f.monotonic = 200;
+		const TimeBudget outer{0, 500}; n.budget = &outer;
+		CHECK(fetch_once(n, "h", "80", false, "/", explicit_limit, buf, sizeof buf, &body).ok());
+		CHECK(f.seen_budget_limit == 300 && n.budget == &outer);
+		f.steps[0].connect_result = make(Err::Dns, "failed");
+		CHECK(fetch_once(n, "h", "80", false, "/", explicit_limit, buf, sizeof buf, &body).err == Err::Dns);
+		CHECK(n.budget == &outer);
+		CHECK((TimeBudget{0, 0}.remaining(0) == 0));
+		CHECK((TimeBudget{100, 10}.remaining(99) == -1));
+		CHECK((TimeBudget{9223372036854775000LL, 500}.remaining(9223372036854775100LL) == 400));
 	}
 	{ // UTC corrections and paused active time cannot change the attempt deadline.
 		for (long step : {-100L, 100L}) {
@@ -516,6 +534,24 @@ static void test_posix_net()
 		long r = io.read(io, buf, sizeof buf);
 		CHECK(r < 0 && io.err == Err::Timeout && g_yields >= 10);
 		n.close(n, io);
+	}
+	{ // A shorter whole-attempt budget reaches the real silent socket wait.
+		int silent_port = 0;
+		int silent = listen_local(&silent_port);
+		CHECK(silent >= 0);
+		if (silent >= 0) {
+			char service[16], response[4096];
+			snprintf(service, sizeof service, "%d", silent_port);
+			Net n; posix_net_init(&n);
+			FetchOpts opts; opts.timeout_s = 10; opts.deadline_s = 1;
+			sv body;
+			long long began = now_ms();
+			Status status = fetch_once(n, "127.0.0.1", service, false, "/", opts, response, sizeof response, &body);
+			long long elapsed = now_ms() - began;
+			CHECK(status.err == Err::Timeout && elapsed >= 900 && elapsed < 3000);
+			CHECK(n.budget == nullptr);
+			close(silent);
+		}
 	}
 	{ // sleep: completes, or stops when yield cancels
 		Net n; posix_net_init(&n);

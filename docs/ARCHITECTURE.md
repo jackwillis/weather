@@ -65,7 +65,10 @@ Retro68 container. Layers: the same core, app and tls code; `src/platform/os9/` 
   controller (2026-10-25). The foreground loop yields and enforces a wrap-safe deadline. An abandoned open retains its callback
   storage until a later request drains it, or OT shuts down; a failed close quarantines the resolver until restart.
   POSIX `getaddrinfo` still blocks. Its elapsed time is charged when it returns,
-  and all returned addresses share one connection timeout budget. See `spike/os9/DNS-PROBE.md` for hardware coverage and limits.
+  and all returned addresses share one connection timeout budget. A borrowed, scoped
+  Net::budget also caps POSIX connect/read/write waits to the earlier attempt or caller
+  limit; fetch restores the caller pointer on every return. OS9 does not yet enforce
+  that optional budget inside its platform waits (raw-I/O deadline checks still apply). See `spike/os9/DNS-PROBE.md` for hardware coverage and limits.
 * **Clock**: UTC is derived from the Date & Time time zone (`gmtDelta` plus the daylight-saving flag); TLS certificate dates
   use it, and `fetch` refuses a clock before 2025. Verified against OS X on the real machine: gmtDelta already includes daylight saving (an extra DST term made it an hour slow).
 * **Entropy**: a unique secret seed provisioned from a modern OS CSPRNG initializes an in-process BearSSL HMAC_DRBG.

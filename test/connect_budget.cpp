@@ -117,7 +117,7 @@ int main()
 	reset(); clock_fail_at = 1;
 	status = net.connect(net, "fake", "80", 1, &out);
 	check(status.err == wx::Err::Clock && dns_calls == 0, "missing clock fails before lookup");
-	reset(); ticks = 100000; clock_back_at = 2;
+	reset(); ticks = 100000; clock_back_at = 3;
 	status = net.connect(net, "fake", "80", 1, &out);
 	check(status.err == wx::Err::Clock && connects == 0 && frees == 1, "backward clock after lookup fails closed");
 	reset(); fail_on_poll = true; net.yield = test_yield; cancel_at = 100;
@@ -174,6 +174,30 @@ int main()
 	reset(); poll_mode = 1; option_failure = true;
 	status = net.connect(net, "fake", "80", 1, &out);
 	check(status.err == wx::Err::Connect && status.detail == ENOTSOCK && closes == 3 && frees == 1, "cannot inspect pending socket error");
+	const wx::TimeBudget short_budget{0, 120}; net.budget = &short_budget;
+	reset();
+	status = net.connect(net, "fake", "80", 10, &out);
+	check(status.err == wx::Err::Timeout && ticks == 120 && connects == 1, "outer budget caps connect wait");
+	reset(); ready = true; connect_delay = 60;
+	status = net.connect(net, "fake", "80", 10, &out);
+	check(status.ok(), "connect succeeds before outer deadline");
+	if (status.ok()) {
+		check(out.read(out, &byte, 1) == -1 && out.err == wx::Err::Timeout && ticks == 120, "outer budget caps silent read");
+		net.close(net, out);
+	}
+	reset(); ready = true;
+	status = net.connect(net, "fake", "80", 10, &out);
+	if (status.ok()) {
+		check(out.write(out, "x", 1) == -1 && out.err == wx::Err::Timeout && ticks == 120, "outer budget caps blocked write");
+		net.close(net, out);
+	} else check(false, "write setup");
+	reset(); const wx::TimeBudget expired{0, 0}; net.budget = &expired;
+	status = net.connect(net, "fake", "80", 10, &out);
+	check(status.err == wx::Err::Timeout && dns_calls == 0, "expired outer budget skips lookup");
+	reset(); const wx::TimeBudget backwards{1000, 100}; net.budget = &backwards;
+	status = net.connect(net, "fake", "80", 10, &out);
+	check(status.err == wx::Err::Clock && dns_calls == 0, "invalid outer clock skips lookup");
+	net.budget = nullptr;
 	printf("connect budget: %d checks, %d failed\n", checks, failures);
 	return failures ? 1 : 0;
 }

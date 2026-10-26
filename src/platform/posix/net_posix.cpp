@@ -27,27 +27,43 @@ static long long mono_ms()
 	return static_cast<long long>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
 }
 
+static long long net_mono(Net *net)
+{
+	return net && net->monotonic_ms ? net->monotonic_ms(*net) : mono_ms();
+}
+
 enum { WaitReady = 1, WaitTimeout = 0, WaitError = -1, WaitCancelled = -2, WaitClock = -3 };
 
 // Wait for fd; slices only when there is a yield hook to run.
 static int wait_fd(Net *net, int fd, short ev, int timeout_ms)
 {
-	long long start = mono_ms();
+	long long start = net_mono(net);
 	if (start < 0) return WaitClock;
 	for (;;) {
-		long long now = mono_ms();
+		long long now = net_mono(net);
 		if (now < start) return WaitClock;
 		long long left = timeout_ms - (now - start);
-		if (left < 0) left = 0;
+		if (net && net->budget) {
+			long long remaining = net->budget->remaining(now);
+			if (remaining < 0) return WaitClock;
+			if (remaining < left) left = remaining;
+		}
+		if (left <= 0) return WaitTimeout;
 		bool slicing = net && net->yield;
 		int slice = (slicing && left > kSliceMs) ? kSliceMs : static_cast<int>(left);
 		struct pollfd p = { fd, ev, 0 };
 		int r = poll(&p, 1, slice);
-		if (r > 0) return WaitReady;
-		if (r < 0 && errno != EINTR) return WaitError;
-		if (slicing && !net->yield(*net)) return WaitCancelled;
-		now = mono_ms();
+		int poll_error = errno;
+		if (r <= 0 && slicing && !net->yield(*net)) return WaitCancelled;
+		now = net_mono(net);
 		if (now < start) return WaitClock;
+		if (net && net->budget) {
+			long long remaining = net->budget->remaining(now);
+			if (remaining < 0) return WaitClock;
+			if (remaining == 0) return WaitTimeout;
+		}
+		if (r > 0) return WaitReady;
+		if (r < 0 && poll_error != EINTR) { errno = poll_error; return WaitError; }
 		if (now - start >= timeout_ms) return WaitTimeout;
 	}
 }
@@ -89,16 +105,20 @@ static long sock_write(Io &io, const void *buf, size_t len)
 	return static_cast<long>(done);
 }
 
-static long long posix_monotonic(Net &);
-
 // One budget for lookup elapsed time and every address, without adding a
 // deadline to a timestamp or overflowing a 32-bit millisecond count.
 static int connect_left(Net &net, long long start, int budget)
 {
-	long long now = posix_monotonic(net);
+	long long now = net_mono(&net);
 	if (now < start) return -1;
 	long long elapsed = now - start;
-	return elapsed >= budget ? 0 : budget - static_cast<int>(elapsed);
+	int left = elapsed >= budget ? 0 : budget - static_cast<int>(elapsed);
+	if (net.budget) {
+		long long remaining = net.budget->remaining(now);
+		if (remaining < 0) return -1;
+		if (remaining < left) left = static_cast<int>(remaining);
+	}
+	return left;
 }
 
 static int wait_connect(Net &net, int fd, long long start, int budget)
@@ -124,9 +144,12 @@ static Status posix_connect(Net &net, const char *host, const char *port, int ti
 {
 	if (timeout_s <= 0 || timeout_s > INT_MAX / 1000) return make(Err::Config, "invalid connect timeout");
 	const int budget = timeout_s * 1000;
-	const long long start = posix_monotonic(net);
+	const long long start = net_mono(&net);
 	if (start < 0) return make(Err::Clock, "monotonic clock unavailable");
 	if (net.yield && !net.yield(net)) return make(Err::Cancelled, "cancelled before host lookup");
+	int initial_left = connect_left(net, start, budget);
+	if (initial_left < 0) return make(Err::Clock, "monotonic clock unavailable or moved backwards");
+	if (initial_left == 0) return make(Err::Timeout, "name lookup and connect timed out", ETIMEDOUT);
 	struct addrinfo hints, *res = nullptr;
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_UNSPEC;

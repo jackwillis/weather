@@ -113,7 +113,7 @@ check nonca     "$NOW"                    cert NOT_CA          0    # leaf signe
 # The deadline must hold over TLS too: the handshake and each record are single blocking calls underneath, so a check
 # only between reads would not stop a trickling HTTPS server. Deadline 2 s; the trickle would need minutes.
 PF="$T/proxyports" SERVER=proxied DEADLINE=2 check paced   "$NOW" ok      0 1    # control: same relay at full speed
-PF="$T/proxyports" SERVER=proxied DEADLINE=2 check trickle "$NOW" timeout 0 1    # one byte per 0.3 s: given up on, not waited for
+PF="$T/proxyports" SERVER=proxied DEADLINE=2 check trickle "$NOW" timeout ETIMEDOUT 1    # one byte per 0.3 s: given up on, not waited for
 
 echo "tls tests: $pass passed, $fail failed"
 [ "$fail" = 0 ]

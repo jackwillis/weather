@@ -79,7 +79,7 @@ wait $wp; got=$?; t1=$(date +%s)
 kill $wd 2>/dev/null; wait $wd 2>/dev/null
 if [ "$got" = 75 ]; then ok; else bad "dribbling server: exit $got, wanted 75 ($(cat "$CFG.drip"))"; fi
 if [ $((t1 - t0)) -le 8 ]; then ok; else bad "dribbling server: took $((t1 - t0)) s with -t 1"; fi
-grep -q "time limit" "$CFG.drip" && ok || bad "dribbling server: no 'time limit' message ($(cat "$CFG.drip"))"
+grep -Eq "time limit|timed out waiting for the server" "$CFG.drip" && ok || bad "dribbling server: no deadline or socket-timeout message ($(cat "$CFG.drip"))"
 rm -f "$CFG.drip"
 expect "connection refused" 69 $W -H 127.0.0.1:1
 expect "unknown host" 68 $W -H no-such-host.invalid:80

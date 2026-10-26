@@ -6,6 +6,7 @@
 #include "platform/posix/net_posix.hpp"
 #include "tls/tls.hpp"
 #include <bearssl.h>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -49,7 +50,7 @@ int main(int argc, char **argv)
 	static char buf[4096];
 	sv body;
 	Status s = fetch_once(net, argv[1], argv[2], true, "/", o, buf, sizeof buf, &body);
-	const char *dn = x509_name(s.detail);
+	const char *dn = s.err == Err::Timeout && s.detail == ETIMEDOUT ? "ETIMEDOUT" : x509_name(s.detail);
 	if (dn) printf("RESULT err=%s detail=%s\n", err_name(s.err), dn);
 	else printf("RESULT err=%s detail=%d\n", err_name(s.err), s.detail);
 	return 0;

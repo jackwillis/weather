@@ -15,8 +15,8 @@ struct FetchOpts {
 	long backoff_ms = 500;       // doubles each retry ...
 	long max_backoff_ms = 30000; // ... up to this (also keeps the doubling from overflowing a 32-bit long)
 	int deadline_s = 0;          // one attempt, from its start, is given up on after this long (checked before every read and
-	                             // write, so the TLS handshake counts); 0 = 3 x timeout_s. A name lookup and each connect
-	                             // address are bounded only by their own waits.
+	                             // write, so the TLS handshake counts); 0 = 3 x timeout_s. POSIX socket waits honor
+	                             // this budget too; blocking name lookup is checked only after it returns.
 	bool dump = false;           // log request/response text at debug level
 	const char *force_host = nullptr;  // testing: plain HTTP to this host/port instead
 	const char *force_port = nullptr;
