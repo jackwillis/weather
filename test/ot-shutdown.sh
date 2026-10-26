@@ -8,4 +8,7 @@ for mode in explicit exit; do
 done
 output=$("$binary" failed-init)
 test -z "$output" || { echo 'FAIL: failed init closed inactive OT'; exit 1; }
-echo 'OT shutdown: 3 cases passed'
+output=$("$binary" failed-register)
+retry_expected=$(printf 'transport closed\nendpoint closed\ntransport closed')
+test "$output" = "$retry_expected" || { echo "FAIL: exit registration rollback: $output"; exit 1; }
+echo 'OT shutdown: 4 cases passed'

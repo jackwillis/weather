@@ -4,7 +4,15 @@
 #include <cstdlib>
 #include <cstring>
 static bool open_ot, endpoint;
-static bool fail_init;
+static bool fail_init, fail_registration;
+// Substitute only the exit-registration boundary in the actual source below.
+// Normal cases still use libc's real atexit list. No production test switch.
+namespace exit_api {
+static int atexit(void (*fn)()) { return fail_registration ? -1 : std::atexit(fn); }
+}
+#define std exit_api
+#include "../src/platform/os9/ot_glue.cc"
+#undef std
 static void require(bool ok) { if (!ok) std::abort(); }
 extern "C" OSStatus Gestalt(UInt32, long *out) { *out = 1; return 0; }
 extern "C" OSStatus InitOpenTransportPriv(UInt32, void *) { open_ot = !fail_init; return fail_init ? -1 : 0; }
@@ -28,14 +36,20 @@ static void older_exit_handler() { cleanup(); }
 int main(int argc, char **argv) {
 	require(argc == 2);
 	fail_init = std::strcmp(argv[1], "failed-init") == 0;
+	fail_registration = std::strcmp(argv[1], "failed-register") == 0;
 	require(std::atexit(older_exit_handler) == 0); // net cleanup registered before lazy OT init
 	weather_ot_before_close(cleanup);
 	OSStatus s = InitOpenTransport();
 	if (fail_init) { require(s != 0); CloseOpenTransport(); return 0; }
+	if (fail_registration) {
+		require(s != 0 && !open_ot && !endpoint);
+		fail_registration = false;
+		s = InitOpenTransport(); // rollback leaves a subsequent attempt usable
+	}
 	require(s == 0);
 	OSStatus error = 0;
 	require(OTOpenEndpoint(nullptr, 0, nullptr, &error) != nullptr);
-	if (std::strcmp(argv[1], "explicit") == 0) { CloseOpenTransport(); CloseOpenTransport(); }
+	if (std::strcmp(argv[1], "explicit") == 0 || std::strcmp(argv[1], "failed-register") == 0) { CloseOpenTransport(); CloseOpenTransport(); }
 	else require(std::strcmp(argv[1], "exit") == 0);
 	return 0;
 }

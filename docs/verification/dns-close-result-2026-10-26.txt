@@ -63,3 +63,23 @@ only, no libstdc++. Earlier E5 head G4525/86242 remains controller verification;
 controller unchanged by E6. Full Retro68 PowerPC OS9 app/diagnostics build passed.
 All compilation on Linux. Private G4 test files removed, no owner config read.
 Logs /tmp/weather-ot-shutdown-{red,check,san,os9,maul,cross}.log.
+
+Exit-registration failure follow-up (supersedes unchecked-registration limit)
+
+InitOpenTransport now checks atexit registration. On failure it closes the
+newly initialized OT client and returns an error; it never reports success
+without owning its exit cleanup. A subsequent init can succeed and register
+normally. The actual-source regression substitutes only the std qualification
+of atexit in the included glue source with a test namespace wrapper; existing
+headers are included first, no namespace std additions or production test hook.
+The wrapper normally forwards to real libc atexit; one mode injects failure.
+That new case aborted134 against the old unchecked implementation. It now
+requires failed init, inactive OT/no endpoint, successful retry and ordered
+cleanup. The prior three real-LIFO cases remain. Test stand-ins make no ABI
+claim; actual production glue is still independently cross-built for OS9.
+Registration follow-up final: host525unit/230242mutation/106CLI/12TLS/
+21serializedGUI +4actual-glue cases; explicit ASan+UBSan525/230242/106
++4glue cases. Actual NetBSD G4 all4glue cases, libc.so.12 only. Full OS9
+PowerPC cross-build passed. Native OS9 exit/failure injection remains pending.
+No private config read; disposable G4 test files cleaned. All builds Linux.
+Logs /tmp/weather-ot-registration-{red,check,san,os9,maul,cross}.log.

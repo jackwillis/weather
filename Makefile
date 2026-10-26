@@ -166,7 +166,7 @@ distcheck: dist
 # Host-test the actual OS9 glue against test-owned system API stand-ins.
 $(BUILD)/ot-shutdown-test: test/ot_shutdown.cpp src/platform/os9/ot_glue.cc src/platform/os9/ot_min.h test/os9-stubs/MacTypes.h test/os9-stubs/Gestalt.h src/platform/posix/nocxx.cpp FORCE
 	mkdir -p $(BUILD)
-	$(CXX) $(CXXFLAGS_ALL) -Wno-multichar -Wno-address -Itest/os9-stubs $(EXTRA_LDFLAGS) -o $@ test/ot_shutdown.cpp src/platform/os9/ot_glue.cc src/platform/posix/nocxx.cpp
+	$(CXX) $(CXXFLAGS_ALL) -Wno-multichar -Wno-address -Itest/os9-stubs $(EXTRA_LDFLAGS) -o $@ test/ot_shutdown.cpp src/platform/posix/nocxx.cpp
 
 # ---- tests
 check: $(CHECK_TARGET)

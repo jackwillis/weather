@@ -41,7 +41,13 @@ OSStatus InitOpenTransport(void)
 	g_record.exit_patch_rd = &g_exit_patch_rd;
 	g_record.flag = 1;
 	OSStatus e = InitOpenTransportPriv(3, &g_record);
-	if (e == noErr && !g_open) { g_open = true; std::atexit(close_at_exit); }
+	if (e == noErr && !g_open) {
+		g_open = true;
+		if (std::atexit(close_at_exit) != 0) {
+			CloseOpenTransport(); // undo successful init; never leave an unowned OT client
+			return -1;
+		}
+	}
 	return e;
 }
 
