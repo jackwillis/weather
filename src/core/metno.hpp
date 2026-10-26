@@ -99,8 +99,14 @@ constexpr Status metno_parse(sv body, const Query &q, Forecast *f)
 	JsonLookup cl = json_get(details, "cloud_area_fraction");
 	if (cl.r == JsonFind::Found) { n = json_num(cl.value, 1); if (n.ok) { cloud10 = n.v; have_cloud = true; } }
 
+	// Raw values are range-checked before they are converted: on 32-bit targets (PowerPC, Retro68) long is 32 bits and the
+	// unit factors would overflow, and rounding must not turn -0.6 % into 0 %. The metric range holds for the Fahrenheit result too.
+	if (!plausible_temp_t10(c10, true)) return make(Err::BadData, "temperature out of plausible range");
+	if (have_wind && (ms10 < 0 || ms10 > 1000)) return make(Err::BadData, "wind speed out of range");
+	if (have_rh && (rh10 < 0 || rh10 > 1000)) return make(Err::BadData, "humidity out of range");
+	if (have_dir && (dir10 < 0 || dir10 > 3600)) return make(Err::BadData, "wind direction out of range");
+	if (have_cloud && (cloud10 < 0 || cloud10 > 1000)) return make(Err::BadData, "cloud cover out of range");
 	long temp = q.metric ? c10 : c_to_f_t10(c10);
-	if (!plausible_temp_t10(temp, q.metric)) return make(Err::BadData, "temperature out of plausible range");
 
 	// the symbol for the next hour describes "now" best
 	MetCode mc{-1, -1};
@@ -134,7 +140,7 @@ constexpr Status metno_parse(sv body, const Query &q, Forecast *f)
 	}
 	f->source = "met-no";
 	f->metric = q.metric;
-	return okay();
+	return check_fields(*f, q.metric);
 }
 
 constexpr Provider kMetNo = {
