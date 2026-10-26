@@ -28,8 +28,9 @@ Focused green: nine Python test groups and four POSIX smoke checks pass.
 Expected failure diagnostic during fault injection:
 FAILED: cannot atomically replace configuration; configuration left unchanged
 
-Scope: configuration editor portion of #57 only. mkpkg-netbsd.sh pipeline
-status and deliver-os9.sh completion-marker behavior remain outstanding.
+Scope at initial commit1288ab3: configuration editor portion of #57. A later
+#85 update handles package/delivery code; see package-delivery-2026-10-26.txt
+for those checks and the remaining native Tiger acceptance limit.
 No system configuration, installed package, privileged command or OS 9 volume
 was changed. Native checks use unprivileged temporary copies only.
 
