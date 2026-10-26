@@ -1,1 +1,2 @@
 - Display a rounded duration of 60 minutes as “1 h” in refresh countdowns and forecast ages, keeping the existing nearest-minute rounding below an hour.
+- Scale the shared weather artwork to fit small panels, retaining complete sun, cloud and precipitation geometry inside60x60 areas. Existing scenes at least100x100 keep their original geometry.

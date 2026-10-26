@@ -9,6 +9,7 @@
 #include "core/version.hpp"
 #include "app/locform.hpp"
 #include "app/model.hpp"
+#include "app/weather_art.hpp"
 #include "app/textedit.hpp"
 #include "core/providers.hpp"
 #include "core/settings.hpp"
@@ -643,6 +644,46 @@ static Forecast some_forecast(long t10)
 	return f;
 }
 
+// Record conservative primitive extents, including round line caps.
+struct ArtBounds {
+	ArtRect area;
+	bool valid = true;
+	int calls = 0;
+	void box(int x0, int y0, int x1, int y1) {
+		calls++;
+		if (x0 < area.x || y0 < area.y || x1 > area.x + area.w || y1 > area.y + area.h) valid = false;
+	}
+	void rect(int x, int y, int w, int h, Rgb) { box(x, y, x + w, y + h); }
+	void disc(int x, int y, int r, Rgb) { box(x - r, y - r, x + r, y + r); }
+	void line(int x, int y, int xx, int yy, int width, Rgb) {
+		int pad = (width + 1) / 2;
+		box((x < xx ? x : xx) - pad, (y < yy ? y : yy) - pad,
+		    (x > xx ? x : xx) + pad, (y > yy ? y : yy) + pad);
+	}
+	void poly(const ArtPt *p, int n, Rgb) { for (int i = 0; i < n; i++) box(p[i].x, p[i].y, p[i].x, p[i].y); }
+};
+static void test_art_bounds()
+{
+	const ArtRect areas[] = {{0, 0, 60, 60}, {9, 11, 60, 90}, {-9, -11, 90, 60},
+	    {0, 0, 100, 100}, {8, 12, 160, 120}, {0, 0, 16, 16},
+	    {0, 0, 5, 5}, {0, 0, 4, 4}, {0, 0, 1, 1}};
+	for (ArtRect area : areas) {
+		int failures = 0;
+		for (long code = -1; code <= 99; code++) for (int night = 0; night < 2; night++) {
+			ArtBounds canvas{area};
+			art::picture(canvas, area, code, night != 0);
+			if (!canvas.valid || canvas.calls == 0) failures++;
+		}
+		if (failures) printf("art bounds: %dx%d at %d,%d: %d of 202 scenes failed\n", area.w, area.h, area.x, area.y, failures);
+		CHECK(failures == 0);
+	}
+	const ArtRect empty[] = {{0, 0, 0, 60}, {0, 0, 60, 0}, {0, 0, -1, 60}};
+	for (ArtRect area : empty) {
+		ArtBounds canvas{area}; art::picture(canvas, area, 0, false);
+		CHECK(canvas.calls == 0);
+	}
+}
+
 static void test_model()
 {
 	{ // Rounding at the minute/hour boundary must not produce "60 min".
@@ -1052,6 +1093,7 @@ int main()
 	test_settings_text();
 	test_settings_store();
 	test_model();
+	test_art_bounds();
 	test_forms();
 	test_metno();
 	test_os9_dns();
