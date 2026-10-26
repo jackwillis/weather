@@ -43,7 +43,6 @@ OSStatus InitOpenTransport(void)
 {
 	long resp = 0;
 	if (Gestalt('otan', &resp) != noErr || !(resp & 1)) return -3201;   // Open Transport not present (same code as Apple's glue)
-	if (reinterpret_cast<void *>(InitOpenTransportPriv) == nullptr) return -3201;
 	g_record.library_manager = &g_library_manager;
 	g_record.slm_global = &g_slm_global;
 	g_record.exit_patch_rd = &g_exit_patch_rd;

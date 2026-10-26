@@ -92,3 +92,7 @@ The fact that OT 1.1.x was offered for some 7.x configurations does not establis
 ## Ship policy
 
 For Weather 0.1, claim **Mac OS 9.2.2 PowerPC, verified under Classic on the G4**, not “System 7–9 compatible.” Run native OS 9.2.2 and other 9.x environments before broadening. Unsupported platforms may work; unverified is not the same as broken.
+
+## Compiler verification, 2026-10-26
+
+The full PowerPC OS9 cross-build passes with these layout assertions. `make check-ot-layout` also compiles the actual glue, then requires deliberately changed record size and flag offset to fail their expected assertions. It uses private copies of our source and no copied SDK files. The ineffective ordinary function-address null test is removed; this does not add weak imports or detect a missing CFM import before program load. Evidence and runtime limits: `docs/verification/ot-layout-2026-10-26.txt`.
