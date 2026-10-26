@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Seed-free File Manager acceptance in a newly owned disposable directory.
 #include "platform/os9/settings_os9.hpp"
 #include "app/preferences.hpp"

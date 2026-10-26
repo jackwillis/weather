@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // ~/.weatherrc: "key = value" lines, '#' comments. Command-line flags override it.
 #pragma once
 #include "log.hpp"

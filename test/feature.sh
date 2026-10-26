@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Feature tests: run the real binary against a misbehaving local server and
 # check what a user or script would see (output text, exit status).
 # usage: sh test/feature.sh path/to/weather        ONLINE=1 also tests the real server

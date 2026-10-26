@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Open Transport backend. One endpoint at a time (a small windowed or console app).
 // Endpoints are synchronous + non-blocking: every call returns at once and "no data yet" is polled, so Net::yield
 // runs about every 50 ms (the event loop stays alive and the user can cancel). Known limit, like getaddrinfo on

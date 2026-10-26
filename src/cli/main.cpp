@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // weather: print current conditions. See weather.1 for usage.
 #include "core/config.hpp"
 #include "core/fetch.hpp"

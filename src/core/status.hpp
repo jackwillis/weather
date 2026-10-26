@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Error kinds. Every fallible call returns a Status (no exceptions, no heap).
 #pragma once
 #include <cstddef>

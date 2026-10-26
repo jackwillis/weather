@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Parser robustness: deterministic mutation testing. Every parser sees truncated, byte-flipped,
 // byte-deleted and randomly edited versions of real inputs, plus hostile shapes (deep nesting,
 // huge numbers, embedded NULs). The point is "never crashes, never reads out of range, and if it
