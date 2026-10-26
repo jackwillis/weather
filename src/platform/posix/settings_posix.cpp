@@ -46,6 +46,7 @@ static Status px_save(SettingsStore &st, const char *text, size_t n)
 		snprintf(real, sizeof real, "%s", p->path);
 	}
 	mode_t mode = 0644;
+	bool existing = false;
 	struct stat sb;
 	if (stat(real, &sb) == 0) {
 		if (!S_ISREG(sb.st_mode)) return make(Err::Io, "settings file is not regular");
@@ -54,6 +55,7 @@ static Status px_save(SettingsStore &st, const char *text, size_t n)
 		if (!(sb.st_mode & 0222) || access(real, W_OK) != 0)
 			return make(Err::Io, "settings file is not writable");
 		mode = sb.st_mode & 0777;
+		existing = true;
 	} else if (errno != ENOENT) {
 		return make(Err::Io, "cannot inspect settings file", errno);
 	}
@@ -61,6 +63,12 @@ static Status px_save(SettingsStore &st, const char *text, size_t n)
 	snprintf(tmp, sizeof tmp, "%s.tmp.%ld", real, static_cast<long>(getpid()));
 	int fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL, mode);
 	if (fd < 0) return make(Err::Io, "cannot create temporary settings file", errno);
+	// open applies umask even to an existing file's replacement. Restore its
+	// ordinary permission bits explicitly; new files still respect umask.
+	if (existing && fchmod(fd, mode) != 0) {
+		int e = errno; close(fd); unlink(tmp);
+		return make(Err::Io, "cannot preserve settings permissions", e);
+	}
 	size_t done = 0;
 	while (done < n) {
 		ssize_t w = write(fd, text + done, n - done);

@@ -1,1 +1,2 @@
 - Refuse atomic settings replacement for read-only files, hard-linked files, dangling symlinks, non-regular files, and files owned by another user. Valid symlinks still update their target.
+- Preserve existing settings permission bits when saving under a restrictive umask. Oversized rewrites still fail clearly without changing the file.
