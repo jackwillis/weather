@@ -26,9 +26,11 @@ quit_xw() {
 	wait $XW; check "$1: exit status" "$?" 0
 }
 
-$XVFB $DISPLAY -screen 0 640x420x24 -nolisten tcp $XVFB_ARGS > xvfb.log 2>&1 &
-XPID=$!
-trap 'kill $XPID 2>/dev/null' EXIT
+if [ "${XVFB_EXTERNAL:-0}" != 1 ]; then
+    $XVFB $DISPLAY -screen 0 640x420x24 -nolisten tcp -noreset $XVFB_ARGS > xvfb.log 2>&1 &
+    XPID=$!
+    trap 'kill $XPID 2>/dev/null' EXIT
+fi
 i=0
 until ./xdrive ping 2>/dev/null; do
 	i=$((i+1)); [ $i -gt 90 ] && { echo "FAIL Xvfb did not start"; cat xvfb.log; exit 1; }

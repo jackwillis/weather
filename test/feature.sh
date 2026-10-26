@@ -4,10 +4,12 @@
 # usage: sh test/feature.sh path/to/weather        ONLINE=1 also tests the real server
 BIN=${1:-build/host/weather}
 HERE=$(dirname "$0")
-BASE=${PORT_BASE:-18700}
+FIXTURE_HERE=$HERE
+. "$HERE/fixture-lib.sh"
+fixture_init || exit 1
 pass=0; fail=0
-pids=""
-trap 'kill $pids 2>/dev/null' EXIT INT TERM
+trap 'fixture_cleanup' EXIT
+trap 'exit 1' INT TERM
 
 ok()   { pass=$((pass+1)); }
 bad()  { fail=$((fail+1)); echo "FAIL: $1"; }
@@ -20,9 +22,9 @@ expect() {
 }
 contains() { case "$OUT" in *"$2"*) ok;; *) bad "$1: output lacks '$2' (got: $OUT)";; esac; }
 
-serve() {  # serve MODE -> sets $P to the port
-	P=$BASE; BASE=$((BASE+1))
-	python3 "$HERE/fixture_server.py" "$1" "$P" & pids="$pids $!"
+serve() {  # serve MODE -> sets $P to a bound, ready port
+    fixture_start "$1" || exit 1
+    P=$FIXTURE_PORT
 }
 
 serve ok; P_OK=$P
@@ -37,9 +39,7 @@ serve imperial; P_IMP=$P
 serve badjson; P_BADJ=$P
 serve metno; P_MET=$P
 serve fallback; P_FALL=$P
-sleep 1
-
-CFG=$(mktemp); echo "attempts = 1" > "$CFG"
+CFG="$FIXTURE_STATE/config"; echo "attempts = 1" > "$CFG"
 W="-c $CFG"
 
 expect "ok oneline" 0 $W -1 -H 127.0.0.1:$P_OK
