@@ -120,6 +120,19 @@ constexpr sv trim(sv t)
 	return t.substr(b, e - b);
 }
 
+// Text files may end lines with LF, CRLF or a lone CR (classic Mac OS). line_break: index of the first break at or after
+// pos, or t.size(). after_break: index just past the break at `at` (CRLF counts as one); t.size() if there is none.
+constexpr size_t line_break(sv t, size_t pos)
+{
+	while (pos < t.size() && t[pos] != '\n' && t[pos] != '\r') pos++;
+	return pos;
+}
+constexpr size_t after_break(sv t, size_t at)
+{
+	if (at >= t.size()) return t.size();
+	return (t[at] == '\r' && at + 1 < t.size() && t[at + 1] == '\n') ? at + 2 : at + 1;
+}
+
 constexpr size_t find(sv h, sv needle, size_t from = 0)
 {
 	if (needle.size() == 0) return from;

@@ -78,6 +78,14 @@ static void test_openmeteo()
 	CHECK(s.err == Err::Parse);                 // truncated JSON
 	s = openmeteo_parse(R"({"current":{"temperature_2m":9999,"weather_code":0}})", q, &f);
 	CHECK(s.err == Err::BadData);               // implausible
+	s = openmeteo_parse(R"({"current":{"temperature_2m":20.0,"weather_code":150}})", q, &f);
+	CHECK(s.err == Err::BadData);               // no such WMO code
+	s = openmeteo_parse(R"({"current":{"temperature_2m":20.0,"weather_code":99}})", q, &f);
+	CHECK(s.ok());
+	{ Query mq; mq.metric = true;               // the real (Fahrenheit, mp/h) fixture answers a metric request: refused, not relabelled
+	  Forecast mf;
+	  s = openmeteo_parse(fixture(0, "openmeteo-ok.json"), mq, &mf);
+	  CHECK(s.err == Err::BadData && strstr(s.msg, "units") != nullptr); }
 	s = openmeteo_parse("<html>", q, &f);
 	CHECK(s.err == Err::Parse);
 	s = openmeteo_parse(R"({"latitude":1})", q, &f);
@@ -112,6 +120,17 @@ static void test_config()
 	CHECK(config_parse("", &c).ok());
 	{ Config d; CHECK(d.lat_e4 == 430747 && d.lon_e4 == -893841 && !strcmp(d.name, "Madison, WI")); }
 	CHECK(config_parse("units = metric", &c).ok());         // no trailing newline
+	{ // classic Mac files end lines with CR alone: a CR is a line break, not whitespace inside one line
+		Config d;
+		s = config_parse("# my weather\rlatitude = 59.9100\rlongitude = 10.7500\rname = Oslo\r", &d);
+		CHECK(s.ok() && d.lat_e4 == 599100 && d.lon_e4 == 107500 && !strcmp(d.name, "Oslo"));
+		s = config_parse("units = metric\rbogus = 1\r", &d);
+		CHECK(s.err == Err::Config && s.detail == 2);       // the line number counts CR lines
+		s = config_parse("# a\r\nlatitude = 1.5\rlongitude = 2.5\nname = X", &d);   // CRLF, CR and LF mixed; no final terminator
+		CHECK(s.ok() && d.lat_e4 == 15000 && d.lon_e4 == 25000 && !strcmp(d.name, "X"));
+		s = config_parse("units = metric\r\nbogus = 1\r\n", &d);
+		CHECK(s.err == Err::Config && s.detail == 2);       // CRLF is one break, not two: still line 2
+	}
 }
 
 // ---- scripted fake network
@@ -492,6 +511,12 @@ static void test_settings_text()
 		CHECK(upd("name = A\r\nunits = metric\r\n", loc + 2, 1, out, sizeof out));
 		CHECK(sv(out) == sv("name = Oslo\r\nunits = metric\r\n"));
 	}
+	{ // CR-only (classic Mac) files: lines are found, edited in place, and new keys use the file's line ending
+		CHECK(upd("# my weather\rlatitude = 1.0\rname = X # home\runits = metric\r", loc, 3, out, sizeof out));
+		CHECK(sv(out) == sv("# my weather\rlatitude = 59.9100\rname = Oslo  # home\runits = metric\rlongitude = 10.7500\r"));
+		Config c;
+		CHECK(config_parse(out, &c).ok() && c.lat_e4 == 599100 && c.lon_e4 == 107500 && !strcmp(c.name, "Oslo") && c.metric);
+	}
 	{ // a commented-out key is not the key
 		CHECK(upd("# latitude = 5\n", loc, 1, out, sizeof out));
 		CHECK(sv(out) == sv("# latitude = 5\nlatitude = 59.9100\n"));
@@ -707,6 +732,32 @@ static void test_model()
 		CHECK(m.next_refresh_at() <= 500 + 900);
 		CHECK(m.tick(500 + 900));
 		CHECK(m.age(100) == 0);          // never a negative age
+	}
+	{ // the clock stepped back after a fetch: the age of the data cannot be known. It is stale and must not read "just now"
+		Model m(mc, 1000000);
+		m.tick(1000000);
+		Forecast f = some_forecast(548);
+		m.finish(1000000, okay(), &f);
+		CHECK(!m.stale(1000010));        // normal case unchanged
+		Buf<200> ok; m.status_line(ok, 1000010);
+		CHECK(strstr(ok.c_str(), "Updated just now") != nullptr);
+		CHECK(m.stale(500));
+		Buf<200> b; m.status_line(b, 500);
+		CHECK(strstr(b.c_str(), "just now") == nullptr && strstr(b.c_str(), "Updated at an unknown time, clock changed") != nullptr);
+		CHECK(m.stale(1000000 - 1) && !m.stale(1000000));   // the boundary: now == fetch time is a known age (0)
+		CHECK(!m.tick(500));                                // the UI ticks every second; the refresh time is clamped to the new clock
+		CHECK(m.tick(500 + 900));                           // fetching: the old data is still described honestly
+		Buf<200> fb; m.status_line(fb, 500 + 900);
+		CHECK(strstr(fb.c_str(), "showing data from an unknown time, clock changed") != nullptr);
+		m.finish(500 + 900, make(Err::Timeout, "timed out"), nullptr);
+		Buf<200> xb; m.status_line(xb, 500 + 901);
+		CHECK(strstr(xb.c_str(), "Showing data from an unknown time, clock changed") != nullptr);
+		CHECK(m.stale(500 + 901));
+		m.tick(500 + 900 + 60);
+		Forecast g = some_forecast(550);
+		m.finish(500 + 900 + 61, okay(), &g);                // a fresh fetch under the new clock: known age again
+		Buf<200> nb; m.status_line(nb, 500 + 900 + 62);
+		CHECK(!m.stale(500 + 900 + 62) && strstr(nb.c_str(), "Updated just now") != nullptr);
 	}
 	{ // location changes while a fetch runs: its answer is dropped and a new fetch is queued
 		Model m(mc, 0);
