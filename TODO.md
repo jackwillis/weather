@@ -1,7 +1,7 @@
 # TODO
 
 ## Now
-- [ ] OS 9 window UI (classic Toolbox: window, menus, dialogs; Platinum look) on top of the existing Model; settings store (Preferences folder), proper event loop (WaitNextEvent) instead of the console app
+- [ ] OS 9 Location/Preferences (#12): implemented and cross-built; native dialog/store probes, screenshots and actual restart acceptance await Tiger.
 - [ ] OS 9 hardening acceptance: DNS delayed-open/stalled-server hardware coverage; NetBSD hardware regression after DNS/seed changes (cross-build passes); run under 68k only if a target needs it
 - [ ] M3c last step: jack runs `xweather` once on maul's real X display (window manager, depth, feel); fix what that shows
 - [ ] Reinstall the rebuilt NetBSD package on maul (`doas pkg_add -u`; staged at /tmp/weather-0.1.0.tgz, lost at reboot: rebuild with tools/mkpkg-netbsd.sh)
@@ -22,6 +22,7 @@
 - [ ] CI with a big-endian check; Mac OS X Tiger native build (parked)
 
 ## Done
+- [x] First native OS 9 window (#11): shared art, buffered QuickDraw, menus and model status, bounded yielding event pump, config loading shared with WeatherConsole, separate hardware diagnostic executable. Location editing and Preferences hardware acceptance remain in #12.
 - [x] OS 9 managed TLS seeds (2026-10-25): explicit provisioning, checked rotation, exclusive ownership and HMAC-DRBG; 461 host checks, 186018 mutated inputs, sanitizer/CLI/GUI checks; real-store fault injection on maul; approved genuine seed installation and two live verified-TLS launches with seed advancement. Fixed Retro68 unlink-stub import cleanup through native deletion, with red/green hardware regression.
 - [x] OS 9 end to end (2026-10-25): console `Weather` app fetched a live forecast over TLS 1.2 (ECDHE-RSA-ChaCha20-Poly1305, cert verified against our anchors) on a real Mac OS 9.2.2 under Classic. Our own Open Transport glue replaced Apple's (probe 4 proves it); network layer, log sink, SIZE resource, `make os9`. Bugs found on hardware and fixed: event pump spun forever on an unvalidated update event, Retro68 `printf` has no `%zu`/`%lld`, UTC conversion double-counted daylight saving (checked against OS X `date -u`).
 - [x] Second data source MET Norway (met-no): one request, worldwide, F/C and m/s conversions, WMO code mapping, `contact` setting + User-Agent (their terms), HARICA root pinned; live-verified through BearSSL; compile-time tests also run on Retro68; fallback and skip-without-contact tested (226 unit, 164k mutated inputs, 78 feature) (2026-10-24)

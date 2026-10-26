@@ -4,6 +4,8 @@
 // says OK the answer is sane"; build it with -fsanitize=address,undefined (make check-san) and the
 // sanitizers do the watching. usage: robust [random-iterations] (default 20000)
 #include "app/textedit.hpp"
+#include "app/config_load.hpp"
+#include "app/preferences.hpp"
 #include "core/config.hpp"
 #include "core/http.hpp"
 #include "core/json.hpp"
@@ -12,6 +14,7 @@
 #include "core/settings.hpp"
 #include "core/version.hpp"
 #include "tls/seed_pool.hpp"
+#include "platform/os9/portable.hpp"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -39,6 +42,41 @@ static void exercise(const char *p, size_t n)
 	g_runs++;
 	g_cur_len = n;
 	sv in(p, n);
+	SettingsStore config_store; config_store.ctx=&in;
+	config_store.load=[](SettingsStore &store,char *out,size_t cap,size_t *size) {
+		sv value=*static_cast<sv *>(store.ctx);
+		*size=value.size();
+		if(value.size()<cap) memcpy(out,value.data(),value.size());
+		return okay();
+	};
+	Config loaded;
+	Status config_status=load_config(config_store,loaded);
+	if(!config_status.ok()) {
+		EXPECT(loaded.lat_e4==430747 && loaded.lon_e4==-893841);
+		EXPECT(!loaded.metric && loaded.auto_refresh && !strcmp(loaded.name,"Madison, WI"));
+	}
+	// Format adapter: bounded output, failure empties it, deterministic prefix.
+	char full[257], small[18];
+	memset(small, 0x5a, sizeof small);
+	bool adapted = os9::rewrite_log_format(in, full, sizeof full);
+	bool bounded = os9::rewrite_log_format(in, small, sizeof small - 1);
+	EXPECT(small[17] == 0x5a);
+	if (bounded) { EXPECT(adapted); EXPECT(strlen(small) < 17); EXPECT(!strcmp(full, small)); }
+	else EXPECT(small[0] == 0);
+	if (adapted) { EXPECT(strlen(full) == n); EXPECT(n < sizeof full); }
+	// Compare full-width integer formatting with the host's independent formatter.
+	unsigned long long number = 0;
+	for (size_t i = 0; i < n && i < 8; ++i)
+		number = (number << 8) | static_cast<unsigned char>(p[i]);
+	char decimal[22], expected[22];
+	EXPECT(os9::decimal_unsigned(number, decimal, sizeof decimal));
+	snprintf(expected, sizeof expected, "%llu", number);
+	EXPECT(!strcmp(decimal, expected));
+	long long signed_number = static_cast<long long>(number >> 1);
+	if (number & 1) signed_number = -signed_number;
+	EXPECT(os9::decimal_signed(signed_number, decimal, sizeof decimal));
+	snprintf(expected, sizeof expected, "%lld", signed_number);
+	EXPECT(!strcmp(decimal, expected));
 	unsigned char seed_out[32], encoded[kSeedRecordSize];
 	if (seed_decode(reinterpret_cast<const unsigned char *>(p), n, seed_out)) {
 		seed_encode(seed_out, encoded);
@@ -84,6 +122,35 @@ static void exercise(const char *p, size_t n)
 	for (int d = 0; d <= 4; d++) { Num x = parse_fixed(in.substr(0, 40), d); if (x.ok) EXPECT(x.v > -2000000000L && x.v < 2000000000L); }
 	for (int d = 5; d <= 9; d++) (void)parse_fixed(in.substr(0, 40), d);
 	(void)json_num(in.substr(0, 40), 1);
+
+    // Preferences precedence and transaction policy share the same hostile text.
+    struct TextSource { sv text; bool saved=false; size_t result_size=0; char result[4096]={}; } source{in}, legacy_source{"latitude=1\n"};
+    auto read_text=[](SettingsStore &store,char *out,size_t cap,size_t *count) {
+        auto &src=*static_cast<TextSource *>(store.ctx); *count=0;
+        if(src.text.size()>=cap) return make(Err::Config,"mutation text too large");
+        memcpy(out,src.text.data(),src.text.size()); *count=src.text.size(); return okay();
+    };
+    SettingsStore prefs, legacy_store;
+    prefs.ctx=&source; prefs.load=read_text;
+    legacy_store.ctx=&legacy_source; legacy_store.load=read_text;
+    prefs.save=[](SettingsStore &store,const char *text,size_t count) {
+        auto &src=*static_cast<TextSource *>(store.ctx);
+        if(count>=sizeof src.result) return make(Err::Config,"mutation save too large");
+        memcpy(src.result,text,count); src.result[count]=0; src.result_size=count; src.saved=true; return okay();
+    };
+    Config loaded_prefs; loaded_prefs.lat_e4=123;
+    Status loaded_status=load_preferences(prefs,legacy_store,loaded_prefs);
+    if(!loaded_status.ok()) EXPECT(loaded_prefs.lat_e4==123);
+    else EXPECT(loaded_prefs.lat_e4>=-900000 && loaded_prefs.lat_e4<=900000);
+    Config current, candidate=current; candidate.lat_e4=10000; candidate.metric=true;
+    Model preference_model;
+    Status committed=commit_preferences(prefs,legacy_store,candidate,current,preference_model,0);
+    if(committed.ok()) {
+        EXPECT(source.saved && current.lat_e4==10000 && current.metric);
+        Config saved_config;
+        EXPECT(config_parse(sv(source.result,source.result_size),&saved_config).ok());
+        EXPECT(saved_config.lat_e4==10000 && saved_config.metric);
+    } else EXPECT(!source.saved && current.lat_e4==430747 && !current.metric);
 
 	// config file and settings editor
 	Config c;
@@ -192,6 +259,8 @@ int main(int argc, char **argv)
 	static const char cfg[] = "# my weather\nlatitude = 43.0747  # home\nlongitude=-89.3841\nname = Madison, WI\nunits = metric\n"
 	    "timeout = 15\nattempts = 3\nproviders = open-meteo\nlog = info\nautorefresh = off\n";
 	mutate_all(cfg, sizeof cfg - 1, iterations, rng);
+	static const char formats[] = "%zu %%zu %08zu %.*zu %lld %s %ld %.2f %%";
+	mutate_all(formats, sizeof formats - 1, iterations, rng);
 	unsigned char synthetic_seed[32], record[kSeedRecordSize];
 	for (size_t i = 0; i < sizeof synthetic_seed; ++i) synthetic_seed[i] = static_cast<unsigned char>(i + 1);
 	seed_encode(synthetic_seed, record);

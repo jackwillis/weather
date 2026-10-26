@@ -67,9 +67,40 @@ int main(int argc, char **argv)
 	sigaction(SIGINT, &sa, nullptr);
 	sigaction(SIGTERM, &sa, nullptr);
 
-	// Pass 1: config file (so flags can override it).
-	for (int i = 1; i < argc - 1; i++)
-		if (!strcmp(argv[i], "-c")) cfgpath = argv[i + 1];
+	// Options that edit the config are recorded, then applied after the config file is loaded, so a flag overrides the file
+	// whichever way -c is written (-c FILE, -cFILE, -Sc FILE) and wherever it appears.
+	struct Pending { char ch; const char *arg; } pending[32];
+	size_t npending = 0;
+
+	static const struct option longopts[] = {
+		{"help", no_argument, nullptr, 'h'},
+		{"version", no_argument, nullptr, 'V'},
+		{nullptr, 0, nullptr, 0},
+	};
+	int ch;
+	while ((ch = getopt_long(argc, argv, "1c:dhH:l:n:p:qsSt:u:vV", longopts, nullptr)) != -1) {
+		switch (ch) {
+		case '1': oneline = true; break;
+		case 'c': cfgpath = optarg; break;
+		case 'd': dump = true; verbose = 3; break;
+		case 'h': usage(stdout); return 0;
+		case 'H': force = optarg; break;
+		case 'l': case 'n': case 'p': case 't': case 'u':
+			if (npending == sizeof pending / sizeof *pending) return fail(make(Err::Usage, "too many options"));
+			pending[npending].ch = static_cast<char>(ch);
+			pending[npending++].arg = optarg;
+			break;
+		case 'q': quiet = true; break;
+		case 's': use_syslog = true; break;
+		case 'S': save = true; break;
+		case 'v': verbose++; break;
+		case 'V': printf("weather %s\n", WEATHER_VERSION); return 0;
+		default: usage(stderr); return exit_code(Err::Usage);
+		}
+	}
+	if (optind != argc) { usage(stderr); return exit_code(Err::Usage); }
+
+	// Config file first, then the recorded options on top of it, in the order given.
 	PosixStore store;
 	Status store_st = posix_settings_init(&store, cfgpath, false);   // -S may create the file; existence is checked below
 	if (store_st.ok()) {
@@ -85,46 +116,29 @@ int main(int argc, char **argv)
 		return fail(store_st);
 	}   // no HOME and no -c: run with defaults
 
-	static const struct option longopts[] = {
-		{"help", no_argument, nullptr, 'h'},
-		{"version", no_argument, nullptr, 'V'},
-		{nullptr, 0, nullptr, 0},
-	};
-	int ch;
-	while ((ch = getopt_long(argc, argv, "1c:dhH:l:n:p:qsSt:u:vV", longopts, nullptr)) != -1) {
+	for (size_t i = 0; i < npending; i++) {
+		const char *arg = pending[i].arg;
 		Status s;
-		switch (ch) {
-		case '1': oneline = true; break;
-		case 'c': break;  // handled above
-		case 'd': dump = true; verbose = 3; break;
-		case 'h': usage(stdout); return 0;
-		case 'H': force = optarg; break;
+		switch (pending[i].ch) {
 		case 'l': {
-			char *comma = strchr(optarg, ',');
+			const char *comma = strchr(arg, ',');
 			if (!comma) return fail(make(Err::Usage, "-l wants lat,lon"));
 			char la[32];
-			size_t ln = static_cast<size_t>(comma - optarg);
+			size_t ln = static_cast<size_t>(comma - arg);
 			if (ln >= sizeof la) return fail(make(Err::Usage, "-l latitude too long"));
-			memcpy(la, optarg, ln); la[ln] = 0;
+			memcpy(la, arg, ln); la[ln] = 0;
 			s = config_set(&cfg, "latitude", la, 0);
 			if (s.ok()) s = config_set(&cfg, "longitude", comma + 1, 0);
-			if (!s.ok()) return fail(make(Err::Usage, s.msg));
-			cfg.name[0] = 0;   // the configured name described somewhere else
+			if (s.ok()) cfg.name[0] = 0;   // the configured name described somewhere else
 			break;
 		}
-		case 'n': s = config_set(&cfg, "name", optarg, 0); if (!s.ok()) return fail(make(Err::Usage, s.msg)); break;
-		case 'p': s = config_set(&cfg, "providers", optarg, 0); if (!s.ok()) return fail(make(Err::Usage, s.msg)); break;
-		case 'q': quiet = true; break;
-		case 's': use_syslog = true; break;
-		case 'S': save = true; break;
-		case 't': s = config_set(&cfg, "timeout", optarg, 0); if (!s.ok()) return fail(make(Err::Usage, s.msg)); break;
-		case 'u': s = config_set(&cfg, "units", optarg, 0); if (!s.ok()) return fail(make(Err::Usage, s.msg)); break;
-		case 'v': verbose++; break;
-		case 'V': printf("weather %s\n", WEATHER_VERSION); return 0;
-		default: usage(stderr); return exit_code(Err::Usage);
+		case 'n': s = config_set(&cfg, "name", arg, 0); break;
+		case 'p': s = config_set(&cfg, "providers", arg, 0); break;
+		case 't': s = config_set(&cfg, "timeout", arg, 0); break;
+		case 'u': s = config_set(&cfg, "units", arg, 0); break;
 		}
+		if (!s.ok()) return fail(make(Err::Usage, s.msg));
 	}
-	if (optind != argc) { usage(stderr); return exit_code(Err::Usage); }
 	// A config file named with -c must exist, unless we are about to create it with -S.
 	if (cfgpath && !save && access(cfgpath, F_OK) != 0)
 		return fail(make(Err::Config, "cannot open config file", 0));
