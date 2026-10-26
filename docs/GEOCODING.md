@@ -1,8 +1,8 @@
 # Location search
 
 PR #17 implements the portable foundation and explicit read-only CLI search
-(`weather -g "place"`, also `--search`). X11 result selection is implemented; OS 9 controls and native OS 9
-acceptance remain pending. Normal forecast requests and startup do not search.
+(`weather -g "place"`, also `--search`). X11 result selection and OS 9 native search controls are implemented. Native OS 9
+interaction and layout acceptance remain pending. Normal forecast requests and startup do not search.
 The CLI prints numbered matches, region/country and coordinates, with attribution
 and a simplification note when needed. It never automatically selects or saves;
 use chosen coordinates with -l, an optional -n, and -S in a separate command.
@@ -101,3 +101,33 @@ or TLS seed. Cross-build and actual runtime evidence must be distinguished.
 The first-run regression also covers terminal event processing: the test stops
 its owned process, queues Cancel then OK, and resumes it. Once Cancel sets quit,
 the pump must discard further input; a queued OK must not create settings.
+
+
+## Native OS 9 search controls (cross-built; runtime acceptance pending)
+
+Location has Find (Command-F). Opening it and editing the query send no request.
+Search performs the fixed-host TLS lookup. Five native radio controls list the
+bounded results; none is selected automatically. Selected details show the full
+name/region, country and coordinates, with an ASCII simplification notice when
+needed. Up/Down select a result, Return searches or uses the explicit selection,
+and Escape/Command-period cancels. Command-Q still quits during a lookup. Tab
+returns to the query field. Query edits discard previous results and selection.
+Use fills the parent Location fields; Apply remains the separate checked save.
+Parent editing and forecast ticks stay blocked while search is open. A pending
+Find also blocks queued Apply before the child dialog is created.
+
+The shared PlacePicker policy has host, sanitizer and PowerPC tests. Optional
+WeatherPlaceSearchTest uses only in-memory settings, a fake forecast and an
+explicit fake place callback. It covers the initial gate, pending Find/Apply,
+no request on opening/typing, explicit result choice, query edits, failed saves,
+failed/empty lookups and cancellation through Net::yield. Existing diagnostics
+without a place callback fail closed instead of falling back to live lookup.
+The diagnostic is cross-built, not run. Native typing, keyboard handling,
+layout/screenshots, actual TLS search and restart persistence still require
+Tiger. This milestone does not add provider selection or change service policy.
+
+The native probe exercises Return to search/use, Down for explicit selection and
+Escape cancellation. Its `capture-stage:` log markers identify results (2/20),
+failed save (21), failed lookup (5) and empty lookup (6); those states remain visible
+for three seconds each for a future external screenshot run. It never reads or
+writes production Preferences and never falls back to production search.

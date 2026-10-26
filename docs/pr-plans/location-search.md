@@ -29,8 +29,8 @@ coordinates, region and country; ASCII display simplification marked explicitly.
 Selection fills editable LocationForm fields without applying configuration.
 Tests use the Preferences seam to prove failed saves preserve old location/data
 and successful saves reload the chosen coordinates. At that foundation milestone no UI or CLI entry point
-invoked search. Remaining work is the original interface/first-run and
-hardware acceptance scope above; this milestone does not close the ticket.
+invoked search. Subsequent interface and first-run milestones are recorded below;
+hardware acceptance remains open.
 
 Verified milestone: final host, ASan/UBSan and actual NetBSD/macppc unit runs
 passed 641 checks. Host/sanitizer robustness passed 231002 inputs; PowerPC
@@ -88,7 +88,8 @@ explicit choice, save failure/retry, restart and cancellation. Actual PowerPC
 core: 644 unit / 87002 mutation inputs pass. No builds on maul. Native screenshots
 were inspected; this does not replace Jack's physical-display acceptance.
 Remote GUI tests use mktemp-owned directories and retain failure evidence.
-OS 9 search controls/diagnostics and first-run behavior remain unfinished.
+At the X11 milestone, OS 9 controls and first-run behavior were still pending;
+the subsequent updates below record their implementation.
 
 
 First-run milestone: empty/missing settings open Location before weather fetch.
@@ -106,4 +107,17 @@ runs leave settings empty. Host/ASan/PowerPC GUI all pass 53 checks; core 647 un
 Portable compiler probes pass. Full OS 9 production and new diagnostics build;
 initial diagnostic Status name ambiguity was fixed with wx::Status. No native
 runtime claim. Evidence: docs/verification/first-location-2026-10-26.txt.
-OS 9 place-search controls are still unfinished; this PR remains draft.
+OS 9 place-search controls were unfinished at the first-run milestone; see the native-control update below. This PR remains draft.
+
+
+## Native search control milestone
+
+Native Find, query, bounded result radios, selected details, Use and Cancel are
+implemented with app-owned DLOG/DITL 201. Explicit search is dispatched outside
+the event pump; network yield services child update events and cancellation.
+A queued Apply cannot run between Find and child creation. Use never saves.
+Portable PlacePicker state rejects implicit/stale/busy/cancelled selection and
+oversized callback results. WeatherPlaceSearchTest supplies isolated memory
+stores and callbacks; production has no fixture generator. Native runtime and
+visual/TLS acceptance remain pending on parked Tiger. Provider choice (#74) and
+stack integration (#76) remain separate work.
