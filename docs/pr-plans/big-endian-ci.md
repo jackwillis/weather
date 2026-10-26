@@ -41,9 +41,12 @@ In an isolated copy of text.hpp, removing the integer overflow guard and parsing
 UBSan. The valid 1.0 control completed first. No planted change entered the repo.
 This validates overflow detection independently of compile-time assertions.
 
-Hosted Ubuntu execution and its GCC 13/QEMU versions remain pending. The PR
-stays draft until hosted results are recorded. No claim of NetBSD syscall or
-hardware acceptance is made. Full-system NetBSD selection remains deferred.
+Hosted Ubuntu 24.04 also passed: QEMU 8.2.2 executed the expected big-endian
+32-bit ABI probe, 492 unit checks and 206820 mutation inputs. All three jobs in
+GitHub run 40248930684 passed, including host/GUI/sanitizers and 32-bit x86.
+The PR remains draft for review of this supplemental scope. No claim of NetBSD
+syscall or hardware acceptance is made; full-system NetBSD selection remains
+deferred. Distribution package versions are recorded in the job log.
 
 Host regression: make check passed 492 unit checks, 206820 mutation inputs,
 99 CLI checks and 21 GUI checks; ASan/UBSan checks passed. An initial sandboxed
