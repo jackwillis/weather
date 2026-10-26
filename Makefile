@@ -170,6 +170,8 @@ check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(B
 	$(BUILD)/robust
 	sh test/feature.sh $(BUILD)/weather
 	python3 test/seed_provision.py
+	python3 test/session_edits.py
+	sh test/session_edits.sh
 	sh test/flags.sh "$(MAKE)"
 # Everything again under AddressSanitizer + UBSan: unit tests, parser robustness, the CLI's feature tests.
 check-san:
