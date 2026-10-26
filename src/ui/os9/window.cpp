@@ -5,6 +5,7 @@
 #include "platform/os9/settings_os9.hpp"
 #include "platform/os9/config_os9.hpp"
 #include "core/log.hpp"
+#include "core/version.hpp"
 #include "app/weather_art.hpp"
 #include "core/fetch.hpp"
 #include "core/providers.hpp"
@@ -133,7 +134,7 @@ void draw_contents()
 	Rect r=box(236,270,88,24); color({0,0,0}); FrameRoundRect(&r,8,8); text(248,287,"Refresh",12,70);
 	if(actions.about) {
 		c.rect(8,43,324,210,{238,238,238}); Rect a=box(8,43,324,210); color({0,0,0}); FrameRect(&a);
-		text(40,78,"Weather for Mac OS 9",12,260);
+		text(40,78,"Weather " WEATHER_VERSION " for Mac OS 9",12,260);
 		text(40,103,"Forecast source is shown below the data.",10,260);
 		text(40,125,"Seed locked? Quit all Weather apps first.",10,260);
 		text(40,143,"Never remove a lock while one is running.",10,260);

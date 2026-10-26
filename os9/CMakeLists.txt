@@ -9,7 +9,7 @@ add_library(bearssl STATIC ${BEARSSL_SRC})
 target_include_directories(bearssl PUBLIC ${ROOT}/third_party/bearssl/inc PRIVATE ${ROOT}/third_party/bearssl/src)
 target_compile_options(bearssl PRIVATE -Os)
 
-set(WEATHER_VERSION_STR "0.1.0")
+set(WEATHER_VERSION_STR "0.0.1")
 set(WEATHER_COMMON
   ${ROOT}/src/app/preferences.cpp
   ${ROOT}/src/core/fetch.cpp
