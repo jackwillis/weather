@@ -105,16 +105,18 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
     const FetchOpts &o, char *buf, size_t cap, Forecast *out)
 {
 	Status last = make(Err::NoSource, "no data sources configured");
+	bool attempted = false;
 	for (size_t i = 0; i < n; i++) {
 		const Provider &p = *providers[i];
 		char path[320];
 		if (!p.path(q, path, sizeof path)) {
-			last = make(Err::BadData, "request path too long");
+			if (!attempted) last = make(Err::BadData, "request path too long");
 			continue;
 		}
 		if (p.needs_contact && !(o.contact && o.contact[0])) {
-			last = make(Err::Config, "this data source requires 'contact' in the config file (see weatherrc(5))");
-			logf(LogWarn, "%s skipped: %s", p.name, last.msg);
+			Status skipped = make(Err::Config, "this data source requires 'contact' in the config file (see weatherrc(5))");
+			if (!attempted) last = skipped;
+			logf(LogWarn, "%s skipped: %s", p.name, skipped.msg);
 			continue;
 		}
 		const char *host = o.force_host ? o.force_host : p.host;
@@ -133,9 +135,9 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 			logf(LogWarn, "%s failed: %s: %s (detail %d)", p.name, err_name(s.err), s.msg, s.detail);
 		}
 		last = s;
+		attempted = true;
 		if (s.err == Err::Cancelled) return s;   // do not fall back after a cancel
 	}
-	if (n > 1) return make(Err::NoSource, "all data sources failed", static_cast<int>(n));
 	return last;
 }
 

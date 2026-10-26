@@ -337,13 +337,40 @@ static void test_fallback()
 		Fake f; f.steps[0] = {make(Err::Connect, "refused"), "", Err::Ok}; f.nsteps = 1;
 		Net n = make_net(&f);
 		Status s = fetch_forecast(n, two, 2, q, o, buf, sizeof buf, &out);
-		CHECK(s.err == Err::NoSource && s.detail == 2);
+		CHECK(s.err == Err::Connect && !strcmp(s.msg, "refused"));
 	}
 	{ // single source: the real error comes through (so the exit code is meaningful)
 		Fake f; f.steps[0] = {make(Err::Connect, "refused"), "", Err::Ok}; f.nsteps = 1;
 		Net n = make_net(&f);
 		Status s = fetch_forecast(n, two, 1, q, o, buf, sizeof buf, &out);
 		CHECK(s.err == Err::Connect);
+	}
+	{ // Multiple sources preserve the last attempted cause and its detail.
+		const Err errors[] = {Err::CertUntrusted, Err::Clock, Err::Dns, Err::Timeout, Err::Io};
+		for (Err error : errors) {
+			Fake f;
+			f.steps[0] = {make(Err::Connect, "first failure", 11), "", Err::Ok};
+			f.steps[1] = {make(error, "last failure", 42), "", Err::Ok};
+			f.nsteps = 2;
+			Net n = make_net(&f);
+			Status s = fetch_forecast(n, two, 2, q, o, buf, sizeof buf, &out);
+			CHECK(s.err == error && s.detail == 42 && !strcmp(s.msg, "last failure"));
+			CHECK(f.connects == 2 && exit_code(s.err) == exit_code(error));
+		}
+	}
+	{ // A source skipped for missing contact must not hide an actual failure.
+		const Provider *mixed[] = {&kOpenMeteo, &kMetNo};
+		Fake f; f.steps[0] = {make(Err::CertUntrusted, "certificate rejected", 62), "", Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f);
+		Status s = fetch_forecast(n, mixed, 2, q, o, buf, sizeof buf, &out);
+		CHECK(s.err == Err::CertUntrusted && s.detail == 62 && f.connects == 1);
+	}
+	{ // Cancellation stops fallback and keeps the cancellation status.
+		Fake f; f.steps[0] = {make(Err::Cancelled, "cancelled", 7), "", Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f);
+		Status s = fetch_forecast(n, two, 2, q, o, buf, sizeof buf, &out);
+		CHECK(s.err == Err::Cancelled && s.detail == 7 && f.connects == 1);
+		CHECK(fetch_forecast(n, two, 0, q, o, buf, sizeof buf, &out).err == Err::NoSource);
 	}
 	CHECK(exit_code(Err::Dns) == 68 && exit_code(Err::Timeout) == 75 && exit_code(Err::Usage) == 64);
 	CHECK(retryable(make(Err::HttpStatus, "", 503)) && !retryable(make(Err::HttpStatus, "", 404)));

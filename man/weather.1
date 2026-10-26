@@ -132,7 +132,7 @@ that says what went wrong:
 .It 64 Ta EX_USAGE Ta bad command line
 .It 65 Ta EX_DATAERR Ta unusable or malformed answer
 .It 68 Ta EX_NOHOST Ta name lookup failed
-.It 69 Ta EX_UNAVAILABLE Ta cannot connect, or every source failed
+.It 69 Ta EX_UNAVAILABLE Ta cannot connect, or no sources configured
 .It 71 Ta EX_OSERR Ta the system clock is wrong
 .It 74 Ta EX_IOERR Ta network I/O error, or a truncated answer
 .It 75 Ta EX_TEMPFAIL Ta timed out
@@ -140,6 +140,12 @@ that says what went wrong:
 .It 78 Ta EX_CONFIG Ta bad settings file
 .It 130 Ta Ta interrupted
 .El
+.Pp
+If every source fails, the last attempted source determines the error and exit
+status. A later source skipped for missing contact information does not hide
+that failure. If no source was attempted, the last skip reason is reported.
+The final error remains visible with
+.Fl q .
 .Sh EXAMPLES
 Show the weather for the configured place:
 .Pp

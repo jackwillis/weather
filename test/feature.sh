@@ -111,6 +111,10 @@ contains "fell back to open-meteo" "(open-meteo "
 expect "falls back when the first source is broken" 0 -c "$CFG.met" -1 -p open-meteo,met-no -H 127.0.0.1:$P_FALL
 contains "fell back to met-no" "(met-no "
 expect "unknown source" 64 -p open-meteo,nope -H 127.0.0.1:$P_OK
+expect "quiet multiple sources retain HTTP exit" 76 -q -c "$CFG.met" -p open-meteo,met-no -H 127.0.0.1:$P_500
+contains "quiet multiple sources retain HTTP cause" "weather: http: server returned an error status (detail 500)"
+expect "quiet skipped source retains attempted failure" 76 -q -c "$CFG" -p open-meteo,met-no -H 127.0.0.1:$P_404
+contains "quiet skip does not hide HTTP cause" "weather: http: server returned an error status (detail 404)"
 rm -f "$CFG.met"
 
 # usage and config errors
