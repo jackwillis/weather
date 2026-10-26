@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Open-Meteo (https://open-meteo.com), "current" conditions, no API key.
 #pragma once
 #include "json.hpp"

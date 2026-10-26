@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Checks release artifacts before they are attached to a draft release. POSIX sh plus hfsutils (hmount/hls).
 #   usage: tools/check-release.sh VERSION DIST_TARBALL OS9_DSK [TAG]
 # Fails if the tag does not match VERSION, if the tarball is not weather-VERSION.tar.gz, or if the .dsk holds anything

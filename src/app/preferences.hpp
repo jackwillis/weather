@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // OS-independent Preferences policy: full source precedence and save-before-apply.
 #pragma once
 #include "locform.hpp"

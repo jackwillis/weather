@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Managed seed continuity for systems without an OS CSPRNG. Requires a secret,
 // independently provisioned initial seed; this code cannot prove its provenance.
 #pragma once

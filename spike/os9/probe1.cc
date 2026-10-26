@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // OS 9 probe 1: does a Retro68-built PowerPC app start in Classic / Mac OS 9, and what does the system say about itself?
 // Shows the result in the console window and appends it to a log file we can read over SSH.
 #include <Gestalt.h>

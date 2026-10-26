@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 #include "config_os9.hpp"
 #include <Files.h>
 #include <cstring>

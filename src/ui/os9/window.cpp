@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Native Toolbox window. Network initialization and terminal shutdown occur once.
 #include "window.hpp"
 #include "app/config_load.hpp"

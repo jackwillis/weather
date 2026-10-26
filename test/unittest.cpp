@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Unit tests: plain C++, no framework. Build-time checks (static_assert) come first:
 // if the core is wrong, this file does not compile.
 #include "core/config.hpp"
