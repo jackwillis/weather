@@ -123,7 +123,7 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 Status fetch_retry(Net &net, const char *host, const char *port, bool tls, const char *path,
     const FetchOpts &o, char *buf, size_t cap, sv *body)
 {
-	long delay = o.backoff_ms;
+	long delay = o.backoff_ms < o.max_backoff_ms ? o.backoff_ms : o.max_backoff_ms;
 	Status s;
 	for (int attempt = 1; attempt <= o.attempts; attempt++) {
 		s = fetch_once(net, host, port, tls, path, o, buf, cap, body);
@@ -132,7 +132,7 @@ Status fetch_retry(Net &net, const char *host, const char *port, bool tls, const
 		    err_name(s.err), s.msg, s.detail);
 		if (!retryable(s) || attempt == o.attempts) break;
 		if (net.sleep_ms && !net.sleep_ms(net, delay)) return make(Err::Cancelled, "cancelled while waiting to retry");
-		delay *= 2;
+		delay = delay > o.max_backoff_ms / 2 ? o.max_backoff_ms : delay * 2;
 	}
 	return s;
 }

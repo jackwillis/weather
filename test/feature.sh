@@ -34,6 +34,7 @@ serve trunc; P_TRUNC=$P
 serve garbage; P_GARB=$P
 serve hangup; P_HANG=$P
 serve dribble; P_DRIP=$P
+serve imperial; P_IMP=$P
 serve badjson; P_BADJ=$P
 serve metno; P_MET=$P
 serve fallback; P_FALL=$P
@@ -45,6 +46,9 @@ W="-c $CFG"
 expect "ok oneline" 0 $W -1 -H 127.0.0.1:$P_OK
 contains "ok oneline text" "54.8F Clear sky, wind 8.7mph SE, humidity 84% (open-meteo 2026-10-24T04:45)"
 expect "ok metric flag" 0 $W -u metric -1 -H 127.0.0.1:$P_OK
+contains "metric output is converted and labelled" "12.7C Clear sky, wind 14.0km/h SE"
+expect "server ignoring the unit parameters is refused" 65 $W -u metric -1 -H 127.0.0.1:$P_IMP
+contains "units mismatch explained" "units in the response do not match the request"
 expect "ok full" 0 $W -H 127.0.0.1:$P_OK
 contains "full layout" "Weather for Madison, WI from open-meteo, observed 2026-10-24T04:45 UTC"
 contains "full wind line" "Wind 8.7 mph from SE   Humidity 84%"
@@ -210,6 +214,18 @@ OUT=$("$BIN" -h -c "$HD/bad.rc" 2>&1); got=$?
 if [ "$got" = 0 ]; then ok; else bad "-h with a malformed config: exit $got ($OUT)"; fi
 rm -rf "$HD"
 rm -f "$RC"
+
+# classic Mac files end lines with a lone CR: the settings must be read, and -S must keep the file's style
+CRRC=$(mktemp)
+printf '# mac file\rattempts = 1\rlatitude = 59.91\rlongitude = 10.75\r' > "$CRRC"
+expect "CR-only config is read" 0 -c "$CRRC" -d -1 -H 127.0.0.1:$P_OK
+contains "CR-only latitude reaches the request" "latitude=59.9100&longitude=10.7500"
+expect "-S on a CR-only config" 0 -c "$CRRC" -n Bergen -S
+case "$(cat "$CRRC" | tr '\r' '|')" in
+	"# mac file|attempts = 1|latitude = 59.9100|longitude = 10.7500|name = Bergen|units = imperial|") ok;;
+	*) bad "-S on a CR-only config: $(cat "$CRRC" | tr '\r' '|')";;
+esac
+rm -f "$CRRC"
 
 # stdout must carry only the result; diagnostics go to stderr
 echo "attempts = 1" > "$CFG"

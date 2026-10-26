@@ -12,7 +12,8 @@ constexpr long long kMinSaneTime = 1735689600LL;
 struct FetchOpts {
 	int timeout_s = 15;          // per wait (connect, each read): a server that keeps trickling is stopped by deadline_s
 	int attempts = 3;            // tries per provider
-	long backoff_ms = 500;       // doubles each retry
+	long backoff_ms = 500;       // doubles each retry ...
+	long max_backoff_ms = 30000; // ... up to this (also keeps the doubling from overflowing a 32-bit long)
 	int deadline_s = 0;          // one attempt, from its start, is given up on after this long (checked before every read and
 	                             // write, so the TLS handshake counts); 0 = 3 x timeout_s. A name lookup and each connect
 	                             // address are bounded only by their own waits.

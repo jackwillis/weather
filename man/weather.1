@@ -92,7 +92,7 @@ Print the version and exit.
 .El
 .Pp
 Transient failures (name lookup, connection, timeout, dropped connection, server errors) are retried
-with a doubling delay, up to the number of
+with a doubling delay (500 ms first, never more than 30 seconds), up to the number of
 .Va attempts
 in the settings file.
 Permanent failures (such as a certificate that cannot be trusted) are not retried.
