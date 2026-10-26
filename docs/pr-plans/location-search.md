@@ -1,8 +1,8 @@
 # Location-name search
 
 Status: draft implementation. Portable parser, TLS lookup, explicit-selection
-logic, read-only CLI search and X11 controls are implemented; OS 9 controls and
-first-run flow remain pending. Service choice and limits are recorded in `docs/GEOCODING.md`.
+logic, read-only CLI search and X11 controls are implemented; OS 9 search controls and native OS 9 runtime
+acceptance remain pending. Service choice and limits are recorded in `docs/GEOCODING.md`.
 
 Scope: let users search by place name, choose among ambiguous results and save
 coordinates/name. Define a first-run location-selection flow without making
@@ -89,3 +89,21 @@ core: 644 unit / 87002 mutation inputs pass. No builds on maul. Native screensho
 were inspected; this does not replace Jack's physical-display acceptance.
 Remote GUI tests use mktemp-owned directories and retain failure evidence.
 OS 9 search controls/diagnostics and first-run behavior remain unfinished.
+
+
+First-run milestone: empty/missing settings open Location before weather fetch.
+Successful confirmation/save releases the gate; Cancel quits without saving or
+fetching. Existing nonempty settings and non-interactive CLI behavior stay
+compatible. OS 9 uses atomic load metadata and legacy fallback; dialog-open
+failure cannot release the fetch gate. Native memory-only Apply/Cancel probes
+are separate optional apps and do not read production Preferences or seed data.
+
+Review caught a queued-event bug on actual PowerPC: Cancel followed by already
+queued OK saved 76 bytes. The X11 pump now stops immediately on quit. Regression
+queues events while the owned test process is stopped, then resumes it; final
+runs leave settings empty. Host/ASan/PowerPC GUI all pass 53 checks; core 647 unit,
+231002 host/san mutation inputs, 87002 actual PowerPC inputs, 108 CLI, 95 CDE text.
+Portable compiler probes pass. Full OS 9 production and new diagnostics build;
+initial diagnostic Status name ambiguity was fixed with wx::Status. No native
+runtime claim. Evidence: docs/verification/first-location-2026-10-26.txt.
+OS 9 place-search controls are still unfinished; this PR remains draft.

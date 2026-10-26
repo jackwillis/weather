@@ -38,6 +38,7 @@ unsigned long suspend_count = 0, resume_count = 0;
 bool foreground = true;
 long long painted_at = -1;
 bool menus_fetching = false;
+bool first_run = false;
 constexpr int kHeight = 310;
 const unsigned char *pascal_text(const char *s)
 {
@@ -162,9 +163,16 @@ void settings_committed() {
     startup=recover_preferences(*prefs_store,*legacy_store,cfg,model,net.now(net));
     if(!startup.ok()) settings_notice=startup;
 }
+void location_closed() {
+    if(location.visible()) return;
+    if(location.committed()) { settings_committed(); if(startup.ok()) first_run=false; }
+    else if(first_run) actions.apply(WindowAction::Quit,cfg,model,net.now(net));
+    draw();
+}
 void command(WindowAction a) {
     if(actions.quit) return;
     if(a==WindowAction::Quit) { actions.apply(a,cfg,model,net.now(net)); return; }
+    if(first_run && a!=WindowAction::Location) return;
     if(location.visible()) return;
     if(a==WindowAction::Location) {
         settings_notice=location.open(cfg,model); draw(); return;
@@ -218,7 +226,7 @@ bool pump(Net &)
 			else if(w==location.window()) location.draw();
 			EndUpdate(w);
 		} else if (location.visible() && location.event(e,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice)) {
-            if(!location.visible()) { if(location.committed()) settings_committed(); draw(); }
+            if(!location.visible()) location_closed();
         } else if (e.what == activateEvt) draw();
 		else if (e.what == osEvt) {
 			constexpr unsigned long kSuspendResumeMessage = 1;
@@ -274,7 +282,7 @@ void os9_window_location_item(int item) {
     if(actions.quit) return;
     bool was_visible=location.visible();
     location.item(item,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice);
-    if(was_visible && !location.visible()) { if(location.committed()) settings_committed(); draw(); }
+    if(was_visible && !location.visible()) location_closed();
 }
 int os9_window_location_focus() { return location.focus(); }
 void os9_window_location_key(char key,bool shift) {
@@ -282,7 +290,7 @@ void os9_window_location_key(char key,bool shift) {
     EventRecord e={}; e.what=keyDown; e.message=key; e.modifiers=shift?shiftKey:0;
     bool visible=location.visible();
     location.event(e,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice);
-    if(visible && !location.visible()) { if(location.committed()) settings_committed(); draw(); }
+    if(visible && !location.visible()) location_closed();
 }
 const Config &os9_window_config() { return cfg; }
 Status os9_window_settings_status() { return settings_notice; }
@@ -312,8 +320,9 @@ int run_os9_window(const WindowTestHooks *hooks) {
         if(!hooks->preferences || !hooks->legacy) return 1;
         prefs_store=hooks->preferences; legacy_store=hooks->legacy; startup=okay();
     } else startup=os9_settings_init(&preferences);
-    if(hooks && hooks->setup) hooks->setup(cfg);
-    else if(startup.ok()) startup=load_preferences(*prefs_store,*legacy_store,cfg);
+    bool configured=false;
+    if(hooks && hooks->setup) { hooks->setup(cfg); first_run=hooks->first_run; }
+    else if(startup.ok()) { startup=load_preferences(*prefs_store,*legacy_store,cfg,&configured); first_run=startup.ok() && !configured; }
 	model=Model(ModelConfig{cfg.auto_refresh,900,60});
 	log_init(cfg.level,false,"weather");
 	InitGraf(&qd.thePort); InitFonts(); InitWindows(); InitMenus(); TEInit(); InitDialogs(nullptr); InitCursor();
@@ -337,12 +346,14 @@ int run_os9_window(const WindowTestHooks *hooks) {
 	AppendMenu(file, pascal_text("Refresh/R;(-;Quit/Q")); InsertMenu(file, 0);
 	AppendMenu(options, pascal_text("Automatic updates;Metric;Imperial;(-;Location/L")); InsertMenu(options, 0);
 	DrawMenuBar();
-	os9_net_init(&net); net.yield=pump; tls_net_init(&net); draw();
+	os9_net_init(&net); net.yield=pump; tls_net_init(&net);
+    if(first_run) settings_notice=location.open(cfg,model);
+    draw();
 	while(!actions.quit) {
 		pump(net); if(actions.quit) break;
 		if(test_hooks && test_hooks->idle) test_hooks->idle();
 		if(actions.quit) break;
-		if(!location.visible() && model.tick(net.now(net))) {
+		if(!first_run && !location.visible() && model.tick(net.now(net))) {
 			draw(); Forecast f;
 			Status s=startup;
 			if(s.ok()) s=test_hooks && test_hooks->fetch ? test_hooks->fetch(cfg,net,&f) : os9_window_fetch_live(cfg,net,&f);

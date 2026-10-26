@@ -11,6 +11,7 @@ struct WindowTestHooks {
 	Status (*fetch)(const Config &, Net &, Forecast *) = nullptr;
 	SettingsStore *preferences = nullptr;
 	SettingsStore *legacy = nullptr;
+	bool first_run = false; // Explicit diagnostic scenario; production detects empty settings.
 };
 int run_os9_window(const WindowTestHooks *hooks = nullptr);
 void os9_window_action(WindowAction action);

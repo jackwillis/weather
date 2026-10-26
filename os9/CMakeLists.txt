@@ -57,6 +57,16 @@ if(WEATHER_BUILD_DIAGNOSTICS)
   target_compile_definitions(WeatherPrefsUITest PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
   target_compile_options(WeatherPrefsUITest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
   target_link_libraries(WeatherPrefsUITest bearssl OpenTransportLib OpenTptInternetLib)
+  foreach(FIRST_TARGET WeatherFirstApplyTest WeatherFirstCancelTest)
+    add_application(${FIRST_TARGET} CONSOLE ${WEATHER_COMMON}
+      ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/location.cpp
+      ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/spike/os9/first_location_probe.cc)
+    target_include_directories(${FIRST_TARGET} PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+    target_compile_definitions(${FIRST_TARGET} PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
+    target_compile_options(${FIRST_TARGET} PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
+    target_link_libraries(${FIRST_TARGET} bearssl OpenTransportLib OpenTptInternetLib)
+  endforeach()
+  target_compile_definitions(WeatherFirstCancelTest PRIVATE WEATHER_FIRST_CANCEL=1)
   add_application(WeatherUITest CONSOLE ${WEATHER_COMMON}
     ${ROOT}/src/ui/os9/window.cpp
   ${ROOT}/src/ui/os9/location.cpp

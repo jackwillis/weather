@@ -160,6 +160,30 @@ if [ -x ./xweather-search-test ]; then
     unset XW_BIN
 fi
 
+# Empty settings are first-run: no weather request until explicit confirmation.
+: > rcFirst
+if start_xw rcFirst $PORT_OK; then
+    ./xdrive sleep 800
+    check "First: no automatic weather request before confirmation" "$(fetches)" 0
+    snap First01-location
+    ./xdrive key Return sleep 1200
+    check "First: confirmed default location is saved" "$(grep -c 'latitude = 43.0747' rcFirst)" 1
+    check "First: confirmation starts exactly one update" "$(fetches)" 1
+    quit_xw First
+fi
+: > rcFirstCancel
+if start_xw rcFirstCancel $PORT_OK; then
+    ./xdrive sleep 600
+    kill -STOP "$XW"
+    ./xdrive key Escape key Return
+    kill -CONT "$XW"
+    ./xdrive gone Weather 3000
+    check "First: cancelling closes the unconfigured app" "$?" 0
+    wait $XW; check "First: cancelled exit status" "$?" 0
+    check "First: cancelled setup never fetches" "$(fetches)" 0
+    check "First: cancelled setup leaves file empty" "$(wc -c < rcFirstCancel | tr -d ' ')" 0
+fi
+
 # ---------------------------------------------------------------- D: the weather pictures
 for g in $GALLERY; do
 	name=${g%%:*}; port=${g##*:}

@@ -73,7 +73,7 @@ struct App {
     const char *search_message="Enter a place, then Search.";
 	char notice[160] = "";
 	long long notice_until = 0;
-	bool quit = false, fetching = false, dirty = true;
+	bool quit = false, fetching = false, dirty = true, first_run = false;
 	long long last_spin_ms = 0;
 };
 App g;
@@ -258,7 +258,7 @@ void draw_location(Drawable d)
 {
 	cde::Theme &t = g.th;
 	Rect p = d_panel();
-	draw_panel(d, p, "Location");
+	draw_panel(d, p, g.first_run?"Choose initial location":"Location");
 	static const char *labels[3] = {"Latitude:", "Longitude:", "Name:"};
 	const char *vals[3] = {g.form.lat.s, g.form.lon.s, g.form.name.s};
 	size_t lens[3] = {g.form.lat.n, g.form.lon.n, g.form.name.n};
@@ -376,7 +376,7 @@ void apply_location()
     Status saved=settings_save(g.store.base,c);
     if(!saved.ok()) { g.form.error=saved.msg; g.dirty=true; return; }
     bool changed=c.lat_e4!=g.cfg.lat_e4 || c.lon_e4!=g.cfg.lon_e4 || c.metric!=g.cfg.metric;
-    g.cfg=c;
+    g.cfg=c; g.first_run=false;
     if(changed) g.model.location_changed();
 	g.mode = Normal;
 	g.dirty = true;
@@ -525,7 +525,8 @@ void on_button_release(const XButtonEvent &e)
     case PSearch: do_search(); break;
     case PUsePlace: use_place(); break;
     case PSearchCancel: g.mode=Location; g.search.clear(); break;
-	case PCancel: case PAboutOk: g.mode = Normal; break;
+	case PCancel: if(g.first_run) g.quit=true; else g.mode=Normal; break;
+    case PAboutOk: g.mode=Normal; break;
 	default: break;
 	}
 }
@@ -580,7 +581,7 @@ void on_key(XKeyEvent &e)
 		LocationForm &f = g.form;
 		TextEdit<16> *t16 = f.focus == LocationForm::Lat ? &f.lat : f.focus == LocationForm::Lon ? &f.lon : nullptr;
 		switch (ks) {
-		case XK_Escape: g.mode = Normal; return;
+		case XK_Escape: if(g.first_run) g.quit=true; else g.mode=Normal; return;
 		case XK_Return: case XK_KP_Enter: apply_location(); return;
 		case XK_Tab: f.next(); return;
 		case kLeftTab: f.prev(); return;
@@ -636,7 +637,7 @@ void handle_event(XEvent &e, bool busy)
 
 void pump(bool busy)
 {
-	while (XPending(g.dpy)) {
+	while (!g.quit && XPending(g.dpy)) {
 		XEvent e;
 		XNextEvent(g.dpy, &e);
 		handle_event(e, busy);
@@ -709,12 +710,13 @@ int wx::run_xweather(int argc, char **argv, PlaceLookup lookup)
 
 	// Settings: the same file as weather(1).
 	Status ss = posix_settings_init(&g.store, cfgpath, cfgpath != nullptr);
-	g.have_store = ss.ok();
+	g.have_store = ss.ok(); g.first_run=!g.have_store;
 	if (!ss.ok() && cfgpath) { fprintf(stderr, "xweather: %s: %s\n", err_name(ss.err), ss.msg); return exit_code(ss.err); }
 	if (g.have_store) {
 		static char text[4096];
 		size_t n = 0;
 		Status ls = g.store.base.load(g.store.base, text, sizeof text, &n);
+		g.first_run=n==0;
 		if (ls.ok() && n) ls = config_parse(sv(text, n), &g.cfg);
 		if (!ls.ok()) {
 			fprintf(stderr, "xweather: %s: %s", err_name(ls.err), ls.msg);
@@ -776,13 +778,14 @@ int wx::run_xweather(int argc, char **argv, PlaceLookup lookup)
 	ModelConfig mc;
 	mc.auto_refresh = g.cfg.auto_refresh;
 	g.model = Model(mc, now_s());
+    if(g.first_run) { open_location(); if(!g.have_store) g.form.error=ss.msg; }
 	logf(LogInfo, "xweather %s: %s, auto-refresh %s", WEATHER_VERSION, g.cfg.name[0] ? g.cfg.name : "(unnamed)", mc.auto_refresh ? "on" : "off");
 
 	redraw();
 	long long last_sec = 0;
 	while (!g.quit) {
 		long long t = now_s();
-		if (g.mode!=Location && g.mode!=PlaceSearch && g.model.tick(t)) { do_fetch(); continue; }
+		if (!g.first_run && g.mode!=Location && g.mode!=PlaceSearch && g.model.tick(t)) { do_fetch(); continue; }
 		pump(false);
 		if (g.quit) break;
 		if (g.dirty || t != last_sec) { last_sec = t; redraw(); }

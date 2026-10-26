@@ -22,6 +22,12 @@ struct PrefMemory {
 };
 static void test_preferences()
 {
+    PrefMemory fresh, fallback; Config initial; bool configured=true;
+    CHECK(load_preferences(fresh.base,fallback.base,initial,&configured).ok() && !configured);
+    strcpy(fallback.text,"latitude=12\n");
+    CHECK(load_preferences(fresh.base,fallback.base,initial,&configured).ok() && configured && initial.lat_e4==120000);
+    strcpy(fresh.text,"latitude=broken\n"); configured=false;
+    CHECK(!load_preferences(fresh.base,fallback.base,initial,&configured).ok() && !configured && initial.lat_e4==120000);
     PrefMemory prefs, legacy;
     strcpy(legacy.text, "# legacy\nlatitude=1 # home\nlongitude=2\ncontact=https://example.invalid/test\nproviders=met-no\n");
     Config cfg;
