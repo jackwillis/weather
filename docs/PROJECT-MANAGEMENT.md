@@ -17,6 +17,13 @@ are the source of truth, not this page.
 
 Issues and PRs share one number space, so `#12` may be either.
 
+**Amend, do not supersede.** Each topic has one issue that is its single source of truth. Extend that issue (add a section, update its checklist)
+instead of opening a second one; open a new issue only for a new topic or for a slice of work that has been adopted. If a duplicate slips in, fold it
+into the original, label it `duplicate`, and close it with a link.
+
+**UX map (2026-10-26).** Shared UX rules: #113. Platform plans: #98 (Mac OS 9) and #99 (NetBSD/X11); each has a product plan (Part A) and an
+earlier proposal (Part B). Map research: #114. First work slices (v0.2): #117 and #118. Index: #46 and #48.
+
 ## Milestones
 
 Each milestone has a tracking issue with a task list: **#45** (v0.1), **#46** (v0.2), **#47** (v0.3), **#48** (Research). Start there to see what is left.

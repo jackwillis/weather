@@ -63,6 +63,7 @@ Check clocks with `date -u +%s` on the Mac versus the app's `clock:` log line.
 3. Last-good forecast cache (#15), NWS (#16, only api.weather.gov), location search (#17).
 4. Release/terms/package acceptance (issue #67) and big-endian CI (#19, follows #10).
 5. Config reload is conditional (issue #68). Tiger remains parked (issue #69).
+6. **UX** (forecast content, pinned locations, charts, native look): read issue #113 first, then your platform's issue (#98 Mac OS 9, #99 NetBSD/X11). The first data slices are #117 (hourly/daily data) and #118 (pinned locations), both v0.2. Map research is #114. Amend those issues; do not open parallel ones.
 
 ## Project management
 Issues, milestones, labels, the board and the PR flow are described in `docs/PROJECT-MANAGEMENT.md`. Start work from an issue, link it from the PR (`Closes #N`),
