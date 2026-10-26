@@ -25,3 +25,7 @@ No OS9/Tiger or macOS-host run. No privileged changes. The GUI startup argument
 change does not affect the already-passed sanitizer CLI suite; full final host GUI
 checks were rerun after it. Remote forwarding/workspace validation was verified
 on the final hardware run. No new native ABI code.
+
+Owner subsequently restated GUI serialization on 2026-10-26. The concurrent full
+runs above preceded that instruction; do not repeat GUI overlap. Future validation
+uses concurrent non-GUI checks and serialized GUI checks even with private displays.

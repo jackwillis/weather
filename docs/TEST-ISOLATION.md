@@ -15,8 +15,9 @@ and retain the server with `-noreset` until the harness cleans up its own PID.
 The shared scenario can use that prestarted display; legacy remote execution
 still starts its own server. `-nolisten tcp` is retained.
 
-Concurrent full checks require separate source/build/output trees, such as
-separate worktrees or source copies. Do not run two compilers into the same object
+Run all GUI checks serially, including private displays, per the owner’s working
+agreement. Concurrent non-GUI checks require separate source/build/output trees,
+such as separate worktrees or source copies. Do not run two compilers into the same object
 directory or change source while a compiler may read it. Merely overriding BUILD
 is insufficient for isolating the GUI output paths. Older branches with fixed
 ports/display :88 still need coordination until they adopt this change.

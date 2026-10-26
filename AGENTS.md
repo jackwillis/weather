@@ -32,8 +32,9 @@ This file is the working agreement. Updated 2026-10-25.
     make os9              # Mac OS 9 app via Retro68 in podman -> build/os9/Weather.{APPL,bin,dsk}
     make package-netbsd   # build/pkg/weather-0.1.0.tgz (pkg_create runs on maul); install is `doas pkg_add` by the owner
     make dist distcheck   # reproducible tarball (needs a clean, committed tree)
-Host GUI checks allocate a private Xvfb display. Concurrent checks require separate source/build/output trees; never compile into the same object directories.
-The maul GUI check still uses display :77: run only one at a time. Older branches with fixed :88/fixture ports must still be serialized.
+Host GUI checks allocate a private Xvfb display. Run all GUI checks serially, including checks with private displays, as directed by the owner.
+Concurrent non-GUI checks require separate source/build/output trees; never compile into the same object directories.
+The maul GUI check uses display :77. Older branches with fixed :88/fixture ports also require coordination.
 Toolchains: NetBSD cross compiler in `~/scratch/netbsd-xc` (see its `README-repro.md`); Retro68 container `ghcr.io/autc04/retro68`.
 
 ## Reaching the test machine (details live outside the repo)
