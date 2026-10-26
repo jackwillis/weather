@@ -251,7 +251,7 @@ Status os9_connect(Net &net, const char *host, const char *port, int timeout_s, 
 	if (!host || std::strlen(host) >= sizeof g_dns.host) return make(Err::Dns, "host name too long");
 	if (timeout_s <= 0 || timeout_s > 86400) return make(Err::Usage, "bad DNS timeout");
 	g_dns.net = &net;
-	Status dns = g_resolver.resolve(host, static_cast<uint32_t>(timeout_s) * 60);
+	Status dns = g_resolver.resolve(host, static_cast<uint32_t>(timeout_s) * 60, &net);
 	if (!dns.ok()) return dns;
 	InetHostInfo hi = g_dns.info;
 

@@ -1080,8 +1080,43 @@ struct DnsFake {
 	int close() { ++closes; return close_error; }
 };
 
+static Net dns_budget_net(DnsFake &f)
+{
+	Net n; n.ctx = &f;
+	n.monotonic_ms = [](Net &net) -> long long { return static_cast<DnsFake *>(net.ctx)->clock * 1000LL / 60; };
+	return n;
+}
 static void test_os9_dns()
 {
+	{ // A shorter attempt deadline stops a pending query and closes its provider.
+	  DnsFake f; f.query_delay = 100; DnsResolver<DnsFake> r(f);
+	  Net n = dns_budget_net(f); const TimeBudget b{0, 100}; n.budget = &b;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Timeout);
+	  CHECK(f.clock == 6 && f.closes == 1); }
+	{ // Expired async open retains callback storage, then drains under a fresh budget.
+	  DnsFake f; f.open_delay = 100; DnsResolver<DnsFake> r(f);
+	  Net n = dns_budget_net(f); const TimeBudget b{0, 100}; n.budget = &b;
+	  CHECK(r.resolve("first", 60, &n).err == Err::Timeout);
+	  CHECK(f.clock == 6 && f.closes == 0 && f.opens == 1);
+	  f.open_delay = 6; const TimeBudget fresh{100, 1000}; n.budget = &fresh;
+	  CHECK(r.resolve("second", 60, &n).ok());
+	  CHECK(f.opens == 2 && f.queries == 1 && f.closes == 2); }
+	{ // Fail closed before open when budget clock is absent or regressed.
+	  DnsFake f; DnsResolver<DnsFake> r(f); Net n;
+	  const TimeBudget b{100, 100}; n.budget = &b;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Clock && f.opens == 0);
+	  n.monotonic_ms = [](Net &) -> long long { return 99; };
+	  CHECK(r.resolve("h", 60, &n).err == Err::Clock && f.opens == 0); }
+	{ // Cancellation precedes a simultaneous expired outer budget.
+	  DnsFake f; f.cancel_at = 1; DnsResolver<DnsFake> r(f);
+	  Net n = dns_budget_net(f); const TimeBudget b{0, 0}; n.budget = &b;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Cancelled && f.opens == 0);
+	  f.cancel_at = 0;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Timeout && f.opens == 0); }
+	{ // The outer budget wins over completion at the exact same instant.
+	  DnsFake f; f.query_delay = 6; DnsResolver<DnsFake> r(f);
+	  Net n = dns_budget_net(f); const TimeBudget b{0, 100}; n.budget = &b;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Timeout && f.closes == 1); }
 	{ DnsFake f; DnsResolver<DnsFake> r(f);
 	  CHECK(r.resolve("h", 60).ok()); CHECK(f.opens == 1 && f.queries == 1 && f.closes == 1); }
 	{ DnsFake f; f.open_delay = 6; f.query_delay = 9; DnsResolver<DnsFake> r(f);
