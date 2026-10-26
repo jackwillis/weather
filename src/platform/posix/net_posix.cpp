@@ -180,12 +180,20 @@ static bool posix_entropy(Net &, void *buf, size_t len)
 	return got == len;
 }
 
+static long long posix_monotonic(Net &)
+{
+	struct timespec ts;
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return -1;
+	return static_cast<long long>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
+}
+
 void posix_net_init(Net *net)
 {
 	net->connect = posix_connect;
 	net->close = posix_close;
 	net->sleep_ms = posix_sleep;
 	net->now = posix_now;
+	net->monotonic_ms = posix_monotonic;
 	net->entropy = posix_entropy;
 }
 

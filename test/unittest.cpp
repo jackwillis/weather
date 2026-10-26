@@ -16,6 +16,7 @@
 #include "platform/posix/settings_posix.hpp"
 #include "tls/timeconv.hpp"
 #include "platform/os9/dns_resolve.hpp"
+#include "platform/os9/modal_clock.hpp"
 #include <arpa/inet.h>
 #include <cstdio>
 #include <cstdlib>
@@ -144,6 +145,11 @@ struct Fake {
 	int nsteps = 0, next = 0, connects = 0, closes = 0, nsleeps = 0;
 	long sleeps[64] = {};
 	long long clock = 1790000000LL;
+	os9::ModalClock active_clock;
+	uint32_t ticks = 0xfffffff0U;
+	bool use_active = false, pause_reads = false;
+	long long monotonic = 0;
+	long mono_read_ms = 0;
 	long read_secs = 0;      // the clock advances this much on every read (a slow trickle)
 	int reads = 0;
 	bool cancel_sleep = false;
@@ -155,7 +161,9 @@ static Fake *F(Net &n) { return static_cast<Fake *>(n.ctx); }
 static long fk_read(Io &io, void *buf, size_t len)
 {
 	Fake *f = static_cast<Fake *>(io.ctx);
-	f->reads++; f->clock += f->read_secs;
+	f->reads++; f->clock += f->read_secs; f->monotonic += f->mono_read_ms;
+	uint32_t before = f->ticks; f->ticks += 120;
+	if (f->pause_reads) f->active_clock.credit(before, f->ticks);
 	size_t left = strlen(f->cur) - f->pos;
 	if (left == 0) {
 		if (f->cur_err != Err::Ok) { io.err = f->cur_err; io.detail = 1; return -1; }
@@ -190,10 +198,12 @@ static void fk_close(Net &n, Io &) { F(n)->closes++; }
 static bool fk_sleep(Net &n, long ms) { Fake *f = F(n); if (f->nsleeps < 64) f->sleeps[f->nsleeps++] = ms; return !f->cancel_sleep; }
 static long long fk_now(Net &n) { return F(n)->clock; }
 
+static long long fk_monotonic(Net &n) { Fake *f = F(n); return f->use_active ? f->active_clock.milliseconds(f->ticks) : f->monotonic; }
+
 static Net make_net(Fake *f)
 {
 	Net n;
-	n.ctx = f; n.connect = fk_connect; n.close = fk_close; n.sleep_ms = fk_sleep; n.now = fk_now;
+	n.ctx = f; n.connect = fk_connect; n.close = fk_close; n.sleep_ms = fk_sleep; n.now = fk_now; n.monotonic_ms = fk_monotonic;
 	return n;
 }
 
@@ -243,20 +253,20 @@ static void test_fetch()
 		CHECK(s.ok() && f.connects == 2 && f.nsleeps == 1);
 	}
 	{ // a server that trickles its answer: every read is quick, but the whole attempt must not outlast 3 x the timeout
-		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1; f.read_secs = 1;     // one second per read, timeout_s = 1
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1; f.mono_read_ms = 1000;     // one second per read, timeout_s = 1
 		Net n = make_net(&f);
 		Status s = fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
 		CHECK(s.err == Err::Timeout && f.closes == 1 && f.reads == 4);                     // reads at 0, 1, 2 and 3 s elapsed; the next is refused (limit 3 s)
 		Fake g; g.steps[0] = {okay(), kGood, Err::Ok}; g.nsteps = 1;                      // the same answer at full speed is fine
 		Net gn = make_net(&g);
 		CHECK(fetch_once(gn, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
-		Fake r; r.steps[0] = {okay(), kGood, Err::Ok}; r.nsteps = 1; r.read_secs = 1;
+		Fake r; r.steps[0] = {okay(), kGood, Err::Ok}; r.nsteps = 1; r.mono_read_ms = 1000;
 		Net rn = make_net(&r);
 		Status rs = fetch_retry(rn, "h", "80", false, "/", o, buf, sizeof buf, &body);    // a timeout is retried, each attempt bounded
 		CHECK(rs.err == Err::Timeout && r.connects == 3 && r.closes == 3);
-		Fake e; e.steps[0] = {okay(), kGood, Err::Ok}; e.nsteps = 1; e.read_secs = 1;
+		Fake e; e.steps[0] = {okay(), kGood, Err::Ok}; e.nsteps = 1; e.mono_read_ms = 1000;
 		Net en = make_net(&e);
-		Fake t; t.steps[0] = {okay(), kGood, Err::Ok}; t.nsteps = 1; t.read_secs = 1;
+		Fake t; t.steps[0] = {okay(), kGood, Err::Ok}; t.nsteps = 1; t.mono_read_ms = 1000;
 		Net tn = make_net(&t);
 		FetchOpts tight = o; tight.deadline_s = 2;                                            // a deadline below 3 x timeout wins
 		CHECK(fetch_once(tn, "h", "80", false, "/", tight, buf, sizeof buf, &body).err == Err::Timeout && t.reads == 3);
@@ -265,6 +275,40 @@ static void test_fetch()
 		Fake b; b.steps[0] = {okay(), kGood, Err::Ok}; b.nsteps = 1; b.read_secs = -100;     // the clock steps back mid-fetch: never a false timeout
 		Net bn = make_net(&b);
 		CHECK(fetch_once(bn, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+	}
+	{ // UTC corrections and paused active time cannot change the attempt deadline.
+		for (long step : {-100L, 100L}) {
+			Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+			f.read_secs = step; // an arbitrarily long menu hold also advances UTC only
+			Net n = make_net(&f);
+			CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+			f.mono_read_ms = 1000;
+			CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Timeout);
+		}
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f); n.monotonic_ms = nullptr;
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Clock && f.connects == 0);
+		n.monotonic_ms = fk_monotonic; f.monotonic = -1;
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Clock && f.connects == 0);
+		f.monotonic = 9223372036854775000LL; f.mono_read_ms = -1000;
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Clock && f.closes == 1);
+	}
+	{ // The actual OS9 active clock crosses TickCount wrap, credits menu holds, and resumes deadlines.
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+		f.use_active = true; f.pause_reads = true;
+		Net n = make_net(&f);
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+		f.pause_reads = false;
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Timeout);
+	}
+	{ // TLS handshake raw I/O is subject to the same deadline and preserves the error.
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1; f.mono_read_ms = 1000;
+		Net n = make_net(&f);
+		n.tls_open = [](Net &, Io &raw, const char *, Io *) -> Status {
+			char b[1]; while (raw.read(raw, b, sizeof b) > 0) {}
+			return raw.err == Err::Ok ? make(Err::Tls, "test handshake unexpectedly reached EOF") : make(raw.err, raw.msg);
+		};
+		CHECK(fetch_once(n, "h", "443", true, "/", o, buf, sizeof buf, &body).err == Err::Timeout && f.closes == 1);
 	}
 	{ // backoff doubles but is capped (default 30 s): a long run of attempts never sleeps for hours or overflows a 32-bit long
 		Fake f; f.steps[0] = {okay(), k500, Err::Ok}; f.nsteps = 1;

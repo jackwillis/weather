@@ -41,11 +41,21 @@ long dl_late(DeadlineIo *d)
 	d->io.err = Err::Timeout; d->io.detail = 0; d->io.msg = "answer not complete within the time limit";
 	return -1;
 }
-bool dl_expired(const DeadlineIo *d) { return d->net->now && d->net->now(*d->net) - d->start > d->limit; }
+bool dl_expired(DeadlineIo *d)
+{
+	long long current = d->net->monotonic_ms(*d->net);
+	if (current < d->start) {
+		d->io.err = Err::Clock; d->io.msg = "monotonic clock unavailable or moved backwards";
+		return true;
+	}
+	// Both values are nonnegative and ordered, so subtraction cannot overflow.
+	if (current - d->start > d->limit) { dl_late(d); return true; }
+	return false;
+}
 long dl_read(Io &io, void *buf, size_t len)
 {
 	DeadlineIo *d = static_cast<DeadlineIo *>(io.ctx);
-	if (dl_expired(d)) return dl_late(d);
+	if (dl_expired(d)) return -1;
 	long r = d->inner->read(*d->inner, buf, len);
 	if (r < 0) { io.err = d->inner->err; io.detail = d->inner->detail; io.msg = d->inner->msg; }
 	return r;
@@ -53,7 +63,7 @@ long dl_read(Io &io, void *buf, size_t len)
 long dl_write(Io &io, const void *buf, size_t len)
 {
 	DeadlineIo *d = static_cast<DeadlineIo *>(io.ctx);
-	if (dl_expired(d)) return dl_late(d);
+	if (dl_expired(d)) return -1;
 	long r = d->inner->write(*d->inner, buf, len);
 	if (r < 0) { io.err = d->inner->err; io.detail = d->inner->detail; io.msg = d->inner->msg; }
 	return r;
@@ -67,9 +77,12 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 		return make(Err::Clock, "system clock is before 2025; set the date (needed to check certificates)");
 
 	// The timeout bounds each wait; this bounds the attempt, so a server that trickles one byte at a time cannot hold it for
-	// hours. Measured with the platform clock (whole seconds); if the clock steps back the elapsed time is negative, which is safe.
-	const long long start = net.now ? net.now(net) : 0;
-	const long long limit = o.deadline_s > 0 ? o.deadline_s : 3LL * o.timeout_s;
+	// hours. UTC is reserved for certificate dates; active milliseconds respect modal UI pauses.
+	if (!net.monotonic_ms) return make(Err::Clock, "no monotonic clock for fetch deadline");
+	const long long start = net.monotonic_ms(net);
+	if (start < 0) return make(Err::Clock, "monotonic clock unavailable");
+	if (o.timeout_s <= 0 || o.deadline_s < 0) return make(Err::Config, "invalid fetch timeout");
+	const long long limit = o.deadline_s > 0 ? 1000LL * o.deadline_s : 3000LL * o.timeout_s;
 
 	Io raw;
 	logf(LogDebug, "connecting to %s:%s%s", host, port, tls ? " (tls)" : "");

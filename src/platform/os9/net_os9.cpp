@@ -4,6 +4,7 @@
 // DNS uses an asynchronous provider and the same foreground yield/deadline policy.
 #include "net_os9.hpp"
 #include "portable.hpp"
+#include "modal_clock.hpp"
 #include "ot_min.h"
 #include "dns_resolve.hpp"
 #include "seed_store_os9.hpp"
@@ -28,6 +29,7 @@ struct Conn {
 };
 Conn g_conn;
 bool g_ot_ok = false;
+os9::ModalClock g_active_clock;
 
 // Callback-owned storage has process lifetime. The controller only resets it
 // after completion/close; an abandoned open remains alive until drained.
@@ -87,7 +89,8 @@ DnsResolver<DnsBackend> g_resolver(g_dns);
 
 constexpr long kSliceTicks = 3;   // 3/60 s = 50 ms
 
-long long mono_ms() { return static_cast<long long>(TickCount()) * 1000 / 60; }
+long long mono_ms() { return g_active_clock.milliseconds(TickCount()); }
+long long os9_monotonic(Net &) { return mono_ms(); }
 
 enum Wait { WaitOk = 0, WaitTimeout, WaitCancelled };
 
@@ -354,6 +357,7 @@ void os9_net_init(Net *net)
 	net->close = os9_close;
 	net->sleep_ms = os9_sleep;
 	net->now = os9_now;
+	net->monotonic_ms = os9_monotonic;
 	net->entropy = os9_entropy;
 }
 

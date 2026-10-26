@@ -24,6 +24,9 @@ struct Net {
 	bool (*yield)(Net &) = nullptr;
 	bool (*sleep_ms)(Net &, long ms) = nullptr;   // false = cancelled while sleeping
 	long long (*now)(Net &) = nullptr;            // Unix seconds (64-bit: ppc32 long dies in 2038)
+	// Elapsed/active milliseconds, nonnegative and nondecreasing; -1 = unavailable.
+	// Separate from UTC: platforms may pause this clock during modal UI tracking.
+	long long (*monotonic_ms)(Net &) = nullptr;
 	// Cryptographic random bytes for TLS. False = no source available.
 	bool (*entropy)(Net &, void *buf, size_t len) = nullptr;
 	// Optional TLS: wrap an open stream (verifying host), and close it again.
