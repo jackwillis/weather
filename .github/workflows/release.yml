@@ -98,5 +98,5 @@ jobs:
           notes=docs/release-notes/$version.md
           [ -f "$notes" ] || { echo "missing $notes"; exit 1; }
           { cat "$notes"; echo; echo "## Build"; cat dl/retro68-image.txt; } > notes.md
-          gh release create "$TAG" --draft --prerelease --verify-tag --title "Weather $version" --notes-file notes.md \
+          gh release create "$TAG" --draft --prerelease --verify-tag --title "What It Be Like? $version" --notes-file notes.md \
             dl/weather-"$version".tar.gz dl/Weather-"$version".dsk dl/SHA512SUMS
