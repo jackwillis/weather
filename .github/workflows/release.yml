@@ -10,7 +10,7 @@ on:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
   workflow_dispatch:
   pull_request:   # changes to the pipeline itself are proven by a build with no release
-    paths: ['.github/workflows/release.yml', 'tools/check-release.sh']
+    paths: ['.github/workflows/release.yml', 'tools/check-release.sh', 'tools/stage-dsk.sh']
 
 permissions:
   contents: read
@@ -43,18 +43,22 @@ jobs:
           make distcheck
       - name: Mac OS 9 image (Retro68 container pinned by digest)
         run: make os9 CONTAINER=podman RETRO68_IMAGE="$RETRO68_IMAGE"
+      - name: Add LICENSE, THIRD_PARTY.md and a Read Me to the image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: sh tools/stage-dsk.sh build/os9/Weather.dsk build/os9/Weather-release.dsk "$VERSION"
       - name: Check and list the release artifacts
         env:
           VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-        run: sh tools/check-release.sh "$VERSION" "build/dist/weather-$VERSION.tar.gz" build/os9/Weather.dsk "$TAG"
+        run: sh tools/check-release.sh "$VERSION" "build/dist/weather-$VERSION.tar.gz" build/os9/Weather-release.dsk "$TAG"
       - name: Collect artifacts and checksums
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p out
           cp "build/dist/weather-$VERSION.tar.gz" out/
-          cp build/os9/Weather.dsk "out/Weather-$VERSION.dsk"
+          cp build/os9/Weather-release.dsk "out/Weather-$VERSION.dsk"
           cd out && for f in *; do
             printf 'SHA512 (%s) = %s\n' "$f" "$(sha512sum "$f" | cut -d' ' -f1)"
           done > SHA512SUMS

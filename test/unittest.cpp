@@ -1119,21 +1119,27 @@ static void test_window_actions()
 
 #include "preferences_tests.hpp"
 
-static bool credits_mention(const char *const *lines, size_t n, const char *what)
+static bool credits_mention(const char *what)
 {
-	for (size_t i = 0; i < n; i++) if (strstr(lines[i], what)) return true;
+	for (const CreditPage &p : kCreditPages)
+		for (size_t i = 0; i < p.n; i++) if (strstr(p.lines[i], what)) return true;
 	return false;
 }
 static void test_credits()
 {
-	const size_t nfull = sizeof kCreditsFull / sizeof *kCreditsFull, nshort = sizeof kCreditsShort / sizeof *kCreditsShort;
-	// Everything THIRD_PARTY.md names, and both data sources and the licence, must be credited in full.
-	for (const char *what : {"Open-Meteo", "MET Norway", "CC BY 4.0", "BearSSL", "Retro68", "Multiversal", "GNU General Public License", "NO WARRANTY",
-	                         "Jack Willis", "THIRD_PARTY.md"})
-		CHECK(credits_mention(kCreditsFull, nfull, what));
-	for (const char *what : {"Jack Willis", "GPL-3.0-or-later", "Open-Meteo", "MET Norway"})
-		CHECK(credits_mention(kCreditsShort, nshort, what));
-	for (size_t i = 0; i < nfull; i++) CHECK(strlen(kCreditsFull[i]) <= 62); // fits a terminal and the OS 9 About box
+	// Everything THIRD_PARTY.md names, both data sources and the licence must be credited in full.
+	for (const char *what : {"Open-Meteo", "MET Norway", "CC BY 4.0", "BearSSL", "Retro68", "Multiversal", "General", "NO WARRANTY",
+	                         "Jack Willis", "THIRD_PARTY.md", "github.com/jackwillis/weather"})
+		CHECK(credits_mention(what));
+	for (const char *what : {"Jack Willis", "GPL-3.0-or-later", "Open-Meteo", "MET Norway"}) {
+		bool found = false;
+		for (const char *line : kCreditsShort) if (strstr(line, what)) found = true;
+		CHECK(found);
+	}
+	for (const CreditPage &p : kCreditPages) {
+		CHECK(p.n >= 1 && p.n <= 9);                    // a page must fit both About boxes without scrolling
+		for (size_t i = 0; i < p.n; i++) CHECK(strlen(p.lines[i]) <= 46);
+	}
 }
 
 int main()

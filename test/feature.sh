@@ -117,7 +117,7 @@ expect "version" 0 -V
 contains "version text" "weather 0."
 contains "version shows licence" "GPL-3.0-or-later"
 expect "credits" 0 --credits
-contains "credits name Open-Meteo" "Open-Meteo.com, CC BY 4.0"
+contains "credits name Open-Meteo" "Open-Meteo.com (CC BY 4.0)"
 contains "credits name MET Norway" "MET Norway Locationforecast"
 contains "credits name BearSSL" "BearSSL"
 expect "help" 0 -h

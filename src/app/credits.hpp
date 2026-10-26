@@ -2,37 +2,52 @@
 // Copyright (c) 2026 Jack Willis
 // The one place credits and licence wording live, so the CLI, xweather and the OS 9 About box cannot drift.
 // Plain constant text: no heap, no formatting. Full licence texts are in LICENSE and THIRD_PARTY.md.
+// Every line fits 46 columns, so a page fits the OS 9 About box (324 px) and xweather's panel.
 #pragma once
+#include <cstddef>
 
 namespace wx {
 
 // Short form: printed by `weather -V` after the version line, and shown in About boxes.
 inline constexpr const char *kCreditsShort[] = {
 	"Copyright (c) 2026 Jack Willis",
-	"License GPL-3.0-or-later: free software, with NO WARRANTY.",
-	"Weather data: Open-Meteo.com and MET Norway (CC BY 4.0).",
+	"License GPL-3.0-or-later, NO WARRANTY.",
+	"Data: Open-Meteo.com, MET Norway (CC BY 4.0)",
 };
 
-// Full credits: `weather --credits`, and the Credits page of the About boxes.
-inline constexpr const char *kCreditsFull[] = {
-	"Weather: copyright (c) 2026 Jack Willis.",
-	"Free software under the GNU General Public License,",
-	"version 3 or (at your option) any later version.",
+struct CreditPage { const char *title; const char *const *lines; size_t n; };
+
+inline constexpr const char *kCreditsWeather[] = {
+	"Copyright (c) 2026 Jack Willis",
+	"Free software under the GNU General",
+	"Public License, version 3 or (at your",
+	"option) any later version.",
 	"There is NO WARRANTY.",
-	"Source code: https://github.com/jackwillis/weather",
-	"",
-	"Weather data",
-	"  Open-Meteo.com, CC BY 4.0 (https://open-meteo.com)",
-	"  MET Norway Locationforecast, CC BY 4.0 (https://api.met.no)",
-	"  Values are converted to your units and summarised.",
-	"",
-	"Software",
-	"  BearSSL by Thomas Pornin (MIT) for TLS",
-	"  Mac OS 9 build: Retro68 runtime by Wolfgang Thaller",
-	"  and others (GPL-3.0+ with the GCC runtime exception),",
-	"  Multiversal Interfaces (MIT)",
-	"",
-	"Full notices: LICENSE and THIRD_PARTY.md",
+	"Source: github.com/jackwillis/weather",
+	"Full notices: LICENSE, THIRD_PARTY.md",
 };
+inline constexpr const char *kCreditsData[] = {
+	"Open-Meteo.com (CC BY 4.0)",
+	"MET Norway Locationforecast (CC BY 4.0)",
+	"Values are converted to your units",
+	"and summarised.",
+	"Weather stays free software, with no",
+	"ads or subscriptions.",
+};
+inline constexpr const char *kCreditsSoftware[] = {
+	"BearSSL by Thomas Pornin (MIT): TLS",
+	"Mac OS 9 build, also:",
+	"  Retro68 runtime (GPL-3.0+ with the",
+	"  GCC runtime exception)",
+	"  Multiversal Interfaces (MIT)",
+};
+
+// Full credits: `weather --credits`, and the Credits pages of the About boxes.
+inline constexpr CreditPage kCreditPages[] = {
+	{"Weather", kCreditsWeather, sizeof kCreditsWeather / sizeof *kCreditsWeather},
+	{"Weather data", kCreditsData, sizeof kCreditsData / sizeof *kCreditsData},
+	{"Software", kCreditsSoftware, sizeof kCreditsSoftware / sizeof *kCreditsSoftware},
+};
+inline constexpr size_t kCreditPageCount = sizeof kCreditPages / sizeof *kCreditPages;
 
 } // namespace wx

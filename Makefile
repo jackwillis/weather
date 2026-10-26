@@ -109,15 +109,17 @@ PREFIX  ?= /usr/local
 BINDIR  ?= $(PREFIX)/bin
 MANDIR  ?= $(PREFIX)/share/man
 EXDIR   ?= $(PREFIX)/share/examples/weather
+DOCDIR  ?= $(PREFIX)/share/doc/weather
 INSTALL ?= install
 DISTNAME = weather-$(VERSION)
 
 install: all
-	$(INSTALL) -d -m 755 $(DESTDIR)$(BINDIR) $(DESTDIR)$(MANDIR)/man1 $(DESTDIR)$(MANDIR)/man5 $(DESTDIR)$(EXDIR)
+	$(INSTALL) -d -m 755 $(DESTDIR)$(BINDIR) $(DESTDIR)$(MANDIR)/man1 $(DESTDIR)$(MANDIR)/man5 $(DESTDIR)$(EXDIR) $(DESTDIR)$(DOCDIR)
 	$(INSTALL) -m 755 $(BUILD)/weather $(DESTDIR)$(BINDIR)/weather
 	$(INSTALL) -m 644 man/weather.1 $(DESTDIR)$(MANDIR)/man1/weather.1
 	$(INSTALL) -m 644 man/weatherrc.5 $(DESTDIR)$(MANDIR)/man5/weatherrc.5
 	$(INSTALL) -m 644 share/weatherrc.example $(DESTDIR)$(EXDIR)/weatherrc
+	$(INSTALL) -m 644 LICENSE THIRD_PARTY.md $(DESTDIR)$(DOCDIR)/
 	@if [ -n "$(XWEATHER_TARGETS)" ]; then \
 	    echo "$(INSTALL) -m 755 $(BUILD)/xweather $(DESTDIR)$(BINDIR)/xweather"; \
 	    $(INSTALL) -m 755 $(BUILD)/xweather $(DESTDIR)$(BINDIR)/xweather && \

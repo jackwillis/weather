@@ -19,6 +19,7 @@ names=$(hls -1 2>/dev/null)
 echo "== $dsk contents"; hls -la
 humount > /dev/null 2>&1
 echo "$names" | grep -qx "Weather" || bad "the .dsk does not contain the Weather app"
+for need in LICENSE THIRD_PARTY.md "Read Me"; do echo "$names" | grep -qx "$need" || bad "the .dsk lacks the notice file $need (tools/stage-dsk.sh)"; done
 echo "$names" | while IFS= read -r n; do
 	case "$n" in
 		Weather|"Read Me"*|THIRD_PARTY*|LICENSE*|"Third Party"*) ;;

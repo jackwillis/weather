@@ -1,5 +1,7 @@
 # weather
 
+<p align="center"><img src="assets/logo/whatitbelike-512x256.png" alt="What It Be Like? logo" width="384"></p>
+
 A small Unix weather tool for old big-endian machines. It reads forecasts over TLS (BearSSL),
 works without a proxy, and is cross-built from Linux for NetBSD/macppc first, then Mac OS 9.
 The portable core (`src/`, no OS headers except in `net_posix.cpp`/`log.cpp`) is separate from the
