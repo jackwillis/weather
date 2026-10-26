@@ -1,7 +1,13 @@
 # Architecture and engineering decisions
 
-Written 2026-10-24, before the second target. Companion to `PLAN.md` (goals, milestones, dated log).
+Written 2026-10-24; implementation narrative updated with an integration note 2026-10-25. Companion to `PLAN.md` and `STATUS.md`.
 Items marked UNVERIFIED are beliefs to check before relying on them.
+
+## Integration status and experimental architecture
+
+The NetBSD CLI/X11 implementation and OS 9 console/Open Transport adapter are on `main`. The OS 9 native window is implemented in **unmerged #11**; it is not yet a default-branch capability. Existing Weather targets statically link networking/TLS code; there is **no shared CFM redistributable** yet.
+
+A shared external CA repository (#40) is a proposed independent data product: native clients may share trust **without** sharing networking binaries. Mac-first SDK/CFM research (#27, #42) and a documented Open Transport context alternative (#43) are isolated from Weather's release path. The current client-record glue includes behavior learned from Apple binary inspection and should not be described as a stable public ABI across classic Mac OS versions. Verified execution is OS 9.2.2 **through Classic on Tiger on real PowerPC hardware**; earlier OS 9, Mac OS 8 and System 7 remain unverified.
 
 ## 1. Layers and the dependency rule
 
