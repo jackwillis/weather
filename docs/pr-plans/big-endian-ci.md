@@ -52,3 +52,20 @@ Host regression: make check passed 492 unit checks, 206820 mutation inputs,
 99 CLI checks and 21 GUI checks; ASan/UBSan checks passed. An initial sandboxed
 run failed at socket creation (test/unittest.cpp:375, ls >= 0); rerunning with
 local fixture networking available passed. The emulated suite passed twice.
+
+## Refresh against main, 2026-10-26
+
+Merged main f4ba116, preserving both the supplemental check-ppc target and main's
+check-native -> check-tls gate in the sole Makefile conflict. Workflow privileges,
+action pins and emulator scope are unchanged.
+
+Host and ASan/UBSan pass 517 unit checks, 230242 mutation inputs and 106 CLI
+checks. Host also passes 12 TLS and 21 GUI checks. The rootless prepared Debian
+container executes the expected ABI and 230242 mutation inputs under QEMU.
+Its initial container-root run executes 514 unit checks; three permission checks
+are intentionally skipped for euid 0. A non-root run with --userns keep-id and a
+read-only, correctly labelled volume executes all 517 with zero failures. Initial
+non-root mounts lacked the matching per-container SELinux label and could not
+read fixtures; no tests ran in those attempts. No host permissions were changed.
+No actual NetBSD or OS9 hardware run was performed for this CI-only refresh.
+Hosted verification will rerun at the new PR head.

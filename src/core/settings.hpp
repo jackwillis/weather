@@ -47,10 +47,12 @@ inline Status settings_update(sv text, const KeyVal *kvs, size_t nkv, char *out,
 	if (nkv > 16) return make(Err::Config, "too many settings at once");
 
 	settings_detail::Out o{out, cap, 0, false};
+	// New keys end with the file's own line ending: a lone CR if its first break is one (classic Mac), else LF.
+	size_t first = line_break(text, 0);
+	sv eol = (first < text.size() && text[first] == '\r' && (first + 1 >= text.size() || text[first + 1] != '\n')) ? sv("\r") : sv("\n");
 	size_t pos = 0;
 	while (pos < text.size()) {
-		size_t nl = find(text, "\n", pos);
-		size_t end = nl == sv::npos ? text.size() : nl + 1;      // line including its terminator
+		size_t end = after_break(text, line_break(text, pos));   // line including its terminator
 		sv line = text.substr(pos, end - pos);
 		sv body = line, tail;                                     // tail = line ending
 		size_t t = body.size();
@@ -80,8 +82,8 @@ inline Status settings_update(sv text, const KeyVal *kvs, size_t nkv, char *out,
 	}
 	for (size_t i = 0; i < nkv; i++) {
 		if (done[i]) continue;
-		if (o.n > 0 && out[o.n - 1] != '\n') o.put('\n');
-		o.put(kvs[i].key); o.put(" = "); o.put(kvs[i].val); o.put('\n');
+		if (o.n > 0 && out[o.n - 1] != '\n' && out[o.n - 1] != '\r') o.put(eol);
+		o.put(kvs[i].key); o.put(" = "); o.put(kvs[i].val); o.put(eol);
 	}
 	if (o.over) return make(Err::Config, "settings file too large");
 	out[o.n] = 0;
