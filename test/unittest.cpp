@@ -923,7 +923,7 @@ static void test_metno()
 		Net n = make_net(&fk);
 		Status r = fetch_forecast(n, only, 1, lq, o, buf, sizeof buf, &out);
 		CHECK(r.ok() && out.temp_t10 == 545);
-		CHECK(strstr(fk.request, "User-Agent: weather/0.1.0 (contact: tester@example.org)\r\n") != nullptr);
+		CHECK(strstr(fk.request, "User-Agent: weather/" WEATHER_VERSION " (contact: tester@example.org)\r\n") != nullptr);
 		CHECK(strstr(fk.request, "Host: fake\r\n") != nullptr);
 	}
 	{ // Open-Meteo fails, MET Norway answers

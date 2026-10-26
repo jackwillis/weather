@@ -5,6 +5,8 @@ works without a proxy, and is cross-built from Linux for NetBSD/macppc first, th
 The portable core (`src/`, no OS headers except in `net_posix.cpp`/`log.cpp`) is separate from the
 per-OS UI layer. NetBSD gets `xweather`, a CDE-look window drawn in plain Xlib (no Xt, no Motif).
 
+**Version 0.0.1 is a pre-release** that exists to prove the release pipeline; see `docs/release-notes/0.0.1.md`.
+
 Status (details in `docs/STATUS.md`): the CLI (`weather`) and `xweather` work on maul (NetBSD/macppc). A first Mac OS 9 build
 (`Weather`) has a native window; `WeatherConsole` retains the console diagnostic.
 `weather -1` prints a live forecast; `xweather` shows it in a window (menus, Location dialog, auto-refresh every 15 min, weather pictures).
@@ -114,7 +116,7 @@ ten-minute watchdog and never answers system dialogs or changes the user's confi
     make distcheck                                                    # unpack the tarball elsewhere, build, test, rebuild it and compare bytes
     make package-netbsd                                               # build/pkg/weather-VERSION.tgz, a pkg_add-able NetBSD package
 NetBSD package: `tools/mkpkg-netbsd.sh` cross-builds, stages `make install`, and runs `pkg_create` on maul (it only archives
-files). Install on maul with `doas pkg_add weather-0.1.0.tgz`; remove with `pkg_delete weather`. No install script is needed:
+files). Install on maul with `doas pkg_add weather-0.0.1.tgz`; remove with `pkg_delete weather`. No install script is needed:
 pkg_add installs exactly the PLIST and settings are a per-user dotfile.
 
 ## Layout (dependencies point down only; see docs/ARCHITECTURE.md)

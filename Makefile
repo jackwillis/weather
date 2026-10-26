@@ -13,7 +13,7 @@
 # Shortcut: `make ppc` = make TARGET=netbsd-macppc.
 
 TARGET  ?= host
-VERSION  = 0.1.0
+VERSION  = 0.0.1
 BEARSSL ?= third_party/bearssl
 
 include mk/$(TARGET).mk

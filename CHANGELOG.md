@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.1 (pre-release)
+A deliberately rough release to prove the packaging and release pipeline (issue #123). It promises no support
+and is not the v0.1 gate. See `docs/release-notes/0.0.1.md` for what works and the known issues.
+- Same code as the `0.1.0 (unreleased)` list below, as of the tagged commit; only the version differs.
+
 ## 0.1.0 (unreleased)
 First version.
 - OS 9 Preferences uses a single compiled writer to prevent Retro68 inline workspace storage from overlapping other globals.

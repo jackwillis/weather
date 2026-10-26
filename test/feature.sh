@@ -104,7 +104,7 @@ contains "met-no output" "54.5F Partly cloudy, wind 7.8mph S, humidity 77% (met-
 expect "met-no metric" 0 -c "$CFG.met" -1 -u metric -p met-no -H 127.0.0.1:$P_MET
 contains "met-no metric output" "12.5C Partly cloudy, wind 12.6km/h S"
 expect "contact is sent in the User-Agent" 0 -c "$CFG.met" -d -1 -p met-no -H 127.0.0.1:$P_MET
-contains "user agent" "User-Agent: weather/0.1.0 (contact: tester@example.org)"
+contains "user agent" "User-Agent: weather/$("$BIN" -V | sed "s/^weather //") (contact: tester@example.org)"
 expect "met-no is skipped without contact, next source used" 0 -c "$CFG" -1 -p met-no,open-meteo -H 127.0.0.1:$P_OK
 contains "fell back to open-meteo" "(open-meteo "
 expect "falls back when the first source is broken" 0 -c "$CFG.met" -1 -p open-meteo,met-no -H 127.0.0.1:$P_FALL
