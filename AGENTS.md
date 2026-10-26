@@ -61,5 +61,10 @@ Check clocks with `date -u +%s` on the Mac versus the app's `clock:` log line.
 1. Complete #12 native Location/Preferences acceptance on Tiger: PreferencesProbe, WeatherPrefsUITest screenshots and actual restart persistence. Cross-builds/pure tests alone do not finish it.
 2. Complete stalled DNS/delayed-open and NetBSD hardware acceptance (#14); owner controls reboots and privileged installation.
 3. Last-good forecast cache (#15), NWS (#16, only api.weather.gov), location search (#17).
-4. Release/terms/package acceptance (#18) and big-endian CI (#19, follows #10).
-5. Config reload is conditional (#20). Tiger remains parked (#21).
+4. Release/terms/package acceptance (issue #67) and big-endian CI (#19, follows #10).
+5. Config reload is conditional (issue #68). Tiger remains parked (issue #69).
+
+## Project management
+Issues, milestones, labels, the board and the PR flow are described in `docs/PROJECT-MANAGEMENT.md`. Start work from an issue, link it from the PR (`Closes #N`),
+set `agent/codex` or `agent/claude` while you own it, and use `needs-owner` / `needs-hardware-*` / `blocked` instead of leaving a PR silently stuck.
+
