@@ -61,6 +61,27 @@ duplicate or roll back seed state. A stolen seed compromises the assumptions;
 unmeasured jitter does not prove recovery from that compromise. Classic OS 9 does
 not provide modern per-user isolation.
 
+## If seed state is exposed
+
+BearSSL documents that PRNG output depends on seed inputs and the exact sequence
+of generation calls (including their lengths):
+[BearSSL PRNG documentation](https://www.bearssl.org/apidoc/bearssl__rand_8h.html).
+For this application, someone who learns a saved seed and can reconstruct the
+supplemental inputs and calls can reproduce the stream. Saving a successor before
+releasing TLS output does not recover secrecy after that compromise. The timing
+samples have no measured entropy guarantee; differing outputs for differing
+samples demonstrate mixing, not resistance to guessing those samples.
+
+A leftover import, backup or cloned volume can expose or duplicate seed state.
+After suspected exposure, stop Weather and follow the owner-controlled recovery
+procedure below to provision an independent new OS CSPRNG seed. Do not rely on
+normal rotation or additional launches to recover secrecy. Protect and remove
+all unneeded copies according to the first-install instructions.
+
+The current checksum/record decoder does not reject all-zero or known diagnostic
+seed values. Admission hardening is tracked separately in issue #59; the tests
+below do not claim to fix it or prove the provenance of any accepted record.
+
 ## Recovery
 
 The application refuses ambiguous recovery rather than picking an old seed:

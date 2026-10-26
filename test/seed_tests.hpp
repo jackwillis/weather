@@ -53,6 +53,40 @@ static void test_seed_pool()
 	  CHECK(std::memcmp(first, out, sizeof out) == 0); // reproducibility, not an entropy claim
 	  CHECK(one.shutdown() && two.shutdown());
 	}
+	{ // The persisted successor is never the first bytes released to TLS.
+	  SeedFake f; wx::SeedPool<SeedFake> pool(f);
+	  unsigned char successor[32] = {};
+	  CHECK(pool.fill(out, sizeof out));
+	  CHECK(wx::seed_decode(f.disk, f.len, successor));
+	  CHECK(std::memcmp(successor, out, sizeof successor) != 0);
+	  wx::secret_clear(successor, sizeof successor);
+	  CHECK(pool.shutdown());
+	}
+	{ // Supplemental input before the first request changes both successor and output.
+	  SeedFake a, b, same;
+	  wx::SeedPool<SeedFake> one(a), two(b), repeat(same);
+	  const unsigned char extra_a[] = {1, 3, 5, 7}, extra_b[] = {1, 3, 5, 8};
+	  unsigned char repeated[64];
+	  CHECK(one.fill(first, sizeof first, extra_a, sizeof extra_a));
+	  CHECK(two.fill(out, sizeof out, extra_b, sizeof extra_b));
+	  CHECK(repeat.fill(repeated, sizeof repeated, extra_a, sizeof extra_a));
+	  CHECK(std::memcmp(first, out, sizeof out) != 0);
+	  CHECK(std::memcmp(a.disk, b.disk, wx::kSeedRecordSize) != 0);
+	  CHECK(std::memcmp(first, repeated, sizeof first) == 0);
+	  CHECK(std::memcmp(a.disk, same.disk, wx::kSeedRecordSize) == 0);
+	  CHECK(one.shutdown() && two.shutdown() && repeat.shutdown());
+	}
+	{ // Supplemental input on a later request changes the stream without another disk rotation.
+	  SeedFake a, b;
+	  wx::SeedPool<SeedFake> one(a), two(b);
+	  CHECK(one.fill(first, sizeof first) && two.fill(out, sizeof out));
+	  CHECK(std::memcmp(first, out, sizeof out) == 0);
+	  const unsigned char extra[] = {2, 4, 6, 8};
+	  CHECK(one.fill(first, sizeof first, extra, sizeof extra) && two.fill(out, sizeof out));
+	  CHECK(std::memcmp(first, out, sizeof out) != 0);
+	  CHECK(a.saves == 1 && b.saves == 1 && std::memcmp(a.disk, b.disk, wx::kSeedRecordSize) == 0);
+	  CHECK(one.shutdown() && two.shutdown());
+	}
 	{ SeedFake f; wx::SeedPool<SeedFake> one(f), two(f);
 	  CHECK(one.fill(out, sizeof out)); CHECK(!two.fill(out, sizeof out));
 	  CHECK(f.locked && one.fill(out, sizeof out)); CHECK(one.shutdown());
