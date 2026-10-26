@@ -2,17 +2,19 @@
 
 A small Unix weather tool for old big-endian machines. It reads forecasts over TLS (BearSSL),
 works without a proxy, and is cross-built from Linux for NetBSD/macppc first, then Mac OS 9.
-The portable core (`src/`, no OS headers except in `net_posix.cpp`/`log.cpp`) is separate from the
-per-OS UI layer. NetBSD gets `xweather`, a CDE-look window drawn in plain Xlib (no Xt, no Motif).
+The portable `src/core` and `src/app` layers avoid OS headers; platform-specific adapters live in
+`src/platform/`, with a separate UI for each operating system. NetBSD gets `xweather`, a CDE-look window drawn in plain Xlib (no Xt, no Motif).
 
 Status (details in `docs/STATUS.md`): the CLI (`weather`) and `xweather` work on maul (NetBSD/macppc). A first Mac OS 9 build
-(`Weather`, a console app) fetches and prints a live forecast over TLS on a real Mac running OS 9.2.2; its window UI is not written yet.
+(`Weather`, a console app) fetches and prints a live forecast over TLS on a real Mac running OS 9.2.2; a native QuickDraw window is implemented in **unmerged PR #11**, not yet on `main`.
 `weather -1` prints a live forecast; `xweather` shows it in a window (menus, Location dialog, auto-refresh every 15 min, weather pictures).
 
     $ weather -1
     54.6F Clear sky, wind 9.0mph SE, humidity 83% (open-meteo 2026-10-24T05:00)
 
-See `docs/PLAN.md` (goals, milestones, decision log), `docs/ARCHITECTURE.md` (layers, seams, targets, build, tests, releases) and `TODO.md`.
+See [STATUS](docs/STATUS.md) (merged versus pending), [PLAN](docs/PLAN.md) (release-first roadmap), [ARCHITECTURE](docs/ARCHITECTURE.md) (layers and platform integration), and [TODO](TODO.md). Design RFCs and implementation branches are not shipped functionality.
+
+**Release-first policy:** the supported product is the working NetBSD CLI/X11 application and an OS 9 console app verified on the G4 in Classic under Tiger. The OS 9 window, trust-store updates, shared CFM runtime and older Mac OS compatibility remain separate PRs or research. Avoid describing experimental code as part of an installable release.
 
 ## xweather
     xweather [-dhqvV] [-c file] [-display name]
@@ -71,7 +73,7 @@ rebuild objects (3.81 compares times in whole seconds); use `make clean` after s
 
 ## Mac OS 9
     make os9      # build/os9/Weather.{APPL,bin,dsk}: PowerPC PEF app, built with Retro68 in a podman container, no Apple files needed
-Console edition for now: it reads an optional `weather.conf` (same `key = value` lines as `~/.weatherrc`) next to the app, fetches,
+On `main`, console edition for now (see unmerged [OS 9 QuickDraw PR #11](https://github.com/jackwillis/weather/pull/11)): it reads an optional `weather.conf` (same `key = value` lines as `~/.weatherrc`) next to the app, fetches,
 prints the forecast and waits for a click. Debug output goes to the console and to `weather.log`; the managed TLS seed lives in Preferences.
 Cmd-. cancels a fetch, including DNS lookup. Needs Open Transport with TCP/IP configured. The network layer (`src/platform/os9/`) talks to Open Transport
 through our own small declarations and client glue (see docs/ARCHITECTURE.md, "Mac OS 9 target"). DNS uses an asynchronous provider with timeout/cancel support.
