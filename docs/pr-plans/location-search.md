@@ -1,8 +1,8 @@
 # Location-name search
 
-Status: draft implementation. Portable parser, TLS lookup and explicit-selection
-logic are implemented; CLI/X11/OS 9 entry points and runtime UI acceptance remain
-pending. Service choice and limits are recorded in `docs/GEOCODING.md`.
+Status: draft implementation. Portable parser, TLS lookup, explicit-selection
+logic and read-only CLI search are implemented; X11/OS 9 controls and runtime UI
+acceptance remain pending. Service choice and limits are recorded in `docs/GEOCODING.md`.
 
 Scope: let users search by place name, choose among ambiguous results and save
 coordinates/name. Define a first-run location-selection flow without making
@@ -28,8 +28,8 @@ fixed TLS hostname; strict bounded JSON/UTF-8 parsing; five owned results with
 coordinates, region and country; ASCII display simplification marked explicitly.
 Selection fills editable LocationForm fields without applying configuration.
 Tests use the Preferences seam to prove failed saves preserve old location/data
-and successful saves reload the chosen coordinates. No UI or CLI entry point
-currently invokes search. Remaining work is the original interface/first-run and
+and successful saves reload the chosen coordinates. At that foundation milestone no UI or CLI entry point
+invoked search. Remaining work is the original interface/first-run and
 hardware acceptance scope above; this milestone does not close the ticket.
 
 Verified milestone: final host, ASan/UBSan and actual NetBSD/macppc unit runs
@@ -46,3 +46,19 @@ existing apply_location updates RAM before checking settings_save; make it
 save-before-apply when integrating selection so the search contract holds there
 as it already does in the Preferences tests. Display simplification and service
 attribution must be visible beside the result list.
+
+CLI milestone: `weather -g query` / `--search query` lists matches and exits.
+It makes no choice and saves nothing; use -l/-n/-S in a separate invocation.
+Output credits Open-Meteo / GeoNames and marks simplified names. -g rejects -H,
+-S, -1 and location/units/provider overrides before connecting or saving. Queries
+are validated before config loading/network initialization. No interactive prompt
+was added. A host live TLS lookup passed; offline CLI cases first reproduced
+missing help/query validation, then passed with the implementation.
+
+CLI verification: host and ASan/UBSan checks pass (644 unit, 231002 mutation
+inputs, 108 CLI feature cases, existing 21 GUI cases). Actual NetBSD/macppc:
+644 unit and 87002 mutation inputs pass; the real CLI performed the TLS search
+and confirmed configuration unchanged, including a rejected -g/-S combination.
+Both portable Retro68 probes pass. Updated manual renders without warnings.
+Evidence: docs/verification/geocoding-cli-2026-10-26.txt. No native OS 9 runtime
+claim, and no new window-search behavior is claimed at this milestone.

@@ -12,6 +12,14 @@ Status (details in `docs/STATUS.md`): the CLI (`weather`) and `xweather` work on
     $ weather -1
     54.6F Clear sky, wind 9.0mph SE, humidity 83% (open-meteo 2026-10-24T05:00)
 
+Place-name lookup is explicit and read-only: `weather -g "Madison, WI"` lists
+up to five matches with region/country and coordinates, then exits. Choose the
+coordinates deliberately and use a separate command such as
+`weather -l 43.0731,-89.4012 -n Madison -S` to save. Search credits Open-Meteo /
+GeoNames; its public endpoint is for non-commercial use. See
+[search behavior and privacy](docs/GEOCODING.md). The window search controls are
+still in progress; existing coordinate dialogs continue to work.
+
 See `docs/PLAN.md` (goals, milestones, decision log), `docs/ARCHITECTURE.md` (layers, seams, targets, build, tests, releases) and `TODO.md`.
 
 ## xweather
@@ -23,7 +31,7 @@ It shares `~/.weatherrc` with `weather`. Closing the window during a fetch cance
 `xweather.background`, `.foreground`, `.font`, `.boldFont`, `.bigFont`.
 
 ## Use
-    weather [-1dhqsSV] [-c file] [-l lat,lon] [-n name] [-p sources] [-t secs] [-u metric|imperial] [-v]
+    weather [-1dhqsSV] [-c file] [-l lat,lon] [-n name] [-p sources] [-t secs] [-u metric|imperial] [-v] [-g query]
 Data sources: `open-meteo` (default) and `met-no` (MET Norway; needs `contact = ...` in the config because their terms require it, skipped otherwise); sources are tried in the order given by `-p`/`providers`.
 Config: `~/.weatherrc` (`latitude`, `longitude`, `name`, `units`, `timeout`, `attempts`, `providers`, `contact`, `log`, `autorefresh`),
 flags override it. The default location is Madison, WI 53703 (Capitol Square 43.0747,-89.3841); set `name`, `latitude`, `longitude` or use -l/-n. Exit codes follow BSD sysexits

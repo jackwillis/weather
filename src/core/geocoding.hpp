@@ -140,6 +140,21 @@ inline Status geocoding_parse(sv body,PlaceResults *out)
     }
     *out=next; return okay();
 }
+// Stable tab-separated listing: ordinal, name, region/country, coordinates.
+template<size_t N> inline void format_places(Buf<N> &out,const PlaceResults &places)
+{
+    out.add("Places from Open-Meteo / GeoNames\n");
+    if(!places.count) out.add("No matching places.\n");
+    for(size_t i=0;i<places.count && i<kPlaceLimit;i++) {
+        const Place &p=places.items[i];
+        out.add_int(static_cast<long>(i+1)).add('\t').add(p.name).add('\t').add(p.region);
+        if(p.country[0]) { if(p.region[0]) out.add(' '); out.add(p.country); }
+        out.add('\t').add_fixed(p.lat_e4,4).add(',').add_fixed(p.lon_e4,4);
+        if(p.simplified) out.add(" (ASCII simplified)");
+        out.add('\n');
+    }
+    if(places.count) out.add("Choose coordinates with -l lat,lon; use -n name and -S to save separately.\n");
+}
 inline Status search_places(Net &net,sv query,const FetchOpts &opts,char *buf,size_t cap,PlaceResults *out)
 {
     char path[256]; Status s=geocoding_path(query,path,sizeof path); if(!s.ok()) return s;

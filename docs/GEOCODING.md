@@ -1,8 +1,12 @@
 # Location search
 
-Implementation in PR #17 is currently the portable foundation. CLI/X11/OS 9
-entry points, result lists and scripted UI acceptance are still pending; no
-normal forecast request or startup invokes this code yet.
+PR #17 implements the portable foundation and explicit read-only CLI search
+(`weather -g "place"`, also `--search`). X11/OS 9 result lists and scripted UI
+acceptance are still pending. Normal forecast requests and startup do not search.
+The CLI prints numbered matches, region/country and coordinates, with attribution
+and a simplification note when needed. It never automatically selects or saves;
+use chosen coordinates with -l, an optional -n, and -S in a separate command.
+Search rejects -H, -S, -1 and location/units/provider overrides.
 
 ## Service and privacy
 

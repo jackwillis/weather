@@ -18,6 +18,10 @@ static void test_geocoding()
     CHECK(geocoding_parse(good,&results).ok());
     CHECK(results.count==2 && results.items[0].lat_e4==430748 && results.items[0].lon_e4==-893841);
     CHECK(!strcmp(results.items[0].name,"Madison") && !strcmp(results.items[0].region,"Wisconsin"));
+    Buf<2048> listing; format_places(listing,results);
+    CHECK(find(listing.view(),"Open-Meteo / GeoNames")!=sv::npos);
+    CHECK(find(listing.view(),"1\tMadison\tWisconsin US\t43.0748,-89.3841")!=sv::npos);
+    CHECK(find(listing.view(),"2\tParis\tFR\t48.8500,2.3500")!=sv::npos && !listing.truncated);
     CHECK(geocoding_parse("{}",&results).ok() && results.count==0);
     CHECK(geocoding_parse("{\"results\":[]}",&results).ok() && results.count==0);
     const char *bad[]={"{", "{\"results\":null}", "{\"error\":true}",
