@@ -107,10 +107,11 @@ void shadow(Theme &t, Drawable w, Rect r, int thick, bool out)
 	}
 }
 
-int text_width(XFontStruct *f, sv s) { return XTextWidth(f, s.data(), static_cast<int>(s.size())); }
+int text_width(XFontStruct *f, sv s) { return s.empty()?0:XTextWidth(f, s.data(), static_cast<int>(s.size())); }
 
 void text(Theme &t, Drawable w, XFontStruct *f, int x, int baseline, sv s, unsigned long color)
 {
+	if(s.empty()) return;
 	XSetFont(t.dpy, t.gc, f->fid);
 	XSetForeground(t.dpy, t.gc, color);
 	XDrawString(t.dpy, w, t.gc, x, baseline, s.data(), static_cast<int>(s.size()));
@@ -125,13 +126,15 @@ void text_center(Theme &t, Drawable w, XFontStruct *f, Rect r, sv s, unsigned lo
 
 size_t fit_text(XFontStruct *f, sv s, int maxw, char *out, size_t cap)
 {
+	if(!cap) return 0;
 	size_t n = s.size() < cap - 1 ? s.size() : cap - 1;
-	memcpy(out, s.data(), n);
+	if(n) memcpy(out, s.data(), n);
 	out[n] = 0;
 	if (text_width(f, sv(out, n)) <= maxw) return n;
 	while (n > 0) {
 		n--;
-		if (n + 3 < cap) { memcpy(out + n, "...", 3); }
+		if (n + 3 >= cap) continue;
+		memcpy(out + n, "...", 3);
 		if (text_width(f, sv(out, n + 3)) <= maxw) { out[n + 3] = 0; return n + 3; }
 	}
 	out[0] = 0;
