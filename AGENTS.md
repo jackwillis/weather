@@ -58,6 +58,8 @@ Check clocks with `date -u +%s` on the Mac versus the app's `clock:` log line.
 * DNS/managed TLS seeds are implemented; preserve once-per-process network init and terminal shutdown. Never remove a live seed lock.
 
 ## Next tasks
+**Finishing releases without the owner present:** follow the runbooks. v0.0.1 (a rough pipeline pre-release, milestone v0.0.1): issue #123. v0.1: the "How to finish v0.1" section of issue #45. Both list what only Jack can do (merge authorization, reboots, privileged installs, tag and publish); label and move on when blocked.
+
 1. Location dialog and persistent Preferences (#12); reuse LocationForm/TextEdit and the settings seam.
 2. Complete stalled DNS/delayed-open and NetBSD hardware acceptance (#14); owner controls reboots and privileged installation.
 3. Last-good forecast cache (#15), NWS (#16, only api.weather.gov), location search (#17).

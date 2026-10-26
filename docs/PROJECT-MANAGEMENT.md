@@ -26,7 +26,7 @@ earlier proposal (Part B). Map research: #114. First work slices (v0.2): #117 an
 
 ## Milestones
 
-Each milestone has a tracking issue with a task list: **#45** (v0.1), **#46** (v0.2), **#47** (v0.3), **#48** (Research). Start there to see what is left.
+Each milestone has a tracking issue with a task list: **#123** (v0.0.1, a rough pipeline pre-release), **#45** (v0.1, includes the runbook for finishing it), **#46** (v0.2), **#47** (v0.3), **#48** (Research). Start there to see what is left.
 
 * **v0.1**: first usable NetBSD and Mac OS 9 release. An ordinary user can install, configure and use every platform we advertise.
   Keep it narrow; the tracking issue lists the gate.
