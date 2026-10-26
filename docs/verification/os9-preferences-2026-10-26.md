@@ -74,3 +74,25 @@ owner typing and persistence after quitting/relaunching production Weather.
 Fresh-adapter readback is not process-restart evidence. Locked-file handling is
 verified; a genuinely read-only volume and physical power-loss durability remain
 unverified. PR #12 has no merge authorization from this acceptance request.
+
+## Resumed investigation and native fix
+
+Tiger became reachable again without a reboot by the agent. Additional tracing
+showed the rewrite returned success and save dispatch was failing. Callback
+integrity passed immediately before the Preferences load and failed immediately
+after it. The cross-linked binary explained this: the inline writer's 4096-byte
+`before` buffer was assigned the same BSS address as subsequent diagnostic globals.
+Reading the saved 91-byte record overwrote callback data. This is linked storage
+overlap, not a change to the validation rules.
+
+The writer now has one out-of-line definition in src/app/preferences.cpp, giving
+its mutable workspace ordinary single-definition storage. Cross-link inspection
+shows separate 4096-byte buffers and no overlap with diagnostic globals. All
+temporary tracing was removed. The same native marker scenario then completed
+with `finished: 0 failures; rc=0`, including name-only Apply, exactly three
+scripted fetches and quit cancellation. Full log:
+os9-preferences-ui-green-2026-10-26.txt. Earlier incomplete runs remain recorded.
+Actual owner typing and production process-restart persistence are still pending.
+Delivery of this final production build was not confirmed before the session
+ended (agent usage limit); re-deliver and verify before the owner checks. No merge
+of #12 is authorized.
