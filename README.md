@@ -6,7 +6,7 @@ The portable core (`src/`, no OS headers except in `net_posix.cpp`/`log.cpp`) is
 per-OS UI layer. NetBSD gets `xweather`, a CDE-look window drawn in plain Xlib (no Xt, no Motif).
 
 Status (details in `docs/STATUS.md`): the CLI (`weather`) and `xweather` work on maul (NetBSD/macppc). A first Mac OS 9 build
-(`Weather`, a console app) fetches and prints a live forecast over TLS on a real Mac running OS 9.2.2; its window UI is not written yet.
+(`Weather`) has a native window; `WeatherConsole` retains the console diagnostic.
 `weather -1` prints a live forecast; `xweather` shows it in a window (menus, Location dialog, auto-refresh every 15 min, weather pictures).
 
     $ weather -1
@@ -74,13 +74,35 @@ rebuild objects (3.81 compares times in whole seconds); use `make clean` after s
 
 ## Mac OS 9
     make os9      # build/os9/Weather.{APPL,bin,dsk}: PowerPC PEF app, built with Retro68 in a podman container, no Apple files needed
-Console edition for now: it reads an optional `weather.conf` (same `key = value` lines as `~/.weatherrc`) next to the app, fetches,
-prints the forecast and waits for a click. Debug output goes to the console and to `weather.log`; the managed TLS seed lives in Preferences.
-Cmd-. cancels a fetch, including DNS lookup. Needs Open Transport with TCP/IP configured. The network layer (`src/platform/os9/`) talks to Open Transport
+`Weather` shows a native window with weather artwork, forecast values, source and
+observation time, and refresh/stale-data status. File/Refresh (Cmd-R), File/Quit
+(Cmd-Q), Options/automatic updates and units, and Apple/About are available.
+During a fetch, File/Quit, Cmd-Q or the close box cancels. Menus and dragging remain
+available; their modal tracking time is excluded from local DNS and socket/TLS
+deadlines. A server can still close an idle connection during a long hold. The app
+continues fetching and refreshing in the background. Settings changes in this
+first window slice last for the current session; Preferences and location editing
+are follow-up work.
+
+Both apps read optional `weather.conf` next to the app (same `key = value` lines as
+`~/.weatherrc`, at most 4095 bytes). Missing files use defaults; unreadable or invalid
+files report an error without applying partial changes. `WeatherConsole` fetches,
+prints and waits for a click; Cmd-. cancels its fetch. Debug output is appended to
+`weather.log`; the managed TLS seed lives in Preferences.
+Needs Open Transport with TCP/IP configured. The network layer (`src/platform/os9/`) talks to Open Transport
 through our own small declarations and client glue (see docs/ARCHITECTURE.md, "Mac OS 9 target"). DNS uses an asynchronous provider with timeout/cancel support.
 TLS requires a unique provisioned seed; `SeedInstall` installs it in Preferences and the app checks seed rotation before releasing entropy.
 See [OS 9 seed setup and recovery](docs/OS9-SEEDS.md). Legacy jitter-only seeds are not imported. Retro68's `printf` still lacks `%lld`.
 To run it on a Mac with OS X (Classic) use `tools/deliver-os9.sh` (see its comments) and open the app.
+
+Optional diagnostics: configure the OS 9 CMake build with
+`-DWEATHER_BUILD_DIAGNOSTICS=ON`, build and deliver `WeatherUITest.dsk`, then run
+`python3 tools/check-os9-window.py /tmp/weather-window-shots` from the laptop.
+The driver uses explicit marker files in the separate test app, takes screenshots,
+and verifies a yielding update, refresh suppression, units, stale data, live TLS and
+quit. It also activates Finder programmatically to test background execution and
+suspend/resume; it never clicks or answers a system dialog. Production `Weather` does not link fixture/marker code. The test app has a
+ten-minute watchdog and never answers system dialogs or changes the user's config.
 
 ## Install and packages
     make install DESTDIR=/stage PREFIX=/usr/pkg MANDIR=/usr/pkg/man   # bin/weather, bin/xweather, man pages, example config

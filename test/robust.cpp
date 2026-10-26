@@ -4,6 +4,7 @@
 // says OK the answer is sane"; build it with -fsanitize=address,undefined (make check-san) and the
 // sanitizers do the watching. usage: robust [random-iterations] (default 20000)
 #include "app/textedit.hpp"
+#include "app/config_load.hpp"
 #include "core/config.hpp"
 #include "core/http.hpp"
 #include "core/json.hpp"
@@ -51,6 +52,19 @@ static void exercise(const char *p, size_t n)
 	g_runs++;
 	g_cur_len = n;
 	sv in(p, n);
+	SettingsStore config_store; config_store.ctx=&in;
+	config_store.load=[](SettingsStore &store,char *out,size_t cap,size_t *size) {
+		sv value=*static_cast<sv *>(store.ctx);
+		*size=value.size();
+		if(value.size()<cap) memcpy(out,value.data(),value.size());
+		return okay();
+	};
+	Config loaded;
+	Status config_status=load_config(config_store,loaded);
+	if(!config_status.ok()) {
+		EXPECT(loaded.lat_e4==430747 && loaded.lon_e4==-893841);
+		EXPECT(!loaded.metric && loaded.auto_refresh && !strcmp(loaded.name,"Madison, WI"));
+	}
 	// Format adapter: bounded output, failure empties it, deterministic prefix.
 	char full[257], small[18];
 	memset(small, 0x5a, sizeof small);
