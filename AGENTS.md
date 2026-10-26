@@ -53,12 +53,12 @@ Check clocks with `date -u +%s` on the Mac versus the app's `clock:` log line.
 
 ## State at handoff
 * CLI and xweather work on NetBSD/macppc; two providers, BearSSL TLS, packaging and host checks are in place.
-* OS 9 Weather is the native window; WeatherConsole retains the console diagnostic. They share bounded, all-or-nothing weather.conf loading.
+* OS 9 Weather is the native window; WeatherConsole retains the console diagnostic. They share bounded, all-or-nothing Preferences/legacy weather.conf loading (see docs/OS9-PREFERENCES.md).
 * WeatherUITest is a separate optional executable. Production Weather links no fixture generator or marker-file driver. See README for the scripted hardware run.
 * DNS/managed TLS seeds are implemented; preserve once-per-process network init and terminal shutdown. Never remove a live seed lock.
 
 ## Next tasks
-1. Location dialog and persistent Preferences (#12); reuse LocationForm/TextEdit and the settings seam.
+1. Complete #12 native Location/Preferences acceptance on Tiger: PreferencesProbe, WeatherPrefsUITest screenshots and actual restart persistence. Cross-builds/pure tests alone do not finish it.
 2. Complete stalled DNS/delayed-open and NetBSD hardware acceptance (#14); owner controls reboots and privileged installation.
 3. Last-good forecast cache (#15), NWS (#16, only api.weather.gov), location search (#17).
 4. Release/terms/package acceptance (#18) and big-endian CI (#19, follows #10).

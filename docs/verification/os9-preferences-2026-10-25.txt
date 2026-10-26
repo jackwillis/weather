@@ -1,0 +1,34 @@
+OS 9 Preferences implementation verification, 2026-10-25 local / 2026-10-26 UTC
+
+Host
+573 checks, 0 failed
+robust: 206820 inputs, 0 failed
+feature tests: 99 passed, 0 failed
+flags tests: 6 passed, 0 failed
+--- 21 checks passed, 0 failed
+gui scenario passed
+
+ASan/UBSan
+573 checks, 0 failed
+robust: 206820 inputs, 0 failed
+feature tests: 99 passed, 0 failed
+
+Actual NetBSD/macppc
+573 checks, 0 failed
+robust: 80820 inputs, 0 failed
+status=0
+
+Portable cross-compilation
+sh tools/probe-os9.sh
+ok   powerpc: portable core + compile-time tests compile (powerpc-apple-macos-g++ (GCC) 16.1.0)
+ok   m68k: portable core + compile-time tests compile (m68k-apple-macos-g++ (GCC) 16.1.0)
+
+Native Weather/WeatherConsole/PreferencesProbe/WeatherPrefsUITest/WeatherUITest cross-build passed.
+New OS 9 diagnostics NOT RUN; native layout/typing/locked-file/restart/delivery pending Tiger.
+Production binary checked for diagnostic marker/failure strings: none found.
+No compilation, reboot or privileged change on maul.
+
+Mutation harness red: robust 67520 inputs, 20 failed.
+Failures were assertions reparsing saved bytes via strlen, truncating embedded NULs
+in comments. Harness now retains write count and reparses the exact byte range.
+Corrected short run: 67520 inputs, 0 failed; final full run above.

@@ -10,6 +10,7 @@
 #include "app/locform.hpp"
 #include "app/model.hpp"
 #include "app/config_load.hpp"
+#include "app/preferences.hpp"
 #include "app/window_actions.hpp"
 #include "app/textedit.hpp"
 #include "core/providers.hpp"
@@ -1048,6 +1049,8 @@ static void test_window_actions()
 	CHECK(!window_seed_failure(make(Err::Tls,"no source of random numbers"),""));
 }
 
+#include "preferences_tests.hpp"
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -1062,6 +1065,7 @@ int main()
 	test_model();
 	test_window_actions();
 	test_config_load();
+	test_preferences();
 	test_modal_clock();
 	test_forms();
 	test_metno();

@@ -77,13 +77,16 @@ observation time, and refresh/stale-data status. File/Refresh (Cmd-R), File/Quit
 During a fetch, File/Quit, Cmd-Q or the close box cancels. Menus and dragging remain
 available; their modal tracking time is excluded from local DNS and socket/TLS
 deadlines. A server can still close an idle connection during a long hold. The app
-continues fetching and refreshing in the background. Settings changes in this
-first window slice last for the current session; Preferences and location editing
-are follow-up work.
+continues fetching and refreshing in the background. Options/Location (Cmd-L) opens a native validated editor. Location, units and
+automatic-update changes save to Preferences before taking effect; Apply/Cancel
+and failure behavior are described in [OS 9 Preferences](docs/OS9-PREFERENCES.md).
+Native Preferences hardware acceptance is still pending.
 
-Both apps read optional `weather.conf` next to the app (same `key = value` lines as
+Both apps prefer nonempty `Weather Preferences` in the classic Preferences folder,
+otherwise optional `weather.conf` next to the app (same `key = value` lines as
 `~/.weatherrc`, at most 4095 bytes). Missing files use defaults; unreadable or invalid
-files report an error without applying partial changes. `WeatherConsole` fetches,
+files report an error without applying partial changes. The first successful UI
+save preserves legacy settings/comments in Preferences and leaves weather.conf intact. `WeatherConsole` fetches,
 prints and waits for a click; Cmd-. cancels its fetch. Debug output is appended to
 `weather.log`; the managed TLS seed lives in Preferences.
 Needs Open Transport with TCP/IP configured. The network layer (`src/platform/os9/`) talks to Open Transport
