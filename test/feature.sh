@@ -202,6 +202,18 @@ if [ "$got" = 0 ]; then ok; else bad "-h with a malformed config: exit $got ($OU
 rm -rf "$HD"
 rm -f "$RC"
 
+# classic Mac files end lines with a lone CR: the settings must be read, and -S must keep the file's style
+CRRC=$(mktemp)
+printf '# mac file\rattempts = 1\rlatitude = 59.91\rlongitude = 10.75\r' > "$CRRC"
+expect "CR-only config is read" 0 -c "$CRRC" -d -1 -H 127.0.0.1:$P_OK
+contains "CR-only latitude reaches the request" "latitude=59.9100&longitude=10.7500"
+expect "-S on a CR-only config" 0 -c "$CRRC" -n Bergen -S
+case "$(cat "$CRRC" | tr '\r' '|')" in
+	"# mac file|attempts = 1|latitude = 59.9100|longitude = 10.7500|name = Bergen|units = imperial|") ok;;
+	*) bad "-S on a CR-only config: $(cat "$CRRC" | tr '\r' '|')";;
+esac
+rm -f "$CRRC"
+
 # stdout must carry only the result; diagnostics go to stderr
 echo "attempts = 1" > "$CFG"
 SOUT=$("$BIN" -c "$CFG" -1 -H 127.0.0.1:$P_OK 2>/dev/null)

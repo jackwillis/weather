@@ -120,6 +120,17 @@ static void test_config()
 	CHECK(config_parse("", &c).ok());
 	{ Config d; CHECK(d.lat_e4 == 430747 && d.lon_e4 == -893841 && !strcmp(d.name, "Madison, WI")); }
 	CHECK(config_parse("units = metric", &c).ok());         // no trailing newline
+	{ // classic Mac files end lines with CR alone: a CR is a line break, not whitespace inside one line
+		Config d;
+		s = config_parse("# my weather\rlatitude = 59.9100\rlongitude = 10.7500\rname = Oslo\r", &d);
+		CHECK(s.ok() && d.lat_e4 == 599100 && d.lon_e4 == 107500 && !strcmp(d.name, "Oslo"));
+		s = config_parse("units = metric\rbogus = 1\r", &d);
+		CHECK(s.err == Err::Config && s.detail == 2);       // the line number counts CR lines
+		s = config_parse("# a\r\nlatitude = 1.5\rlongitude = 2.5\nname = X", &d);   // CRLF, CR and LF mixed; no final terminator
+		CHECK(s.ok() && d.lat_e4 == 15000 && d.lon_e4 == 25000 && !strcmp(d.name, "X"));
+		s = config_parse("units = metric\r\nbogus = 1\r\n", &d);
+		CHECK(s.err == Err::Config && s.detail == 2);       // CRLF is one break, not two: still line 2
+	}
 }
 
 // ---- scripted fake network
@@ -483,6 +494,12 @@ static void test_settings_text()
 	{ // CRLF line endings are kept
 		CHECK(upd("name = A\r\nunits = metric\r\n", loc + 2, 1, out, sizeof out));
 		CHECK(sv(out) == sv("name = Oslo\r\nunits = metric\r\n"));
+	}
+	{ // CR-only (classic Mac) files: lines are found, edited in place, and new keys use the file's line ending
+		CHECK(upd("# my weather\rlatitude = 1.0\rname = X # home\runits = metric\r", loc, 3, out, sizeof out));
+		CHECK(sv(out) == sv("# my weather\rlatitude = 59.9100\rname = Oslo  # home\runits = metric\rlongitude = 10.7500\r"));
+		Config c;
+		CHECK(config_parse(out, &c).ok() && c.lat_e4 == 599100 && c.lon_e4 == 107500 && !strcmp(c.name, "Oslo") && c.metric);
 	}
 	{ // a commented-out key is not the key
 		CHECK(upd("# latitude = 5\n", loc, 1, out, sizeof out));
