@@ -1,5 +1,7 @@
 # Architecture and engineering decisions
 
+Current portfolio and execution order: [integration assessment, 2026-10-26](INTEGRATION-2026-10-26.md). Dated design notes below do not override merged status, current milestones or later owner decisions.
+
 Written 2026-10-24; implementation narrative updated with an integration note 2026-10-25. Companion to `PLAN.md` and `STATUS.md`.
 Items marked UNVERIFIED are beliefs to check before relying on them.
 

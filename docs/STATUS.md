@@ -1,4 +1,4 @@
-# Status (2026-10-25)
+# Status (2026-10-26)
 
 ## What works, and how it was checked
 | Piece | State | Evidence |
@@ -28,13 +28,13 @@
 
 ## Current integration and release priorities
 
-1. Review/integrate the open correctness and regression-test changes: #32, #35, #36, #38, #39 and #41. Their tests/results are **branch reports** until merged and independently revalidated. Coordinate overlapping changes.
-2. Review and merge OS 9 native QuickDraw window #11, then complete OS 9 preferences/location #12; validate on the G4. A Classic-on-Tiger run is not native-boot OS 9 compatibility evidence.
-3. Finish NetBSD real-display UX, package installation, hardening probes and provider attribution; stage a small first release before expanding weather features.
-4. Separately explore user-maintained CA roots (#40), Mac-first systems SDK (#27), CFM feasibility (#42), OT glue provenance/version matrix (#43), and modern C++ (#37). None are release dependencies today.
-5. Scope: real NetBSD/macppc and OS 9.2.2 under Classic have hardware evidence. OS 8, System 7, native OS 9 and other targets are **not verified**. Do not advertise them as supported.
+The default branch is `ebeaaed` (project-management78 merged). Main Checks and Policy passed. Earlier fixes32/35/36/38/39 are merged; their older open-work references are historical. The native window11 and its feature stack remain unmerged, despite substantial branch verification.
 
-This file records the default branch, not all PR branches. The numbers above are GitHub PRs and may change status after review.
+See [the complete integration assessment](INTEGRATION-2026-10-26.md) for all open PRs, current owner decisions, review order and remaining limits. Real milestones and tracker issues45–48 are now available; some old tracker prose still needs cleanup.
+
+Next: repair shared labeler95, review the small correctness/test batch, implement decided TLS/test-build isolation66, stale display49/62 and manual refresh floor92, then reconcile the native window/lifecycle stack for one hardware acceptance session when Jack authorizes the required boot. Research is tracked separately and does not automatically block v0.1.
+
+The existing detailed test counts above are historical evidence, not fresh verification of a combined release candidate. Separate green PRs do not establish that their combined tree passes.
 
 ## Reproduce
     make check                  # host: lint, anchors, unit, robustness, feature, GUI

@@ -1,5 +1,7 @@
 # Plan
 
+Current portfolio and execution order: [integration assessment, 2026-10-26](INTEGRATION-2026-10-26.md). Dated design notes below do not override merged status, current milestones or later owner decisions.
+
 Current delivery priorities reviewed: 2026-10-25. Historical dated decisions below are retained as history, not always current implementation guidance.
 
 ## Goal
