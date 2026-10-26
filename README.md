@@ -6,7 +6,7 @@ The portable core (`src/`, no OS headers except in `net_posix.cpp`/`log.cpp`) is
 per-OS UI layer. NetBSD gets `xweather`, a CDE-look window drawn in plain Xlib (no Xt, no Motif).
 
 Status (details in `docs/STATUS.md`): the CLI (`weather`) and `xweather` work on maul (NetBSD/macppc). A first Mac OS 9 build
-(`Weather`, a console app) fetches and prints a live forecast over TLS on a real Mac running OS 9.2.2; its window UI is not written yet.
+(`Weather`) has a native window; `WeatherConsole` retains the console diagnostic.
 `weather -1` prints a live forecast; `xweather` shows it in a window (menus, Location dialog, auto-refresh every 15 min, weather pictures).
 
     $ weather -1
@@ -31,10 +31,11 @@ flags override it. The default location is Madison, WI 53703 (Capitol Square 43.
 `-S` saves location, name and units into the config file (comments and other settings are kept; the write is atomic) and exits. Ctrl-C or SIGTERM during a fetch cancels cleanly (exit 130). Diagnostics go to stderr (or syslog with -s); stdout carries only the result. `-d` dumps the traffic.
 
 ## Build and test
-GNU make is required (`gmake` on BSD). One fragment per target in `mk/`.
+GNU make is required (`gmake` on BSD and under Homebrew; Apple's make 3.81 works too). One fragment per target in `mk/`.
 
     make                          # native build (build/host/weather), -Werror
-    make check                    # lint + unit tests (static_assert + runtime) + feature tests (fixture server)
+    make check                    # lint, anchors (+ test/anchors.sh), unit (static_assert + runtime), robustness, CLI feature tests (fixture server),
+                                  # seed provisioning, Makefile flags test; plus the GUI scenario when X11 headers are present
     make lint                     # portable layers (src/core, src/app) may include only freestanding headers
     make TARGET=netbsd-macppc     # cross-build for NetBSD/macppc (build/netbsd-macppc/weather, stripped; .debug keeps symbols)
     make ppc                      # same as TARGET=netbsd-macppc
@@ -46,20 +47,59 @@ GNU make is required (`gmake` on BSD). One fragment per target in `mk/`.
     ONLINE=1 sh test/feature.sh build/host/weather   # also test against the real server
 
 Needs: a C++17 compiler and GNU make; BearSSL is vendored in `third_party/bearssl` (pinned, built per target by the Makefile).
+GitHub Actions runs host/GUI checks and ASan/UBSan sequentially, plus a separate 32-bit unit/mutation/CLI job.
+CI requires the ASan runtime (`REQUIRE_ASAN=1`) and fails rather than silently downgrading to UBSan-only checks.
+The 32-bit job can be reproduced with `make TARGET=host-32 check` on x86 Linux with g++ multilib installed.
+CI uses fixtures and no private seeds or maul credentials; real PowerPC and OS 9 checks remain separate hardware gates.
 Optional: libX11-devel (builds `xweather`), Xvfb + ImageMagick (`check-gui`), python3 (fixture servers for tests only), and for
 the cross target the toolchain from `~/scratch/netbsd-xc` (see its README-repro.md; paths are variables in
-`mk/netbsd-macppc.mk`). Trust anchors: `src/tls/anchors.h` is generated from `src/tls/isrg-roots.pem` (`make anchors`) and `make check` verifies
-the header matches the PEM and that the PEM holds exactly ISRG Root X1 and X2. Refreshing them is a release task.
+`mk/netbsd-macppc.mk`). Trust anchors: `src/tls/anchors.h` is generated from `src/tls/roots.pem` (`make anchors`) and `make check` verifies
+the header matches the PEM and that the PEM holds exactly ISRG Root X1, ISRG Root X2 and HARICA TLS RSA Root CA 2021 (checked by SHA-256
+fingerprint; `test/anchors.sh` tests the check itself). Refreshing them is a release task.
+
+### Host platforms
+Developed on Linux; `make check` (everything except the GUI scenario) also passes on macOS (arm64) with Apple's GNU make 3.81 and with
+Homebrew's `make` 4.x (installed as `gmake`); `make dist distcheck` passes there too. Besides the compiler: `openssl` (the anchor fingerprint check; without it that check is
+skipped with a notice), `python3` (fixture servers, seed tests) and POSIX `sh`.
+
+Linux only (or needing extra tools): `check-gui` (Xvfb; `mk/host.mk` looks for `/usr/include/X11`, so it is skipped on macOS), AddressSanitizer in
+`check-san` (detected by asking the compiler for `libasan.so`; macOS gets UBSan only), `make os9` (podman) and the `*-maul` targets (the test machine).
+
+Shell scripts in `tools/` and `test/` are POSIX `sh` and POSIX `awk`: some run on NetBSD, whose awk is BSD awk, so no gawk-only idioms. macOS's
+awk is BSD awk too, which makes it a useful check. With GNU make 3.81, flags changed within one second of the previous build may not
+rebuild objects (3.81 compares times in whole seconds); use `make clean` after scripted flag changes.
 
 ## Mac OS 9
     make os9      # build/os9/Weather.{APPL,bin,dsk}: PowerPC PEF app, built with Retro68 in a podman container, no Apple files needed
-Console edition for now: it reads an optional `weather.conf` (same `key = value` lines as `~/.weatherrc`) next to the app, fetches,
-prints the forecast and waits for a click. Debug output goes to the console and to `weather.log`; the managed TLS seed lives in Preferences.
-Cmd-. cancels a fetch, including DNS lookup. Needs Open Transport with TCP/IP configured. The network layer (`src/platform/os9/`) talks to Open Transport
+`Weather` shows a native window with weather artwork, forecast values, source and
+observation time, and refresh/stale-data status. File/Refresh (Cmd-R), File/Quit
+(Cmd-Q), Options/automatic updates and units, and Apple/About are available.
+During a fetch, File/Quit, Cmd-Q or the close box cancels. Menus and dragging remain
+available; their modal tracking time is excluded from local DNS and socket/TLS
+deadlines. A server can still close an idle connection during a long hold. The app
+continues fetching and refreshing in the background. Settings changes in this
+first window slice last for the current session; Preferences and location editing
+are follow-up work.
+
+Both apps read optional `weather.conf` next to the app (same `key = value` lines as
+`~/.weatherrc`, at most 4095 bytes). Missing files use defaults; unreadable or invalid
+files report an error without applying partial changes. `WeatherConsole` fetches,
+prints and waits for a click; Cmd-. cancels its fetch. Debug output is appended to
+`weather.log`; the managed TLS seed lives in Preferences.
+Needs Open Transport with TCP/IP configured. The network layer (`src/platform/os9/`) talks to Open Transport
 through our own small declarations and client glue (see docs/ARCHITECTURE.md, "Mac OS 9 target"). DNS uses an asynchronous provider with timeout/cancel support.
 TLS requires a unique provisioned seed; `SeedInstall` installs it in Preferences and the app checks seed rotation before releasing entropy.
 See [OS 9 seed setup and recovery](docs/OS9-SEEDS.md). Legacy jitter-only seeds are not imported. Retro68's `printf` still lacks `%lld`.
 To run it on a Mac with OS X (Classic) use `tools/deliver-os9.sh` (see its comments) and open the app.
+
+Optional diagnostics: configure the OS 9 CMake build with
+`-DWEATHER_BUILD_DIAGNOSTICS=ON`, build and deliver `WeatherUITest.dsk`, then run
+`python3 tools/check-os9-window.py /tmp/weather-window-shots` from the laptop.
+The driver uses explicit marker files in the separate test app, takes screenshots,
+and verifies a yielding update, refresh suppression, units, stale data, live TLS and
+quit. It also activates Finder programmatically to test background execution and
+suspend/resume; it never clicks or answers a system dialog. Production `Weather` does not link fixture/marker code. The test app has a
+ten-minute watchdog and never answers system dialogs or changes the user's config.
 
 ## Install and packages
     make install DESTDIR=/stage PREFIX=/usr/pkg MANDIR=/usr/pkg/man   # bin/weather, bin/xweather, man pages, example config

@@ -1,0 +1,296 @@
+// Native Toolbox window. Network initialization and terminal shutdown occur once.
+#include "window.hpp"
+#include "app/config_load.hpp"
+#include "platform/os9/config_os9.hpp"
+#include "core/log.hpp"
+#include "app/weather_art.hpp"
+#include "core/fetch.hpp"
+#include "core/providers.hpp"
+#include "platform/os9/net_os9.hpp"
+#include "tls/tls.hpp"
+#include <Quickdraw.h>
+#include <Windows.h>
+#include <Menus.h>
+#include <Fonts.h>
+#include <TextEdit.h>
+#include <Dialogs.h>
+#include <Events.h>
+#include <cstring>
+
+using namespace wx;
+namespace {
+Config cfg;
+Model model;
+WindowActions actions;
+Net net;
+WindowPtr window;
+GWorldPtr buffer = nullptr;
+const WindowTestHooks *test_hooks = nullptr;
+wx::Status startup;
+unsigned long update_count = 0;
+unsigned long suspend_count = 0, resume_count = 0;
+bool foreground = true;
+long long painted_at = -1;
+bool menus_fetching = false;
+constexpr int kHeight = 310;
+const unsigned char *pascal_text(const char *s)
+{
+	// Toolbox calls below consume/copy this result before the next call.
+	static unsigned char p[256];
+	size_t n = strlen(s);
+	if (n > 255) n = 255;
+	p[0] = static_cast<unsigned char>(n);
+	memcpy(p + 1, s, n);
+	return p;
+}
+Rect box(int x, int y, int w, int h) { return Rect{short(y), short(x), short(y + h), short(x + w)}; }
+void color(Rgb c)
+{
+	RGBColor rgb{static_cast<unsigned short>(c.r * 257), static_cast<unsigned short>(c.g * 257), static_cast<unsigned short>(c.b * 257)};
+	RGBForeColor(&rgb);
+}
+struct Canvas {
+	void rect(int x, int y, int w, int h, Rgb c) { color(c); Rect r = box(x, y, w, h); PaintRect(&r); }
+	void disc(int x, int y, int r, Rgb c) { color(c); Rect b = box(x - r, y - r, 2 * r, 2 * r); PaintOval(&b); }
+	void line(int x, int y, int xx, int yy, int width, Rgb c)
+	{
+		color(c);
+		PenSize(width, width);
+		MoveTo(x, y); LineTo(xx, yy);
+		PenNormal();
+		disc(x, y, width / 2, c); disc(xx, yy, width / 2, c);
+	}
+	void poly(const ArtPt *p, int n, Rgb c)
+	{
+		if (!n) return;
+		PolyHandle h = OpenPoly();
+		if (!h) return;
+		MoveTo(p[0].x, p[0].y);
+		for (int i = 1; i < n; i++) LineTo(p[i].x, p[i].y);
+		LineTo(p[0].x, p[0].y);
+		ClosePoly(); color(c); PaintPoly(h); KillPoly(h);
+	}
+};
+void text(int x, int y, const char *s, int size = 12, int width = 308)
+{
+	color({0, 0, 0});
+	TextFont(0); TextSize(size); TextFace(0);
+	int n = static_cast<int>(strlen(s));
+	while (n && TextWidth(const_cast<char *>(s), 0, n) > width) --n;
+	MoveTo(x, y); DrawText(const_cast<char *>(s), 0, n);
+}
+void wrapped(int x, int y, const char *s, int lines, int width)
+{
+	TextFont(0); TextSize(10); TextFace(0);
+	while (*s && lines--) {
+		int n=static_cast<int>(strlen(s));
+		while(n && TextWidth(const_cast<char *>(s),0,n)>width) --n;
+		if(!n) return;
+		if(s[n] && lines) {
+			int word=n; while(word && s[word]!=' ') --word;
+			if(word) n=word;
+		}
+		char line[256]; if(n>252) n=252;
+		memcpy(line,s,n); line[n]=0;
+		if(s[n] && !lines) {
+			while(n && TextWidth(line,0,n)+TextWidth(const_cast<char *>("..."),0,3)>width) --n;
+			memcpy(line+n,"...",4);
+		}
+		text(x,y,line,10,width); s+=n; while(*s==' ') ++s; y+=13;
+	}
+}
+void draw_contents()
+{
+	Canvas c; c.rect(0,0,340,kHeight,{221,221,221});
+	text(16,25,cfg.name);
+	if(model.has_forecast()) {
+		const Forecast &f=model.forecast(); art::picture(c,{16,43,108,96},f.code,!f.is_day);
+		Buf<80> t; t.add_fixed(f.temp_t10,1).add(f.metric?" C":" F"); text(143,79,t.c_str(),24,180);
+		text(143,103,wmo_text(f.code),12,180);
+		Buf<80> wind; wind.add("Wind ");
+		if(f.wind_t10==kUnset) wind.add("unavailable");
+		else wind.add_fixed(f.wind_t10,1).add(f.metric?" km/h":" mph");
+		text(143,125,wind.c_str(),10,180);
+		Buf<80> humidity; humidity.add("Humidity ");
+		if(f.humidity==kUnset) humidity.add("unavailable"); else humidity.add_int(f.humidity).add('%');
+		text(143,143,humidity.c_str(),10,180);
+		Buf<80> observed; observed.add("Observed ").add(f.time).add(" UTC"); text(16,165,observed.c_str(),10);
+		text(16,182,f.source?f.source:"",9);
+	}
+	Buf<256> status;
+	const char *seed_error = os9_entropy_error();
+	if (model.phase()==Phase::Failed && window_seed_failure(model.last_error(),seed_error)) status.add(seed_error).add(". See About for recovery.");
+	else model.status_line(status,net.now(net));
+	wrapped(16,210,status.c_str(),3,308);
+	text(16,287,cfg.auto_refresh?"Automatic updates on":"Automatic updates off",9,205);
+	Rect r=box(236,270,88,24); color({0,0,0}); FrameRoundRect(&r,8,8); text(248,287,"Refresh",12,70);
+	if(actions.about) {
+		c.rect(8,43,324,210,{238,238,238}); Rect a=box(8,43,324,210); color({0,0,0}); FrameRect(&a);
+		text(40,78,"Weather for Mac OS 9",12,260);
+		text(40,103,"Forecast source is shown below the data.",10,260);
+		text(40,125,"Seed locked? Quit all Weather apps first.",10,260);
+		text(40,143,"Never remove a lock while one is running.",10,260);
+		text(40,161,"Then follow OS9-SEEDS.md recovery.",10,260);
+		text(40,185,"Press Return or Escape to close.",10,260);
+	}
+}
+void draw()
+{
+	CGrafPtr saved; GDHandle device; GetGWorld(&saved,&device);
+	bool buffered=buffer && LockPixels(GetGWorldPixMap(buffer));
+	if(buffered) SetGWorld(buffer,nullptr); else SetPort(window);
+	TextFont(0); TextSize(10); draw_contents();
+	if(buffered) {
+		SetPort(window); Rect r=box(0,0,340,kHeight);
+		color({0,0,0}); RGBColor white={65535,65535,65535}; RGBBackColor(&white);
+		CopyBits(reinterpret_cast<BitMap *>(*GetGWorldPixMap(buffer)), &window->portBits,&r,&r,srcCopy,nullptr);
+		UnlockPixels(GetGWorldPixMap(buffer));
+	}
+	// Validate explicit redraws too, avoiding a redundant update-event cycle.
+	SetPort(window); Rect valid=box(0,0,340,kHeight); ValidRect(&valid);
+	SetGWorld(saved,device); painted_at=net.now(net);
+}
+void command(WindowAction a) { if(actions.apply(a,cfg,model,net.now(net))) draw(); }
+void menu(long selection)
+{
+	int id = selection >> 16, item = selection & 65535;
+	if (id == 128 && item == 1) command(WindowAction::About);
+	if (id == 129 && item == 1) command(WindowAction::Refresh);
+	if (id == 129 && item == 3) command(WindowAction::Quit);
+	if (id == 130 && item == 1) command(WindowAction::ToggleAuto);
+	if (id == 130 && item == 2) command(WindowAction::Metric);
+	if (id == 130 && item == 3) command(WindowAction::Imperial);
+	HiliteMenu(0);
+}
+struct ModalTrackingTime {
+	uint32_t begin = TickCount();
+	~ModalTrackingTime() { os9_credit_modal_ticks(begin,TickCount()); }
+};
+
+bool pump(Net &)
+{
+	MenuHandle file = GetMenuHandle(129), options = GetMenuHandle(130);
+	bool fetching = model.phase() == Phase::Fetching;
+	if (fetching != menus_fetching) {
+		if (fetching) { DisableItem(file, 1); DisableItem(options, 0); }
+		else { EnableItem(file, 1); EnableItem(options, 0); }
+		menus_fetching = fetching;
+		DrawMenuBar();
+	}
+	EventRecord e;
+	for (int i = 0; i < 8 && WaitNextEvent(everyEvent, &e, 0, nullptr); i++) {
+		if (e.what == updateEvt) {
+			WindowPtr w = reinterpret_cast<WindowPtr>(e.message);
+			BeginUpdate(w);
+			if (w == window) { ++update_count; draw(); }
+			EndUpdate(w);
+		} else if (e.what == activateEvt) draw();
+		else if (e.what == osEvt) {
+			constexpr unsigned long kSuspendResumeMessage = 1;
+			constexpr unsigned long kResumeFlag = 1;
+			unsigned long message = static_cast<unsigned long>(e.message);
+			if ((message >> 24) == kSuspendResumeMessage) {
+				foreground = (message & kResumeFlag) != 0;
+				if (foreground) { ++resume_count; draw(); }
+				else ++suspend_count;
+			}
+		}
+		else if (e.what == keyDown) {
+			char ch = e.message & charCodeMask;
+			if (e.modifiers & cmdKey) menu(MenuKey(ch));
+			else if (ch == 13 || ch == 27) command(WindowAction::DismissAbout);
+		} else if (e.what == mouseDown) {
+			WindowPtr w = nullptr;
+			short part = FindWindow(e.where, &w);
+			if (part == inMenuBar) {
+				long selection;
+				{ ModalTrackingTime modal; selection=MenuSelect(e.where); }
+				menu(selection);
+			} else if (w == window && part == inGoAway) {
+				bool close;
+				{ ModalTrackingTime modal; close=TrackGoAway(w,e.where); }
+				if(close) command(WindowAction::Quit);
+			} else if (w == window && part == inDrag) {
+				ModalTrackingTime modal;
+				Rect bounds = (**GetGrayRgn()).rgnBBox;
+				DragWindow(w, e.where, &bounds);
+			} else if (w == window && part == inContent) {
+				if (FrontWindow()!=window) { SelectWindow(w); continue; }
+				SetPort(w);
+				Point p = e.where;
+				GlobalToLocal(&p);
+				if (p.h >= 236 && p.h < 324 && p.v >= 270 && p.v < 294) command(WindowAction::Refresh);
+			}
+		}
+	}
+	if (!actions.quit && net.now(net) != painted_at) draw();
+	return !actions.quit;
+}
+}
+namespace wx {
+void os9_window_action(WindowAction a) { command(a); }
+const Model &os9_window_model() { return model; }
+unsigned long os9_window_updates() { return update_count; }
+bool os9_window_buffered() { return buffer!=nullptr; }
+void os9_window_menu_selection(long selection) { menu(selection); }
+unsigned long os9_window_suspends() { return suspend_count; }
+unsigned long os9_window_resumes() { return resume_count; }
+bool os9_window_foreground() { return foreground; }
+void os9_window_invalidate() { SetPort(window); Rect r=box(0,0,340,kHeight); InvalRect(&r); }
+Status os9_window_fetch_live(const Config &c, Net &n, Forecast *f) {
+	static char response[65536];
+	Query q; q.lat_e4=c.lat_e4; q.lon_e4=c.lon_e4; q.metric=c.metric;
+	FetchOpts opts; opts.timeout_s=c.timeout_s; opts.attempts=c.attempts; opts.contact=c.contact;
+	const Provider *providers[8]; size_t count=0;
+	Status s=resolve_providers(c.providers,kProviders,kNumProviders,providers,8,&count);
+	if(s.ok()) s=fetch_forecast(n,providers,count,q,opts,response,sizeof response,f);
+	return s;
+}
+int run_os9_window(const WindowTestHooks *hooks) {
+	test_hooks=hooks;
+	if(hooks && hooks->setup) hooks->setup(cfg);
+	else { SettingsStore store=os9_config_store(); startup=load_config(store,cfg); }
+	model=Model(ModelConfig{cfg.auto_refresh,900,60});
+	log_init(cfg.level,false,"weather");
+	InitGraf(&qd.thePort); InitFonts(); InitWindows(); InitMenus(); TEInit(); InitDialogs(nullptr); InitCursor();
+	Rect bounds=box(80,60,340,kHeight);
+	window=NewCWindow(nullptr,&bounds,pascal_text("Weather"),true,documentProc,reinterpret_cast<WindowPtr>(-1L),true,0);
+	if(!window) return 1;
+	SetPort(window); Rect local=box(0,0,340,kHeight);
+	if(NewGWorld(&buffer,0,&local,nullptr,nullptr,0)!=noErr) buffer=nullptr;
+	MenuHandle apple = NewMenu(128, pascal_text("\024"));
+	MenuHandle file = NewMenu(129, pascal_text("File"));
+	MenuHandle options = NewMenu(130, pascal_text("Options"));
+	if (!apple || !file || !options) {
+		if (apple) DisposeMenu(apple);
+		if (file) DisposeMenu(file);
+		if (options) DisposeMenu(options);
+		if (buffer) DisposeGWorld(buffer);
+		DisposeWindow(window);
+		return 1;
+	}
+	AppendMenu(apple, pascal_text("About Weather")); InsertMenu(apple, 0);
+	AppendMenu(file, pascal_text("Refresh/R;(-;Quit/Q")); InsertMenu(file, 0);
+	AppendMenu(options, pascal_text("Automatic updates;Metric;Imperial")); InsertMenu(options, 0);
+	DrawMenuBar();
+	os9_net_init(&net); net.yield=pump; tls_net_init(&net); draw();
+	while(!actions.quit) {
+		pump(net); if(actions.quit) break;
+		if(test_hooks && test_hooks->idle) test_hooks->idle();
+		if(actions.quit) break;
+		if(model.tick(net.now(net))) {
+			draw(); Forecast f;
+			Status s=startup;
+			if(s.ok()) s=test_hooks && test_hooks->fetch ? test_hooks->fetch(cfg,net,&f) : os9_window_fetch_live(cfg,net,&f);
+			model.finish(net.now(net),s,&f); draw();
+		}
+		CheckItem(options,1,cfg.auto_refresh); CheckItem(options,2,cfg.metric); CheckItem(options,3,!cfg.metric);
+		long finalTicks; Delay(1,&finalTicks);
+	}
+	os9_net_shutdown();
+	DeleteMenu(128); DeleteMenu(129); DeleteMenu(130);
+	DisposeMenu(apple); DisposeMenu(file); DisposeMenu(options);
+	if(buffer) DisposeGWorld(buffer);
+	DisposeWindow(window); return 0;
+}
+} // namespace wx

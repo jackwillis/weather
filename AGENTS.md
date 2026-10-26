@@ -7,7 +7,8 @@ This file is the working agreement. Updated 2026-10-25.
 * **Never compile on maul** (the Power Mac G4 test machine, 256 MB RAM). Cross-build on the Linux laptop; maul only runs tests.
 * **Privileged steps are the owner's.** You have no root on maul. Write a small reviewed script, push it with `maulctl push`, and ask the owner to run it
   (`runlog <name>`); never try to work around permissions.
-* **Do not push to GitHub or create the repo**; commit locally at green milestones only. Commit messages end with the agent's co-author line.
+* **GitHub work uses feature branches and PRs in the existing repo**, as authorized by Jack on 2026-10-25. Do not create another repo.
+  Commit at green milestones; commit messages end with the agent's co-author line. Merge only when Jack authorizes it.
 * **No Apple material in the repo.** Apple SDK files were only read for reference (outside the repo, `~/scratch/os9-sdk`); our Open Transport
   declarations and glue are our own code. Never copy Apple headers or binaries into the tree.
 * **Never invent contact details** (MET Norway needs a real `contact` in the user's config; do not use the owner's email for external services).
@@ -18,11 +19,14 @@ This file is the working agreement. Updated 2026-10-25.
 * C++17, `-fno-exceptions -fno-rtti`, no heap in `src/core` and `src/app`, errors as values (`Status`), no libstdc++ in NetBSD binaries (`nocxx.cpp`).
 * Dependencies point down only: core/app (freestanding) < tls < platform/* < cli/ui. `make lint` enforces it for core and app.
 * Red/green: write the failing test first. Keep `make check` green; also `make check-san`. Any new parser input path gets mutation coverage (`test/robust.cpp`).
+* Shell in `tools/` and `test/` is POSIX `sh`/`awk` (NetBSD's awk is BSD awk; no gawk idioms). The Makefile must keep working with GNU make 3.81 (macOS):
+  no `$(file)`, no features newer than 3.81. `make check` is expected to pass on Linux and macOS (README, "Host platforms").
 * Retro68 quirks: no `%z`/`%ll` in printf, no Open Transport/`Microseconds`/`ReadLocation`/`GetKeys` headers (we declare what we use), an event pump must call
   `BeginUpdate/EndUpdate` for update events and bound its work per call.
 
 ## Build and test
-    make check            # host: lint, anchors, unit (226), robustness (164k inputs), CLI feature (78), GUI in Xvfb (21)
+    make check            # host: lint, anchors (+14 tests of the check), unit (461), robustness (186k inputs), CLI feature (78), seed provisioning (2),
+                          # Makefile flags (6), GUI in Xvfb (21; where X11 headers exist)
     make check-san        # sanitizers
     make check-maul smoke-maul   # PowerPC tests on maul; maul must be booted into NetBSD (maulctl status)
     make os9              # Mac OS 9 app via Retro68 in podman -> build/os9/Weather.{APPL,bin,dsk}
@@ -38,25 +42,24 @@ agent memory directory. maul boots either NetBSD or Mac OS X; ask the owner to r
 
 ## Mac OS 9 workflow (hardware-verified 2026-10-25)
 1. `make os9`, then `maulctl push osx build/os9/Weather.dsk Weather.dsk` and `maulctl push osx tools/deliver-os9.sh deliver-os9.sh`.
-2. Kill a running Classic if an old copy is loaded: `maulctl osx 'for p in $(ps ax | grep "[C]lassic Startup" | awk "{print \$1}"); do kill -9 $p; done'`.
+2. Quit an old app normally before replacing it. Do not force-kill Classic for routine updates: it can leave a TLS seed lock. If a crash left a lock, follow `docs/OS9-SEEDS.md` recovery.
 3. `maulctl osx 'sh /tmp/deliver-os9.sh /tmp/Weather.dsk Weather'` in the FOREGROUND (backgrounding makes `hdiutil attach` fail; a stuck one needs `kill -9`).
 4. `maulctl osx 'open /Volumes/MacOS9Lives/weather-dev/Weather'`. This needs the owner logged in as `claude` at the Mac console. Classic cold start takes ~2 min and the
    first `open` is often dropped: poll `weather.log`, re-open once.
-5. Read results: `maulctl osx 'cat /Volumes/MacOS9Lives/weather-dev/weather.log'`; screenshot: `/usr/sbin/screencapture -x /tmp/s.png`, then
+5. `Weather` is now the window app; use `WeatherConsole.dsk`/`WeatherConsole` for console diagnostics. Build optional `WeatherUITest` with `WEATHER_BUILD_DIAGNOSTICS=ON`; `python3 tools/check-os9-window.py /tmp/weather-window-shots` drives it and saves screenshots. Never run two test drivers at once.
+6. Read results: `maulctl osx 'cat /Volumes/MacOS9Lives/weather-dev/weather.log'`; screenshot: `/usr/sbin/screencapture -x /tmp/s.png`, then
    `openssl base64 < /tmp/s.png` and decode on the laptop (Tiger has no `base64`). You cannot click or type on the Mac.
 Check clocks with `date -u +%s` on the Mac versus the app's `clock:` log line.
 
 ## State at handoff
-* Done and verified: CLI and xweather on NetBSD/macppc, two data sources, TLS via BearSSL, packaging, tests, OS 9 console app fetching live over TLS.
-* In flight: the weather art was moved to `src/app/weather_art.hpp` (shared canvas interface; xweather adapted and verified visually and by `make check-gui`).
-  The OS 9 window UI will use the same header with a QuickDraw canvas.
+* CLI and xweather work on NetBSD/macppc; two providers, BearSSL TLS, packaging and host checks are in place.
+* OS 9 Weather is the native window; WeatherConsole retains the console diagnostic. They share bounded, all-or-nothing weather.conf loading.
+* WeatherUITest is a separate optional executable. Production Weather links no fixture generator or marker-file driver. See README for the scripted hardware run.
+* DNS/managed TLS seeds are implemented; preserve once-per-process network init and terminal shutdown. Never remove a live seed lock.
 
-## Next tasks, in order
-1. **OS 9 window UI** in `src/ui/os9/` on top of `app/Model`: window (NewCWindow), menus (Apple/File/Options), picture via `art::picture` with a QuickDraw canvas,
-   temperature/wind/humidity text, status line from `Model::status_line`, event loop with `WaitNextEvent` and the fetch run through `Net::yield`.
-   Then a Location dialog (reuse `app/LocationForm` + `TextEdit`), settings file in the Preferences folder, a `SIZE` resource of 3 MB.
-   Test by self-driving: a scripted event mode plus `screencapture`, since clicks are impossible.
-2. Extract pure helpers from the OS 9 layer (UTC conversion, printf format rewrite) so they get host unit tests.
-3. OS 9 DNS timeout/cancel (async open with a notifier); better entropy if an OS source exists.
-4. On-disk stale cache; third source (api.weather.gov needs multi-step requests); geocoding.
-5. The owner must reinstall the rebuilt NetBSD package (`doas pkg_add -u`) and look at xweather on maul's real display.
+## Next tasks
+1. Location dialog and persistent Preferences (#12); reuse LocationForm/TextEdit and the settings seam.
+2. Complete stalled DNS/delayed-open and NetBSD hardware acceptance (#14); owner controls reboots and privileged installation.
+3. Last-good forecast cache (#15), NWS (#16, only api.weather.gov), location search (#17).
+4. Release/terms/package acceptance (#18) and big-endian CI (#19, follows #10).
+5. Config reload is conditional (#20). Tiger remains parked (#21).
