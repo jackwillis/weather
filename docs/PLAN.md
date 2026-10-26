@@ -17,6 +17,14 @@ One portable core, one native UI per OS. NetBSD uses lightweight CDE-inspired Xl
 
 **Release acceptance:** real hardware execution, TLS/clock/seed correctness, clear installation instructions, source attribution, tested packages, and truthful platform labels. Currently verified Mac evidence is **OS 9.2.2 in Classic under Tiger**, not native OS 9 boot or earlier System versions.
 
+## GitHub milestone policy
+
+Use **native GitHub Milestones** as the authoritative release planning mechanism. Create milestones named **v0.1**, **v0.2**, **v0.3 (provisional)**, and **Research / Incubation**; leave due dates unset until we have evidence-based schedules. Existing tracking issues [#45](https://github.com/jackwillis/weather/issues/45), [#46](https://github.com/jackwillis/weather/issues/46), [#47](https://github.com/jackwillis/weather/issues/47), and [#48](https://github.com/jackwillis/weather/issues/48) contain the initial scope and exit criteria. These issues are **temporary trackers**, not themselves native milestones.
+
+Once the native milestones exist, **assign each actionable PR or issue to the appropriate milestone**, preserving uncommitted RFCs under Research / Incubation until explicitly promoted into a release. Use v0.1 for release-blocking implementation/hardware/packaging; v0.2 for cache and independent CA trust; v0.3 for conditional SDK work; and Research / Incubation for CFM feasibility, older systems, modern C++ and parked ideas. Do not make an experimental PR a release blocker merely by referencing it.
+
+Before each release, review its milestone's open items and verify the acceptance checklist against **merged main** and real target hardware. Close or supersede the temporary tracking issues after their criteria have been transferred to milestone descriptions and actionable issues; avoid maintaining conflicting sources of truth. Maintenance bugs found after v0.1 may be tracked in a **v0.1.x** milestone when needed.
+
 ## Constraints
 - Cross-compile only. maul has 256 MB RAM and is the test machine, never the build machine.
 - 32-bit big-endian PowerPC. No Go. No heavy runtime: C++17 with -fno-exceptions -fno-rtti,
