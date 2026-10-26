@@ -70,7 +70,7 @@ if start_xw rcA $PORT_OK; then
 	./xdrive key l ctrl sleep 300 key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace type 91 key Return sleep 300 snap snap/A09-dialog-error.$EXT
 	check "A: bad latitude is not saved" "$(grep -c 'latitude = 91' rcA)" 0
 	check "A: dialog stayed open (no refetch)" "$(fetches)" 6
-	./xdrive key Escape sleep 300 click 138 13 sleep 300 click 150 40 sleep 300 snap snap/A10-about.$EXT click 220 203 sleep 300 snap snap/A11-closed.$EXT
+	./xdrive key Escape sleep 300 click 138 13 sleep 300 click 150 40 sleep 300 snap snap/A10-about.$EXT click 110 250 sleep 300 snap snap/A10b-credits-1.$EXT key space sleep 300 snap snap/A10c-credits-2.$EXT key space sleep 300 snap snap/A10d-credits-3.$EXT click 110 250 sleep 300 snap snap/A10e-about-again.$EXT click 290 250 sleep 300 snap snap/A11-closed.$EXT
 	keeplog A
 	quit_xw A
 fi

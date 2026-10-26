@@ -105,7 +105,10 @@ int main(int argc, char **argv)
 			puts("Run 'weather --credits' for all credits.");
 			return 0;
 		case 'C':
-			for (const char *line : kCreditsFull) printf("%s\n", line);
+			for (size_t i = 0; i < kCreditPageCount; i++) {
+				printf("%s%s\n", i ? "\n" : "", kCreditPages[i].title);
+				for (size_t k = 0; k < kCreditPages[i].n; k++) printf("  %s\n", kCreditPages[i].lines[k]);
+			}
 			return 0;
 		default: usage(stderr); return exit_code(Err::Usage);
 		}
