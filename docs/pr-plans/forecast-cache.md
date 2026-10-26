@@ -79,3 +79,21 @@ combined suite passed. No source edits overlapped the final verification builds.
 Merge interaction: #35 also changes Model age/backward-clock semantics; preserve
 its live-data behavior together with these cached-status/overflow guards. #41's
 wall-clock total deadline also needs to respect #11's modal active-time decision.
+
+NWS integration: cache source ID 3 is reserved for `nws`; IDs 1/2 and the
+160-byte format remain unchanged. Only NWS may store condition code -1 (explicit
+unknown conditions). Unknown provider IDs and other invalid condition codes
+remain rejected. Unit cases cover known/unknown NWS round trips and rejection
+for the other providers. Mutation coverage includes NWS records, with repaired
+CRCs to reach field validation. A temporary combined-header check parses the
+#16 NWS observation fixture and round-trips both known and unknown conditions;
+this is a host integration check, not a native OS 9 runtime claim.
+
+Verification of this bridge: host 978 unit checks, 30 GUI checks, 99 CLI checks
+passed; sanitizer run explicitly enabled ASan and passed 978 unit checks and
+253444 mutation inputs. Actual NetBSD/macppc passed 978 unit checks and 91444
+mutation inputs. Both Retro68 portable compiler probes passed. Initial new NWS
+unit cases failed before the codec change; the sandbox also blocked an unrelated
+local socket test, which passed in the network-enabled regression run. The full
+host check preceded the added NWS mutation seed; the sanitizer and NetBSD runs
+include that seed.

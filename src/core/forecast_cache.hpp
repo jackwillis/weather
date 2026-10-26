@@ -60,10 +60,10 @@ inline bool valid(const CacheKey &key,const Forecast &f)
 	if(key.query.lat_e4 < -900000 || key.query.lat_e4>900000 || key.query.lon_e4 < -1800000 || key.query.lon_e4>1800000) return false;
 	if(f.metric!=key.query.metric || key.providers.empty() || key.providers.size()>=64) return false;
 	for(char c:key.providers) if(c<32 || c>126) return false;
-	if(!f.source || (sv(f.source)!="open-meteo" && sv(f.source)!="met-no")) return false;
+	if(!f.source || (sv(f.source)!="open-meteo" && sv(f.source)!="met-no" && sv(f.source)!="nws")) return false;
 	if(!selected(key.providers,f.source)) return false;
 	if(!plausible_temp_t10(f.temp_t10,f.metric)) return false;
-	bool known=false; for(const WmoName &name:kWmo) if(name.code==f.code) known=true;
+	bool known=sv(f.source)=="nws" && f.code==-1; for(const WmoName &name:kWmo) if(name.code==f.code) known=true;
 	if(!known) return false;
 	if(f.humidity!=kUnset && (f.humidity<0 || f.humidity>100)) return false;
 	if(f.wind_t10!=kUnset && (f.wind_t10<0 || f.wind_t10>5000)) return false;
@@ -83,7 +83,7 @@ inline bool cache_encode(const CacheKey &key,const Forecast &f,long long at,unsi
 	for(size_t i=0;i<8;i++) out[i]=magic[i];
 	cache_detail::put32(out+8,static_cast<uint32_t>(key.query.lat_e4));
 	cache_detail::put32(out+12,static_cast<uint32_t>(key.query.lon_e4));
-	out[16]=f.metric?1:0; out[17]=sv(f.source)=="open-meteo"?1:2;
+	out[16]=f.metric?1:0; out[17]=sv(f.source)=="open-meteo"?1:sv(f.source)=="met-no"?2:3;
 	uint64_t stamp=static_cast<uint64_t>(at);
 	for(int i=31;i>=24;i--) { out[i]=static_cast<unsigned char>(stamp); stamp>>=8; }
 	long fields[]={f.temp_t10,f.humidity,f.wind_t10,f.wind_dir,f.code,f.is_day};
@@ -102,7 +102,7 @@ inline bool cache_decode(const unsigned char *p,size_t n,const CacheKey &key,lon
 	if(cache_detail::crc(p,156)!=cache_detail::get32(p+156)) return false;
 	for(size_t i=18;i<24;i++) if(p[i]) return false;
 	for(size_t i=144;i<156;i++) if(p[i]) return false;
-	if(p[16]>1 || p[17]<1 || p[17]>2) return false;
+	if(p[16]>1 || p[17]<1 || p[17]>3) return false;
 	if(cache_detail::signed32(p+8)!=key.query.lat_e4 || cache_detail::signed32(p+12)!=key.query.lon_e4 || (p[16]!=0)!=key.query.metric) return false;
 	for(size_t i=0;i<64;i++) {
 		unsigned char expected=i<key.providers.size()?static_cast<unsigned char>(key.providers[i]):0;
@@ -115,7 +115,7 @@ inline bool cache_decode(const unsigned char *p,size_t n,const CacheKey &key,lon
 	if(at>now || now-at>kForecastCacheAge) return false;
 	CachedForecast decoded; decoded.fetched_at=at;
 	Forecast &f=decoded.forecast;
-	f.metric=p[16]!=0; f.source=p[17]==1?"open-meteo":"met-no";
+	f.metric=p[16]!=0; f.source=p[17]==1?"open-meteo":p[17]==2?"met-no":"nws";
 	f.temp_t10=cache_detail::signed32(p+32); f.humidity=cache_detail::signed32(p+36);
 	f.wind_t10=cache_detail::signed32(p+40); f.wind_dir=cache_detail::signed32(p+44);
 	f.code=cache_detail::signed32(p+48); f.is_day=cache_detail::signed32(p+52);

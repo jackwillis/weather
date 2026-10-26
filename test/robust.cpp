@@ -43,6 +43,8 @@ static void exercise(const char *p, size_t n)
 	g_cur_len = n;
 	sv in(p, n);
 	CacheKey cache_key{Query{},"open-meteo"};
+	for(sv provider:{sv("open-meteo"),sv("nws")}) {
+	cache_key.providers=provider;
 	auto check_cache=[&](const unsigned char *bytes,size_t size) {
 		CachedForecast decoded; decoded.fetched_at=-1;
 		if(cache_decode(bytes,size,cache_key,1792950000LL,&decoded)) {
@@ -58,6 +60,7 @@ static void exercise(const char *p, size_t n)
 		// Reach field validation as well as CRC rejection on mutated records.
 		cache_detail::put32(checked+156,cache_detail::crc(checked,156));
 		check_cache(checked,n);
+	}
 	}
 	SettingsStore config_store; config_store.ctx=&in;
 	config_store.load=[](SettingsStore &store,char *out,size_t cap,size_t *size) {
@@ -252,6 +255,9 @@ int main(int argc, char **argv)
 	Forecast cached; cached.source="open-meteo"; cached.temp_t10=650; cached.code=0;
 	unsigned char cache_record[kForecastCacheBytes];
 	if(!cache_encode(CacheKey{Query{},"open-meteo"},cached,1792950000LL,cache_record)) return 1;
+	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);
+	cached.source="nws"; cached.code=-1;
+	if(!cache_encode(CacheKey{Query{},"nws"},cached,1792950000LL,cache_record)) return 1;
 	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);
 	unsigned char synthetic_seed[32], record[kSeedRecordSize];
 	for (size_t i = 0; i < sizeof synthetic_seed; ++i) synthetic_seed[i] = static_cast<unsigned char>(i + 1);

@@ -129,6 +129,20 @@ static void test_cache_codec()
 	CHECK(cache_encode(key,forecast,at,record));
 	CHECK(cache_decode(record,sizeof record,key,at,&decoded));
 	CHECK(decoded.forecast.metric && decoded.forecast.temp_t10==-900);
+	// NWS explicitly represents unavailable conditions as -1; other providers do not.
+	key.providers="nws"; forecast.source="nws"; forecast.code=-1;
+	CHECK(cache_encode(key,forecast,at,record));
+	CHECK(record[17]==3);
+	CHECK(cache_decode(record,sizeof record,key,at,&decoded));
+	CHECK(!strcmp(decoded.forecast.source,"nws") && decoded.forecast.code==-1);
+	forecast.code=0; CHECK(cache_encode(key,forecast,at,record));
+	CHECK(cache_decode(record,sizeof record,key,at,&decoded));
+	forecast.code=-2; CHECK(!cache_encode(key,forecast,at,record));
+	forecast.code=4; CHECK(!cache_encode(key,forecast,at,record));
+	forecast.code=-1; forecast.source="met-no"; key.providers="met-no";
+	CHECK(!cache_encode(key,forecast,at,record));
+	forecast.source="open-meteo"; key.providers="open-meteo";
+	CHECK(!cache_encode(key,forecast,at,record));
 	Config cfg; CHECK(!cfg.cache);
 	CHECK(config_parse("cache=on",&cfg).ok() && cfg.cache);
 	CHECK(config_parse("cache=off",&cfg).ok() && !cfg.cache);
