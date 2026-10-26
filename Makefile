@@ -147,11 +147,14 @@ package-netbsd:
 probe-os9:
 	sh tools/probe-os9.sh
 
+# Release builds pin RETRO68_IMAGE by digest (ghcr.io/autc04/retro68@sha256:...) and may use CONTAINER=docker.
+CONTAINER    ?= podman
+RETRO68_IMAGE ?= ghcr.io/autc04/retro68
 # Mac OS 9 build (PowerPC PEF app "Weather") with Retro68 in a container. Output: build/os9/Weather.{APPL,bin,dsk}.
 # Deliver to the Mac with tools/deliver-os9.sh (see README). Needs no Apple files.
 os9:
 	mkdir -p build/os9
-	podman run --rm -v $(CURDIR):/src:Z -w /src/build/os9 ghcr.io/autc04/retro68 sh -c \
+	$(CONTAINER) run --rm -v $(CURDIR):/src:Z -w /src/build/os9 $(RETRO68_IMAGE) sh -c \
 	  'cmake /src/os9 -DCMAKE_TOOLCHAIN_FILE=/Retro68-build/toolchain/powerpc-apple-macos/cmake/retroppc.toolchain.cmake >/dev/null && make'
 
 # Prove the tarball is complete and reproducible: unpack it elsewhere, build, run the tests, rebuild the tarball.
