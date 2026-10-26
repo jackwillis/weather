@@ -96,3 +96,12 @@ Actual owner typing and production process-restart persistence are still pending
 Delivery of this final production build was not confirmed before the session
 ended (agent usage limit); re-deliver and verify before the owner checks. No merge
 of #12 is authorized.
+
+## Rerun on the committed build (aa62aa1)
+
+Build/delivered fresh from the committed tree (Weather and WeatherPrefsUITest .dsk
+via deliver-os9.sh, resource forks preserved; installed binaries were byte-size
+identical to the earlier green build). The full scripted scenario again finished
+`0 failures; rc=0`, including name-only Apply and Quit cancellation. Log:
+os9-preferences-ui-green-committed-build-2026-10-26.txt. Owner typing and
+production relaunch persistence are still pending.
