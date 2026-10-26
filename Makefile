@@ -56,6 +56,12 @@ $(BUILD)/xweather.debug: $(XW_OBJS) $(BEARSSL_LIB)
 $(BUILD)/xweather: $(BUILD)/xweather.debug
 	$(STRIP)
 
+$(BUILD)/cde-text-test: $(OBJ)/test/cde_text.o $(OBJ)/ui/xweather/cde.o $(OBJ)/platform/$(PLATFORM)/nocxx.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
+
+$(BUILD)/cde-field-test: $(OBJ)/test/cde_field.o $(OBJ)/ui/xweather/cde.o $(OBJ)/platform/$(PLATFORM)/nocxx.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
+
 $(BUILD)/xdrive: $(OBJ)/test/xdrive.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(X11_LIBS)
 
@@ -178,11 +184,17 @@ check-san:
 	build/host-san/unittest
 	build/host-san/robust
 	sh test/feature.sh build/host-san/weather
+	@if [ -f /usr/include/X11/Xlib.h ]; then \
+	    $(MAKE) TARGET=host-san X11_LIBS=-lX11 build/host-san/cde-text-test build/host-san/cde-field-test && \
+	    build/host-san/cde-text-test && sh test/field-host.sh build/host-san/cde-field-test; \
+	else echo "check-san: CDE tests skipped (no X11 headers)"; fi
 
 san-note:
 	@echo "check-san: $(SAN_NOTE)"
 
-check-gui: $(BUILD)/xweather $(BUILD)/xdrive
+check-gui: $(BUILD)/xweather $(BUILD)/xdrive $(BUILD)/cde-text-test $(BUILD)/cde-field-test
+	$(BUILD)/cde-text-test
+	sh test/field-host.sh $(BUILD)/cde-field-test
 	sh test/gui-host.sh
 
 check-gui-maul:

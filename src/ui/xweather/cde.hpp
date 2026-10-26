@@ -47,6 +47,9 @@ size_t fit_text(XFontStruct *f, sv s, int maxw, char *out, size_t cap);
 
 void button(Theme &t, Drawable w, Rect r, sv label, bool pressed, bool is_default);
 void toggle(Theme &t, Drawable w, Rect r, sv label, bool on, bool radio);   // r is the whole row
+// Horizontal text viewport shared by rendering and mouse hit testing.
+size_t field_start(XFontStruct *font, sv text, size_t cursor, int width);
+size_t field_position(XFontStruct *font, sv text, size_t cursor, int width, int x);
 void field(Theme &t, Drawable w, Rect r, const char *s, size_t n, size_t cur, bool focus);
 // The framed picture: sky, then the weather for a WMO code.
 void weather_icon(Theme &t, Drawable w, Rect area, long code, bool night);
