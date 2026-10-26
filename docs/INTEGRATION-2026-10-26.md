@@ -1,5 +1,7 @@
 # Weather integration assessment — 2026-10-26
 
+Organization update: planning PRs #22/#27/#33/#34/#37/#40 moved to issues #96–#101; tracker prose and board statuses were refreshed. See [current work tracking](WORK-TRACKING.md). The inventory below is the earlier snapshot, retained for integration context.
+
 Snapshot: origin/main `ebeaaed8c70d58b70a660069ab10dba022fd1a8c` (includes project-management PR78). Main Checks and Policy passed. Working tree was clean before this documentation update. This is a portfolio/integration assessment of all open PR descriptions, reviews, changed files, code interactions and CI; it is not a new independent line-by-line approval or a rerun of every branch suite.
 
 33 open PRs after adding the immediate labeler fix95. No PR merged by this assessment.

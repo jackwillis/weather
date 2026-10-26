@@ -1,6 +1,6 @@
 # TODO
 
-Current work is tracked in real GitHub milestones and issues45–48. See [the complete PR and integration assessment](docs/INTEGRATION-2026-10-26.md); the checklist below is execution order, not a duplicate completion database.
+Current work is tracked in real GitHub milestones and issues45–48. See [the current issue and board map](docs/WORK-TRACKING.md) and [the complete PR and integration assessment](docs/INTEGRATION-2026-10-26.md); the checklist below is execution order, not a duplicate completion database.
 
 ## Next implementation and review
 
@@ -21,6 +21,6 @@ Current work is tracked in real GitHub milestones and issues45–48. See [the co
 
 ## Later
 
-- [ ] v0.2 cache15, NWS16, search17 and trust-store40 according to their acceptance gates.
-- [ ] Research27/37/42/43 stays separate. Native Tiger69 and conditional reload68 remain parked.
+- [ ] v0.2 cache15, NWS16, search17 and trust-store issue101 according to their acceptance gates.
+- [ ] Research issues97/100/111 and PR43 stays separate. Native Tiger69 and conditional reload68 remain parked.
 

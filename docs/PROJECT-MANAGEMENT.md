@@ -10,7 +10,7 @@ are the source of truth, not this page.
 | --- | --- | --- |
 | A unit of work, bug, finding or question | **Issue** | Use the issue forms: work item, owner decision, hardware acceptance. |
 | An implementation | **Pull request** | Closes an issue (`Closes #N`). PRs are for code and for docs that ship. |
-| A design proposal | **RFC pull request** under `docs/rfcs/`, tracked by an issue labelled `rfc` | Discussion happens on the PR. |
+| A design proposal | **Issue** labelled `rfc` | Keep the proposal and discussion in the issue; open a PR when implementing an adopted change. |
 | What ships when | **Milestones**: `v0.1`, `v0.2`, `v0.3`, `Research` | Percent complete is automatic. No dates. |
 | Who is waiting on whom | **Labels** and the **Threshold Backlog project** board | See below. |
 | What is verified | PR text, `docs/STATUS.md`, `docs/verification/` | Say plainly what ran on hardware, in a simulator, or not at all. |
@@ -19,7 +19,7 @@ Issues and PRs share one number space, so `#12` may be either.
 
 ## Milestones
 
-Each milestone has a tracking issue with a task list: **#45** (v0.1), **#46** (v0.2), **#47** (v0.3), **#48** (Research). Start there to see what is left.
+Each milestone has a tracking issue linking its work: **#45** (v0.1), **#46** (v0.2), **#47** (v0.3), **#48** (Research). Start there to see what is left.
 
 * **v0.1**: first usable NetBSD and Mac OS 9 release. An ordinary user can install, configure and use every platform we advertise.
   Keep it narrow; the tracking issue lists the gate.
@@ -41,7 +41,9 @@ Every open issue and PR should be in exactly one milestone. A plan-only PR with 
 ## The board
 
 The **Threshold Backlog** project (https://github.com/users/jackwillis/projects/3) holds this repository's issues and PRs next to the owner's
-other work. Its Status field is Todo, In Progress, Done. Filter by label or milestone for the weather items. Hardware-gated work is easiest to
+other work. Its Status field is **Backlog, Ready, In Progress, Review, Done**. Filter by repository and milestone for the weather items.
+Backlog holds unadopted proposals and deferred work; Ready holds actionable work; In Progress means implementation or acceptance work is active;
+Review means an implementation awaits review or merge authorization. Done requires completed acceptance, not merely a closed planning PR. Hardware-gated work is easiest to
 see with the filter `label:needs-hardware-tiger` or `label:needs-hardware-netbsd`: the owner boots the Mac into one OS and the agents clear that
 whole list in one sitting.
 
@@ -80,4 +82,6 @@ None of these replace a review. They cover the rules that a machine can check, s
 
 The first triage turned plan-only draft PRs into issues: #18 became #67, #20 became #68, #21 became #69 (the plan files stay on their closed branches).
 The audit in `docs/AUDIT-2026-10-25.md` was split into issues #49 to #66 by theme; finding IDs (A1, E3, ...) are in the titles. Old issues #3 to #6 were closed
-as done or superseded. RFC pull requests stay open as PRs with a milestone and the `rfc` label.
+as done or superseded. The subsequent organization pass moved planning-only #22, #27, #33, #34, #37 and #40 into issues #96–#101.
+Their PRs are closed without merging; proposal text, discussion links and branches are preserved. Concrete spikes remain PRs.
+See [the work map](WORK-TRACKING.md) for implementation acceptance issues and board conventions.
