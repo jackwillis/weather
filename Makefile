@@ -160,6 +160,17 @@ distcheck: dist
 
 # ---- tests
 check: $(CHECK_TARGET)
+PPC_RUN ?= qemu-ppc -L /usr/powerpc-linux-gnu
+$(BUILD)/ppc-runtime: $(OBJ)/test/ppc_runtime.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $<
+
+# No binfmt registration or privileged emulator setup is required.
+check-ppc: $(BUILD)/ppc-runtime $(BUILD)/unittest $(BUILD)/robust
+	$(PPC_RUN) $(BUILD)/ppc-runtime
+	$(PPC_RUN) $(BUILD)/unittest
+	$(PPC_RUN) $(BUILD)/robust
+.PHONY: check-ppc
+
 check-native: lint check-anchors $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather
 	$(BUILD)/unittest
 	$(BUILD)/robust
