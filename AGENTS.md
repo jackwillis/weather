@@ -9,6 +9,7 @@ This file is the working agreement. Updated 2026-10-25.
   (`runlog <name>`); never try to work around permissions.
 * **GitHub work uses feature branches and PRs in the existing repo**, as authorized by Jack on 2026-10-25. Do not create another repo.
   Commit at green milestones; commit messages end with the agent's co-author line. Merge only when Jack authorizes it.
+  **Standing authorization (Jack, 2026-10-26, "you can merge non code"):** an agent may merge a PR whose changes are only Markdown or plain-text documentation (README, TODO, CHANGELOG, `docs/`) once hosted checks are green, with a merge commit, and unless it is labelled `needs-owner` or `blocked`. Anything touching code, tests, build files, scripts, workflows, man pages or notices still needs Jack. Tell Jack what was merged.
 * **No Apple material in the repo.** Apple SDK files were only read for reference (outside the repo, `~/scratch/os9-sdk`); our Open Transport
   declarations and glue are our own code. Never copy Apple headers or binaries into the tree.
 * **Never invent contact details** (MET Norway needs a real `contact` in the user's config; do not use the owner's email for external services).
