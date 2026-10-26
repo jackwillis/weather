@@ -58,6 +58,8 @@ the cross target the toolchain from `~/scratch/netbsd-xc` (see its README-repro.
 the header matches the PEM and that the PEM holds exactly ISRG Root X1, ISRG Root X2 and HARICA TLS RSA Root CA 2021 (checked by SHA-256
 fingerprint; `test/anchors.sh` tests the check itself). Refreshing them is a release task.
 
+Project tracking (issues, milestones, labels, the board, PR flow): see [docs/PROJECT-MANAGEMENT.md](docs/PROJECT-MANAGEMENT.md).
+
 ### Host platforms
 Developed on Linux; `make check` (everything except the GUI scenario) also passes on macOS (arm64) with Apple's GNU make 3.81 and with
 Homebrew's `make` 4.x (installed as `gmake`); `make dist distcheck` passes there too. Besides the compiler: `openssl` (the anchor fingerprint check; without it that check is

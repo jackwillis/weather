@@ -64,3 +64,7 @@ Check clocks with `date -u +%s` on the Mac versus the app's `clock:` log line.
 3. OS 9 DNS timeout/cancel (async open with a notifier); better entropy if an OS source exists.
 4. On-disk stale cache; third source (api.weather.gov needs multi-step requests); geocoding.
 5. The owner must reinstall the rebuilt NetBSD package (`doas pkg_add -u`) and look at xweather on maul's real display.
+
+## Project management
+Issues, milestones, labels, the board and the PR flow are described in `docs/PROJECT-MANAGEMENT.md`. Start work from an issue, link it from the PR (`Closes #N`),
+set `agent/codex` or `agent/claude` while you own it, and use `needs-owner` / `needs-hardware-*` / `blocked` instead of leaving a PR silently stuck.
