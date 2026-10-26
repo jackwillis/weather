@@ -9,7 +9,7 @@
 | Host test suite (`make check`) | green | lint, anchors, 461 unit, 186,018 mutated inputs, 78 CLI feature, 21 GUI checks, 2 provisioning tests; `make check-san` (UBSan+ASan) green |
 | NetBSD package | built, staged | `tools/mkpkg-netbsd.sh`; the old build is installed on maul, the rebuilt one (with met-no) is not yet |
 | Mac OS 9, console app | builds; production TLS path verified with managed seed | real storage/failure probes pass; approved seed installation and two live certificate-verified TLS launches with seed advancement passed on maul (2026-10-25) |
-| Mac OS 9, window UI | not started | next milestone |
+| Mac OS 9, window UI | implemented on **unmerged PR #11**, not on `main` | branch reports native QuickDraw tests under Classic and live TLS; pending merge/revalidation |
 
 ## Mac OS 9 findings (all on real hardware)
 * Classic runs on the Power Mac G4 under Mac OS X Tiger; apps are delivered and launched from Linux over SSH (`tools/deliver-os9.sh`,
@@ -23,8 +23,18 @@
 ## Known gaps and risks
 * OS 9 now requires a provisioned managed seed, with checked rotation and exclusive ownership. Host tests, real-adapter fault injection, approved installation and two live TLS launches on maul pass. Import cleanup uses native File Manager deletion because Retro68's unlink is a stub; regression-tested on hardware. Supplemental jitter has no measured entropy guarantee, and physical power-loss/rollback durability is unverified; see OS9-SEEDS.md.
 * OS 9 DNS now uses an async provider with yield/cancel and a wrap-safe deadline. Host lifecycle tests pass; DnsProbe and DnsNetProbe passed on maul (2026-10-25), including closing a pending query and reconnecting. A deliberately stalled DNS server and delayed-open cancellation remain unverified on hardware. POSIX `getaddrinfo` still blocks.
-* The GitHub repository is not created (the owner's call); Open-Meteo and MET Norway terms still need a final read before publishing.
+* The GitHub repository exists at https://github.com/jackwillis/weather. Open-Meteo and MET Norway licensing, attribution and release terms still need a final review.
 * Delivery of OS 9 apps depends on the Mac being in OS X with a console login; a stuck `hdiutil attach` must be killed with `kill -9`.
+
+## Current integration and release priorities
+
+1. Review/integrate the open correctness and regression-test changes: #32, #35, #36, #38, #39 and #41. Their tests/results are **branch reports** until merged and independently revalidated. Coordinate overlapping changes.
+2. Review and merge OS 9 native QuickDraw window #11, then complete OS 9 preferences/location #12; validate on the G4. A Classic-on-Tiger run is not native-boot OS 9 compatibility evidence.
+3. Finish NetBSD real-display UX, package installation, hardening probes and provider attribution; stage a small first release before expanding weather features.
+4. Separately explore user-maintained CA roots (#40), Mac-first systems SDK (#27), CFM feasibility (#42), OT glue provenance/version matrix (#43), and modern C++ (#37). None are release dependencies today.
+5. Scope: real NetBSD/macppc and OS 9.2.2 under Classic have hardware evidence. OS 8, System 7, native OS 9 and other targets are **not verified**. Do not advertise them as supported.
+
+This file records the default branch, not all PR branches. The numbers above are GitHub PRs and may change status after review.
 
 ## Reproduce
     make check                  # host: lint, anchors, unit, robustness, feature, GUI
