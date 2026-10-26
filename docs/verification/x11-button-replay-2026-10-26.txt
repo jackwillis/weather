@@ -1,0 +1,71 @@
+xweather interrupted button gestures: #55 / audit F2
+
+A held Location OK survived Escape, so a later release could save cancelled
+edits after the dialog closed. Holding OK and accepting with Return could also
+apply twice, and a right-button release could activate a left-button press.
+
+Clear the pressed state on Location Escape and on keyboard acceptance. A new
+left-button press resets the old gesture. Ignore releases from other buttons,
+and only activate a control while its owning mode is still active. Add a guard
+to apply_location so a closed dialog cannot apply its fields.
+
+xdrive now supports separate down/up edges, sharing the existing click sender.
+The GUI scenario tests: edit + heldOK + Escape + release leaves config unchanged
+and does not fetch; wrong-button release does not save/fetch; Return with heldOK
+applies once; release outside does nothing; an ordinary OK click still applies.
+
+Red evidence: the original application saved cancelled edits and fetched twice
+where one fetch was expected; the Return case reached five fetches rather than
+two (including earlier replayed actions). Seven new checks failed. Log:
+/tmp/weather-buttons-red.log.
+
+Scope: F2 only. F1 (dialog/fetch input scheduling) and F3 (Unicode input) remain
+open under #55. Related scheduling/search changes already exist in draft #17
+and must be preserved at integration. No core parser input path was added.
+
+Additional sanitizer finding and existing correction extracted from #17
+The first optional GUI sanitizer link needed explicit X11_LIBS=-lX11 (the
+host-san target does not set X11 libs). After correcting that invocation, the
+unmodified CDE renderer trapped before a window opened. Stopped the own driver
+and its child processes; no hardware GUI run overlapped it.
+A focused non-recovering UBSan diagnostic reported:
+src/ui/xweather/cde.cpp:129:8: runtime error: null pointer passed as argument 2,
+which is declared to never be null
+Trap-mode red test exited132 (Illegal instruction); diagnostic log:
+/tmp/weather-cde-diagnostic.log.
+
+This is the already fixed CDE issue on draft #17, not introduced by the button
+changes. Extracted that identical correction and test/cde_text.cpp into separate
+commit73f8570: skip empty Xlib text operations, avoid null zero-byte memcpy,
+handle zero-capacity output, and bound ellipsis construction before measuring.
+All95 pure CDE text checks pass normally and with ASan+UBSan. Makefile runs them
+with GUI checks and check-san when X11 development headers are available.
+This extraction needs to be retained, not duplicated/reverted, when #17 merges.
+
+Final verification setup
+Extra GUI sanitizer binary is built with TARGET=host-san X11_LIBS=-lX11.
+The ordinary host GUI harness is copied to /tmp/weather-buttons-gui-san.sh,
+with only its binary source changed to build/host-san/xweather and its output
+directory changed to build/gui-buttons-san. ASAN_OPTIONS=detect_leaks=0 avoids
+claims about Xlib/font process-exit leaks; ASan and UBSan remain enabled.
+Initial aborted GUI log preserved as /tmp/weather-buttons-san-gui-initial.log.
+
+G4 driver /tmp/weather-buttons-gui-maul.sh uses the normal shared scenario and
+cross-built xweather/xdrive. It changes the output directory and passes Xvfb
+-noreset, the server-lifetime correction already pending in #80; no additional
+application change. All GUI runs are strictly serialized, on host :88 and
+maul :77. Tests use their own rc files, not the user's preferences. Config and
+fetch counts verify actions; screenshots are captured, not compared pixelwise.
+
+Green final results
+make check: 517 unit checks, 230242 mutation inputs, 106 CLI checks, 12 local
+real-TLS checks, 95 pure CDE text checks, 30 GUI checks, lint/anchors/provisioning/
+flags all pass. /tmp/weather-buttons-check.log.
+make check-san explicitly enabled AddressSanitizer plus UBSan: 517 unit checks,
+230242 mutation inputs, 106 CLI checks and 95 CDE checks all pass.
+/tmp/weather-buttons-san.log.
+Extra ASan+UBSan GUI run: 30 checks pass. /tmp/weather-buttons-san-gui.log.
+Actual NetBSD/macppc G4 virtual-display GUI run: 30 checks pass, including all
+new mouse/key-order cases. /tmp/weather-buttons-maul-gui.log; snapshots and
+scenario logs under build/gui-buttons-maul/. Binaries cross-built on Linux;
+no compilation on maul. No physical display inspection, macOS-host or OS 9 run.

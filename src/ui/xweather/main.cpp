@@ -329,6 +329,8 @@ void open_location()
 
 void apply_location()
 {
+	if (g.mode != Location) return;
+	g.pressed = PNone;
 	Config c = g.cfg;
 	if (!g.form.read(&c).ok()) { g.dirty = true; return; }
 	g.cfg = c;
@@ -407,6 +409,7 @@ void field_click(int field, int x)
 void on_button_press(const XButtonEvent &e)
 {
 	if (e.button != Button1) return;
+	g.pressed = PNone;
 	g.dirty = true;
 	if (g.mode == MenuOpen || (g.mode == Normal && e.y < MB_H)) {
 		int bar = menu_at_bar(e.x, e.y);
@@ -435,10 +438,15 @@ void on_button_press(const XButtonEvent &e)
 
 void on_button_release(const XButtonEvent &e)
 {
+	if (e.button != Button1) return;
 	Press p = g.pressed;
 	g.pressed = PNone;
 	g.dirty = true;
 	if (p == PNone) return;
+	// A press belongs to the mode in which it began. Dismissing a dialog or
+	// accepting it with the keyboard must not replay that press on release.
+	if ((p == PRefresh || p == PLocation) ? g.mode != Normal :
+	    (p == POk || p == PCancel) ? g.mode != Location : g.mode != About) return;
 	Rect r = p == PRefresh ? r_refresh() : p == PLocation ? r_locbtn() : p == POk ? d_ok() : p == PCancel ? d_cancel() : a_ok();
 	if (!r.contains(e.x, e.y)) return;
 	switch (p) {
@@ -471,7 +479,7 @@ void on_key(XKeyEvent &e)
 		LocationForm &f = g.form;
 		TextEdit<16> *t16 = f.focus == LocationForm::Lat ? &f.lat : f.focus == LocationForm::Lon ? &f.lon : nullptr;
 		switch (ks) {
-		case XK_Escape: g.mode = Normal; return;
+		case XK_Escape: g.pressed = PNone; g.mode = Normal; return;
 		case XK_Return: case XK_KP_Enter: apply_location(); return;
 		case XK_Tab: f.next(); return;
 		case kLeftTab: f.prev(); return;
