@@ -10,7 +10,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # A newer push to a PR branch replaces its running checks. Each commit on main gets its own group, so merging several PRs in a row
+  # leaves a finished run for every one of them (a shared group would cancel the running one, or drop the queued ones).
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
