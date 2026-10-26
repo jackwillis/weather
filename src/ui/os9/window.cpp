@@ -1,6 +1,8 @@
 // Native Toolbox window. Network initialization and terminal shutdown occur once.
 #include "window.hpp"
 #include "app/config_load.hpp"
+#include "location.hpp"
+#include "platform/os9/settings_os9.hpp"
 #include "platform/os9/config_os9.hpp"
 #include "core/log.hpp"
 #include "app/weather_art.hpp"
@@ -26,7 +28,11 @@ Net net;
 WindowPtr window;
 GWorldPtr buffer = nullptr;
 const WindowTestHooks *test_hooks = nullptr;
-wx::Status startup;
+wx::Status startup, settings_notice;
+Os9Settings preferences;
+SettingsStore legacy;
+SettingsStore *prefs_store=nullptr, *legacy_store=nullptr;
+LocationDialog location;
 unsigned long update_count = 0;
 unsigned long suspend_count = 0, resume_count = 0;
 bool foreground = true;
@@ -119,7 +125,8 @@ void draw_contents()
 	}
 	Buf<256> status;
 	const char *seed_error = os9_entropy_error();
-	if (model.phase()==Phase::Failed && window_seed_failure(model.last_error(),seed_error)) status.add(seed_error).add(". See About for recovery.");
+	if(!settings_notice.ok()) status.add("Settings: ").add(settings_notice.msg);
+	else if (model.phase()==Phase::Failed && window_seed_failure(model.last_error(),seed_error)) status.add(seed_error).add(". See About for recovery.");
 	else model.status_line(status,net.now(net));
 	wrapped(16,210,status.c_str(),3,308);
 	text(16,287,cfg.auto_refresh?"Automatic updates on":"Automatic updates off",9,205);
@@ -150,7 +157,29 @@ void draw()
 	SetPort(window); Rect valid=box(0,0,340,kHeight); ValidRect(&valid);
 	SetGWorld(saved,device); painted_at=net.now(net);
 }
-void command(WindowAction a) { if(actions.apply(a,cfg,model,net.now(net))) draw(); }
+void settings_committed() {
+    if(startup.ok()) return;
+    startup=recover_preferences(*prefs_store,*legacy_store,cfg,model,net.now(net));
+    if(!startup.ok()) settings_notice=startup;
+}
+void command(WindowAction a) {
+    if(actions.quit) return;
+    if(a==WindowAction::Quit) { actions.apply(a,cfg,model,net.now(net)); return; }
+    if(location.visible()) return;
+    if(a==WindowAction::Location) {
+        settings_notice=location.open(cfg,model); draw(); return;
+    }
+    if(a==WindowAction::Metric || a==WindowAction::Imperial || a==WindowAction::ToggleAuto) {
+        if(model.phase()==Phase::Fetching) return;
+        Config next=cfg;
+        if(a==WindowAction::ToggleAuto) next.auto_refresh=!cfg.auto_refresh;
+        else next.metric=a==WindowAction::Metric;
+        settings_notice=commit_preferences(*prefs_store,*legacy_store,next,cfg,model,net.now(net));
+        if(settings_notice.ok()) settings_committed();
+        draw(); return;
+    }
+    if(actions.apply(a,cfg,model,net.now(net))) draw();
+}
 void menu(long selection)
 {
 	int id = selection >> 16, item = selection & 65535;
@@ -160,6 +189,7 @@ void menu(long selection)
 	if (id == 130 && item == 1) command(WindowAction::ToggleAuto);
 	if (id == 130 && item == 2) command(WindowAction::Metric);
 	if (id == 130 && item == 3) command(WindowAction::Imperial);
+	if (id == 130 && item == 5) command(WindowAction::Location);
 	HiliteMenu(0);
 }
 struct ModalTrackingTime {
@@ -170,7 +200,9 @@ struct ModalTrackingTime {
 bool pump(Net &)
 {
 	MenuHandle file = GetMenuHandle(129), options = GetMenuHandle(130);
-	bool fetching = model.phase() == Phase::Fetching;
+	bool fetching = model.phase() == Phase::Fetching || location.visible();
+	MenuHandle apple=GetMenuHandle(128);
+	if(location.visible()) DisableItem(apple,1); else EnableItem(apple,1);
 	if (fetching != menus_fetching) {
 		if (fetching) { DisableItem(file, 1); DisableItem(options, 0); }
 		else { EnableItem(file, 1); EnableItem(options, 0); }
@@ -178,13 +210,16 @@ bool pump(Net &)
 		DrawMenuBar();
 	}
 	EventRecord e;
-	for (int i = 0; i < 8 && WaitNextEvent(everyEvent, &e, 0, nullptr); i++) {
+	for (int i = 0; i < 8 && !actions.quit && WaitNextEvent(everyEvent, &e, 0, nullptr); i++) {
 		if (e.what == updateEvt) {
 			WindowPtr w = reinterpret_cast<WindowPtr>(e.message);
 			BeginUpdate(w);
 			if (w == window) { ++update_count; draw(); }
+			else if(w==location.window()) location.draw();
 			EndUpdate(w);
-		} else if (e.what == activateEvt) draw();
+		} else if (location.visible() && location.event(e,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice)) {
+            if(!location.visible()) { if(location.committed()) settings_committed(); draw(); }
+        } else if (e.what == activateEvt) draw();
 		else if (e.what == osEvt) {
 			constexpr unsigned long kSuspendResumeMessage = 1;
 			constexpr unsigned long kResumeFlag = 1;
@@ -223,12 +258,34 @@ bool pump(Net &)
 			}
 		}
 	}
+    if(location.visible() && !actions.quit) {
+        EventRecord idle={}; idle.what=nullEvent; idle.when=TickCount();
+        location.event(idle,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice);
+    }
 	if (!actions.quit && net.now(net) != painted_at) draw();
 	return !actions.quit;
 }
 }
 namespace wx {
 void os9_window_action(WindowAction a) { command(a); }
+bool os9_window_location_visible() { return location.visible(); }
+void os9_window_location_field(int f,sv text) { if(!actions.quit) location.set_field(f,text); }
+void os9_window_location_item(int item) {
+    if(actions.quit) return;
+    bool was_visible=location.visible();
+    location.item(item,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice);
+    if(was_visible && !location.visible()) { if(location.committed()) settings_committed(); draw(); }
+}
+int os9_window_location_focus() { return location.focus(); }
+void os9_window_location_key(char key,bool shift) {
+    if(actions.quit) return;
+    EventRecord e={}; e.what=keyDown; e.message=key; e.modifiers=shift?shiftKey:0;
+    bool visible=location.visible();
+    location.event(e,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice);
+    if(visible && !location.visible()) { if(location.committed()) settings_committed(); draw(); }
+}
+const Config &os9_window_config() { return cfg; }
+Status os9_window_settings_status() { return settings_notice; }
 const Model &os9_window_model() { return model; }
 unsigned long os9_window_updates() { return update_count; }
 bool os9_window_buffered() { return buffer!=nullptr; }
@@ -248,8 +305,15 @@ Status os9_window_fetch_live(const Config &c, Net &n, Forecast *f) {
 }
 int run_os9_window(const WindowTestHooks *hooks) {
 	test_hooks=hooks;
-	if(hooks && hooks->setup) hooks->setup(cfg);
-	else { SettingsStore store=os9_config_store(); startup=load_config(store,cfg); }
+	legacy=os9_config_store(); legacy_store=&legacy;
+    prefs_store=&preferences.base;
+    if(hooks) {
+        // Diagnostics must supply their own isolated store, never production Preferences.
+        if(!hooks->preferences || !hooks->legacy) return 1;
+        prefs_store=hooks->preferences; legacy_store=hooks->legacy; startup=okay();
+    } else startup=os9_settings_init(&preferences);
+    if(hooks && hooks->setup) hooks->setup(cfg);
+    else if(startup.ok()) startup=load_preferences(*prefs_store,*legacy_store,cfg);
 	model=Model(ModelConfig{cfg.auto_refresh,900,60});
 	log_init(cfg.level,false,"weather");
 	InitGraf(&qd.thePort); InitFonts(); InitWindows(); InitMenus(); TEInit(); InitDialogs(nullptr); InitCursor();
@@ -271,14 +335,14 @@ int run_os9_window(const WindowTestHooks *hooks) {
 	}
 	AppendMenu(apple, pascal_text("About Weather")); InsertMenu(apple, 0);
 	AppendMenu(file, pascal_text("Refresh/R;(-;Quit/Q")); InsertMenu(file, 0);
-	AppendMenu(options, pascal_text("Automatic updates;Metric;Imperial")); InsertMenu(options, 0);
+	AppendMenu(options, pascal_text("Automatic updates;Metric;Imperial;(-;Location/L")); InsertMenu(options, 0);
 	DrawMenuBar();
 	os9_net_init(&net); net.yield=pump; tls_net_init(&net); draw();
 	while(!actions.quit) {
 		pump(net); if(actions.quit) break;
 		if(test_hooks && test_hooks->idle) test_hooks->idle();
 		if(actions.quit) break;
-		if(model.tick(net.now(net))) {
+		if(!location.visible() && model.tick(net.now(net))) {
 			draw(); Forecast f;
 			Status s=startup;
 			if(s.ok()) s=test_hooks && test_hooks->fetch ? test_hooks->fetch(cfg,net,&f) : os9_window_fetch_live(cfg,net,&f);
@@ -287,6 +351,7 @@ int run_os9_window(const WindowTestHooks *hooks) {
 		CheckItem(options,1,cfg.auto_refresh); CheckItem(options,2,cfg.metric); CheckItem(options,3,!cfg.metric);
 		long finalTicks; Delay(1,&finalTicks);
 	}
+	location.cancel();
 	os9_net_shutdown();
 	DeleteMenu(128); DeleteMenu(129); DeleteMenu(130);
 	DisposeMenu(apple); DisposeMenu(file); DisposeMenu(options);

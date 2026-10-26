@@ -11,6 +11,7 @@
 #include "core/openmeteo.hpp"
 #include "core/settings.hpp"
 #include "app/locform.hpp"
+#include "app/preferences.hpp"
 #include "app/model.hpp"
 #include "app/textedit.hpp"
 

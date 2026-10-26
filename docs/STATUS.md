@@ -48,3 +48,13 @@ NetBSD follow-up regression (2026-10-25, #11 combined with main): actual PowerPC
 run passed 535 unit checks and 80820 robustness inputs. All ten smoke checks
 passed, including live TLS, clock/anchor failures and settings. Host check and
 ASan/UBSan passed as well. No builds ran on maul.
+
+## Location/Preferences in PR #12
+
+Native dialog, save-before-apply settings transactions and checked File Manager
+Preferences storage are implemented and cross-built. Host policy/mutation tests
+and native NetBSD portable-policy runs pass; exact final counts are in the PR
+plan. The isolated PreferencesProbe and WeatherPrefsUITest are prepared but have
+not run. Layout, typing, locked/read-only volume behavior, actual process restart
+and production delivery await Tiger. See OS9-PREFERENCES.md for source precedence
+and explicit failure/durability limits.
