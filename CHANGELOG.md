@@ -15,6 +15,8 @@ First version.
   answer: retried, exit 74. It was reported as malformed data (exit 65) and not retried, contrary to the man page.
 - CLI: `-c` is honoured in every form (`-c FILE`, `-cFILE`, `-Sc FILE`); before, the clustered and attached forms were ignored
   and `-S` rewrote `~/.weatherrc` instead. `-V` and `-h` no longer read the config, so a malformed file cannot block them.
+- If the system clock is stepped back past the moment the forecast was fetched, the status line now says the data is from "an unknown
+  time, clock changed" and the data counts as stale; before, it kept saying "Updated just now".
 - A provider answer with an impossible humidity (outside 0-100 %), wind speed, wind direction, `is_day` or weather code is refused, so the next
   source is tried; before, it was shown. Open-Meteo answers whose `current_units` differ from the requested units are refused too (the
   labels come from the request). MET Norway values are range-checked before unit conversion, which also removes a 32-bit overflow.
