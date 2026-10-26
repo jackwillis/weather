@@ -7,6 +7,7 @@
 - [ ] Reinstall the rebuilt NetBSD package on maul (`doas pkg_add -u`; staged at /tmp/weather-0.1.0.tgz, lost at reboot: rebuild with tools/mkpkg-netbsd.sh)
 
 ## Next
+- [ ] UX tier 2 (v0.2): hourly/daily data in the model and providers (#117), pinned locations model and settings (#118); then the UI slices in #98 (OS 9) and #99 (NetBSD). Shared rules: #113. Map size/licence research: #114.
 - [ ] On-disk stale cache (serve the last good forecast when every source is down)
 - [ ] Third source: api.weather.gov (NWS, US only; TLS verified: chains to ISRG X1) needs multi-step requests (points -> stations -> observation) so the Provider interface must grow a step mechanism
 - [ ] Location by place name (geocoding), default location prompt
