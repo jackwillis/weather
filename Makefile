@@ -13,7 +13,7 @@
 # Shortcut: `make ppc` = make TARGET=netbsd-macppc.
 
 TARGET  ?= host
-VERSION  = 0.1.0
+VERSION  = 0.0.1
 BEARSSL ?= third_party/bearssl
 
 include mk/$(TARGET).mk
@@ -37,7 +37,7 @@ CLI_SRCS     = src/cli/main.cpp
 XW_SRCS      = src/ui/xweather/main.cpp src/ui/xweather/cde.cpp
 WEATHER_OBJS = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(CLI_SRCS))
 XW_OBJS      = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(XW_SRCS))
-TEST_OBJS    = $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o \
+TEST_OBJS    = $(OBJ)/app/preferences.o $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o \
                $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/settings_posix.o
 
 all: $(BUILD)/weather $(XWEATHER_TARGETS)
@@ -59,8 +59,8 @@ $(BUILD)/xweather: $(BUILD)/xweather.debug
 $(BUILD)/xdrive: $(OBJ)/test/xdrive.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(X11_LIBS)
 
-$(BUILD)/robust: $(OBJ)/test/robust.o $(BEARSSL_LIB)
-	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(BEARSSL_LIB)
+$(BUILD)/robust: $(OBJ)/test/robust.o $(OBJ)/app/preferences.o $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(OBJ)/app/preferences.o $(BEARSSL_LIB)
 
 $(BUILD)/unittest: $(TEST_OBJS) $(BEARSSL_LIB)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(TEST_OBJS) $(BEARSSL_LIB)
@@ -147,11 +147,14 @@ package-netbsd:
 probe-os9:
 	sh tools/probe-os9.sh
 
+# Release builds pin RETRO68_IMAGE by digest (ghcr.io/autc04/retro68@sha256:...) and may use CONTAINER=docker.
+CONTAINER    ?= podman
+RETRO68_IMAGE ?= ghcr.io/autc04/retro68
 # Mac OS 9 build (PowerPC PEF app "Weather") with Retro68 in a container. Output: build/os9/Weather.{APPL,bin,dsk}.
 # Deliver to the Mac with tools/deliver-os9.sh (see README). Needs no Apple files.
 os9:
 	mkdir -p build/os9
-	podman run --rm -v $(CURDIR):/src:Z -w /src/build/os9 ghcr.io/autc04/retro68 sh -c \
+	$(CONTAINER) run --rm -v $(CURDIR):/src:Z -w /src/build/os9 $(RETRO68_IMAGE) sh -c \
 	  'cmake /src/os9 -DCMAKE_TOOLCHAIN_FILE=/Retro68-build/toolchain/powerpc-apple-macos/cmake/retroppc.toolchain.cmake >/dev/null && make'
 
 # Prove the tarball is complete and reproducible: unpack it elsewhere, build, run the tests, rebuild the tarball.

@@ -1,6 +1,10 @@
 // "weather" for Mac OS 9, console edition: fetch the forecast and print it. The real OS 9 window UI comes later;
 // this proves the whole stack (Open Transport -> TLS -> HTTP -> JSON -> core) on the real machine.
 #include "core/config.hpp"
+#include "app/config_load.hpp"
+#include "app/preferences.hpp"
+#include "settings_os9.hpp"
+#include "config_os9.hpp"
 #include "core/fetch.hpp"
 #include "core/log.hpp"
 #include "core/providers.hpp"
@@ -44,25 +48,13 @@ static void wait_for_click()
 int main()
 {
 	Config cfg;
-	// Optional "weather.conf" next to the app: same key = value lines as ~/.weatherrc.
-	if (FILE *f = fopen("weather.conf", "r")) {
-		char line[160];
-		int n = 0;
-		while (fgets(line, sizeof line, f)) {
-			n++;
-			sv l(line);
-			while (!l.empty() && (l.back() == '\n' || l.back() == '\r' || l.back() == ' ')) l.remove_suffix(1);
-			while (!l.empty() && l.front() == ' ') l.remove_prefix(1);
-			if (l.empty() || l.front() == '#') continue;
-			size_t eq = l.find('=');
-			if (eq == sv::npos) continue;
-			sv k = l.substr(0, eq), v = l.substr(eq + 1);
-			while (!k.empty() && k.back() == ' ') k.remove_suffix(1);
-			while (!v.empty() && v.front() == ' ') v.remove_prefix(1);
-			wx::Status s = config_set(&cfg, k, v, n);
-			if (!s.ok()) fprintf(stderr, "weather.conf line %d: %s\n", n, s.msg);
-		}
-		fclose(f);
+	SettingsStore store = os9_config_store();
+	Os9Settings preferences;
+	wx::Status loaded = os9_settings_init(&preferences);
+	if(loaded.ok()) loaded=load_preferences(preferences.base,store,cfg);
+	if (!loaded.ok()) {
+		fprintf(stderr, "settings line %d: %s\n", loaded.detail, loaded.msg);
+		return exit_code(loaded.err);
 	}
 	log_init(cfg.level == LogWarn ? LogInfo : cfg.level, false, "weather");
 	printf("weather %s for Mac OS 9\n\n", WEATHER_VERSION);

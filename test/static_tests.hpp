@@ -1,6 +1,7 @@
 // Compile-time tests of the portable core. If the core is wrong on a compiler, this does not compile there.
 // Included by unittest.cpp (host and maul) and by the OS 9 probe (Retro68): a bad parser breaks the build, on every target.
 #pragma once
+#include "platform/os9/modal_clock.hpp"
 #include "platform/os9/portable.hpp"
 #include "core/config.hpp"
 #include "core/forecast.hpp"
@@ -10,6 +11,7 @@
 #include "core/openmeteo.hpp"
 #include "core/settings.hpp"
 #include "app/locform.hpp"
+#include "app/preferences.hpp"
 #include "app/model.hpp"
 #include "app/textedit.hpp"
 

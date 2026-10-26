@@ -9,6 +9,9 @@
 #include "core/version.hpp"
 #include "app/locform.hpp"
 #include "app/model.hpp"
+#include "app/config_load.hpp"
+#include "app/preferences.hpp"
+#include "app/window_actions.hpp"
 #include "app/textedit.hpp"
 #include "core/providers.hpp"
 #include "core/settings.hpp"
@@ -16,6 +19,7 @@
 #include "platform/posix/settings_posix.hpp"
 #include "tls/timeconv.hpp"
 #include "platform/os9/dns_resolve.hpp"
+#include "platform/os9/modal_clock.hpp"
 #include <arpa/inet.h>
 #include <cstdio>
 #include <cstdlib>
@@ -919,7 +923,7 @@ static void test_metno()
 		Net n = make_net(&fk);
 		Status r = fetch_forecast(n, only, 1, lq, o, buf, sizeof buf, &out);
 		CHECK(r.ok() && out.temp_t10 == 545);
-		CHECK(strstr(fk.request, "User-Agent: weather/0.1.0 (contact: tester@example.org)\r\n") != nullptr);
+		CHECK(strstr(fk.request, "User-Agent: weather/" WEATHER_VERSION " (contact: tester@example.org)\r\n") != nullptr);
 		CHECK(strstr(fk.request, "Host: fake\r\n") != nullptr);
 	}
 	{ // Open-Meteo fails, MET Norway answers
@@ -1019,6 +1023,101 @@ static void test_os9_dns()
 	  CHECK(r.resolve("h", 0).err == Err::Timeout); CHECK(f.opens == 0); }
 }
 
+static void test_modal_clock()
+{
+	os9::ModalClock clock;
+	CHECK(clock.ticks(100)==100);
+	CHECK(clock.milliseconds(100)==0);
+	CHECK(clock.milliseconds(160)==1000);
+	clock.credit(160,760);
+	CHECK(clock.ticks(760)==160);
+	CHECK(clock.milliseconds(760)==1000);
+	CHECK(clock.milliseconds(820)==2000);
+	os9::ModalClock wrap;
+	CHECK(wrap.milliseconds(UINT32_MAX-20)==0);
+	CHECK(wrap.milliseconds(39)==1000);
+	os9::ModalClock paused_wrap;
+	CHECK(paused_wrap.milliseconds(UINT32_MAX-10)==0);
+	paused_wrap.credit(UINT32_MAX-10,49);
+	CHECK(paused_wrap.milliseconds(49)==0);
+	CHECK(paused_wrap.milliseconds(109)==1000);
+	os9::ModalClock counter_wrap;
+	counter_wrap.credit(0,UINT32_MAX-10);
+	counter_wrap.credit(0,20);
+	CHECK(counter_wrap.ticks(40)==31);
+	os9::ModalClock dns;
+	uint32_t start=dns.ticks(40);
+	dns.credit(40,5000);
+	CHECK(static_cast<uint32_t>(dns.ticks(5000)-start)==0);
+	CHECK(static_cast<uint32_t>(dns.ticks(5060)-start)==60);
+}
+
+static void test_config_load()
+{
+	SettingsStore store;
+	store.load = [](SettingsStore &s, char *out, size_t cap, size_t *n) {
+		const char *text = static_cast<const char *>(s.ctx);
+		if (!text) return make(Err::Config, "read failure");
+		*n = strlen(text);
+		if (*n < cap) memcpy(out, text, *n);
+		return okay();
+	};
+	Config cfg;
+	store.ctx = const_cast<char *>("units=metric\nlatitude=1\nnot-a-key=bad");
+	CHECK(!load_config(store,cfg).ok()); CHECK(!cfg.metric && cfg.lat_e4==430747);
+	store.ctx = const_cast<char *>("units=metric\nlatitude=1\nautorefresh=off");
+	CHECK(load_config(store,cfg).ok()); CHECK(cfg.metric && cfg.lat_e4==10000 && !cfg.auto_refresh);
+	store.ctx = const_cast<char *>(""); CHECK(load_config(store,cfg).ok()); CHECK(cfg.metric);
+	store.ctx = nullptr; CHECK(!load_config(store,cfg).ok()); CHECK(cfg.metric);
+	static char large[4097]; memset(large,' ',sizeof large-1);
+	store.ctx = large; CHECK(!load_config(store,cfg).ok()); CHECK(cfg.metric);
+}
+
+static void test_window_actions()
+{
+	Config cfg;
+	Model model;
+	WindowActions actions;
+	CHECK(model.tick(0));
+	actions.apply(WindowAction::Metric, cfg, model, 1);
+	CHECK(!cfg.metric);
+	actions.apply(WindowAction::ToggleAuto, cfg, model, 1);
+	CHECK(cfg.auto_refresh);
+	actions.apply(WindowAction::About, cfg, model, 1);
+	CHECK(actions.about);
+	actions.apply(WindowAction::DismissAbout, cfg, model, 1);
+	CHECK(!actions.about);
+	actions.apply(WindowAction::Refresh, cfg, model, 1);
+	Forecast forecast;
+	model.finish(2, okay(), &forecast);
+	CHECK(!model.tick(3)); // No queued refresh from a click during the request.
+	actions.apply(WindowAction::Metric, cfg, model, 3);
+	CHECK(cfg.metric && !model.has_forecast());
+	CHECK(model.tick(3));
+	model.finish(4, okay(), &forecast);
+	actions.apply(WindowAction::Metric, cfg, model, 4);
+	CHECK(model.has_forecast() && !model.tick(4)); // Same units do not fetch again.
+	actions.apply(WindowAction::About, cfg, model, 4);
+	CHECK(actions.about);
+	actions.apply(WindowAction::DismissAbout, cfg, model, 4);
+	CHECK(!actions.about);
+	actions.apply(WindowAction::ToggleAuto, cfg, model, 5);
+	CHECK(!cfg.auto_refresh && model.seconds_until_refresh(5) == -1);
+	actions.apply(WindowAction::Refresh, cfg, model, 6);
+	CHECK(model.tick(6)); // Manual refresh still works with automatic refresh off.
+	actions.apply(WindowAction::Quit, cfg, model, 6);
+	CHECK(actions.quit);
+	model.finish(7, make(Err::Cancelled, "quit"), nullptr);
+	actions.apply(WindowAction::Refresh, cfg, model, 8);
+	CHECK(!model.tick(8)); // Quit is terminal for command dispatch.
+	CHECK(window_seed_failure(make(Err::Tls,"no source of random numbers"),"locked"));
+	CHECK(!window_seed_failure(make(Err::Dns,"cannot resolve"),"locked"));
+	CHECK(!window_seed_failure(make(Err::Tls,"handshake failed"),"locked"));
+	CHECK(!window_seed_failure(make(Err::Tls,"no source of random numbers"),""));
+}
+
+#include "preferences_tests.hpp"
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -1031,6 +1130,10 @@ int main()
 	test_settings_text();
 	test_settings_store();
 	test_model();
+	test_window_actions();
+	test_config_load();
+	test_preferences();
+	test_modal_clock();
 	test_forms();
 	test_metno();
 	test_os9_dns();

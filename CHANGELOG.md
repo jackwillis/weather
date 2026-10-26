@@ -1,7 +1,15 @@
 # Changelog
 
+## 0.0.1 (pre-release)
+- Licence changed from BSD 2-clause to GPL-3.0-or-later (owner decision, 2026-10-26).
+A deliberately rough release to prove the packaging and release pipeline (issue #123). It promises no support
+and is not the v0.1 gate. See `docs/release-notes/0.0.1.md` for what works and the known issues.
+- Same code as the `0.1.0 (unreleased)` list below, as of the tagged commit; only the version differs.
+
 ## 0.1.0 (unreleased)
 First version.
+- OS 9 Preferences uses a single compiled writer to prevent Retro68 inline workspace storage from overlapping other globals.
+- OS 9 Preferences replacement checks native write access before exchanging files, preserving locked settings.
 - `weather`: current conditions over TLS (built-in BearSSL, no proxy) from Open-Meteo; retries with backoff,
   data-source fallback, sysexits exit codes, settings file (`~/.weatherrc`), `-S` to save the location,
   clean cancel on SIGINT/SIGTERM.

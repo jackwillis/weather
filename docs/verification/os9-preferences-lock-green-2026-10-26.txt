@@ -1,0 +1,83 @@
+ok create private diagnostic directory
+ok initialize diagnostic preferences only
+ok missing preferences is harmless
+ok initialize rename fault
+ok rename failure is reported
+ok initialize normal preferences
+ok initial installation
+ok replace through same adapter instance
+ok same adapter reads replacement
+ok 4096-byte save rejected
+ok 4095-byte boundary saved
+ok 4095-byte boundary read
+ok small reader cannot accept truncated settings
+ok install corrupt owned configuration
+ok corrupt preferences do not partially apply or fall back
+ok restore baseline after corruption
+ok lock owned Preferences file
+ok locked file replacement reports failure
+ok unlock owned Preferences file
+ok locked file retains original contents
+fault=2
+ok open baseline writer
+ok write baseline
+ok open faulted writer
+ok injected failure is reported
+ok reopen after failure
+ok valid primary survives
+ok old or complete new record as expected
+fault=3
+ok open baseline writer
+ok write baseline
+ok open faulted writer
+ok injected failure is reported
+ok reopen after failure
+ok valid primary survives
+ok old or complete new record as expected
+fault=4
+ok open baseline writer
+ok write baseline
+ok open faulted writer
+ok injected failure is reported
+ok reopen after failure
+ok valid primary survives
+ok old or complete new record as expected
+fault=5
+ok open baseline writer
+ok write baseline
+ok open faulted writer
+ok injected failure is reported
+ok reopen after failure
+ok valid primary survives
+ok old or complete new record as expected
+fault=6
+ok open baseline writer
+ok write baseline
+ok open faulted writer
+ok injected failure is reported
+ok reopen after failure
+ok valid primary survives
+ok old or complete new record as expected
+fault=7
+ok open baseline writer
+ok write baseline
+ok open faulted writer
+ok injected failure is reported
+ok reopen after failure
+ok valid primary survives
+ok old or complete new record as expected
+fault=8
+ok open baseline writer
+ok write baseline
+ok open faulted writer
+ok injected failure is reported
+ok reopen after failure
+ok valid primary survives
+ok old or complete new record as expected
+ok open faulted reader
+ok read/close failure is not a preferences hit
+ok open faulted reader
+ok read/close failure is not a preferences hit
+ok remove diagnostic primary
+ok remove empty diagnostic directory
+finished: 0 failures
