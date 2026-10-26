@@ -78,6 +78,14 @@ static void test_openmeteo()
 	CHECK(s.err == Err::Parse);                 // truncated JSON
 	s = openmeteo_parse(R"({"current":{"temperature_2m":9999,"weather_code":0}})", q, &f);
 	CHECK(s.err == Err::BadData);               // implausible
+	s = openmeteo_parse(R"({"current":{"temperature_2m":20.0,"weather_code":150}})", q, &f);
+	CHECK(s.err == Err::BadData);               // no such WMO code
+	s = openmeteo_parse(R"({"current":{"temperature_2m":20.0,"weather_code":99}})", q, &f);
+	CHECK(s.ok());
+	{ Query mq; mq.metric = true;               // the real (Fahrenheit, mp/h) fixture answers a metric request: refused, not relabelled
+	  Forecast mf;
+	  s = openmeteo_parse(fixture(0, "openmeteo-ok.json"), mq, &mf);
+	  CHECK(s.err == Err::BadData && strstr(s.msg, "units") != nullptr); }
 	s = openmeteo_parse("<html>", q, &f);
 	CHECK(s.err == Err::Parse);
 	s = openmeteo_parse(R"({"latitude":1})", q, &f);

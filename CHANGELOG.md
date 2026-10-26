@@ -17,5 +17,8 @@ First version.
   and `-S` rewrote `~/.weatherrc` instead. `-V` and `-h` no longer read the config, so a malformed file cannot block them.
 - If the system clock is stepped back past the moment the forecast was fetched, the status line now says the data is from "an unknown
   time, clock changed" and the data counts as stale; before, it kept saying "Updated just now".
+- A provider answer with an impossible humidity (outside 0-100 %), wind speed, wind direction, `is_day` or weather code is refused, so the next
+  source is tried; before, it was shown. Open-Meteo answers whose `current_units` differ from the requested units are refused too (the
+  labels come from the request). MET Norway values are range-checked before unit conversion, which also removes a 32-bit overflow.
 - Tests: compile-time `static_assert`s, 203 unit checks, parser mutation tests, 65 CLI feature tests, a 21-step GUI
   scenario (also on real hardware), UBSan build, vendored and pinned BearSSL, reproducible trust anchors.

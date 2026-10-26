@@ -33,6 +33,7 @@ serve chunked; P_CHUNK=$P
 serve trunc; P_TRUNC=$P
 serve garbage; P_GARB=$P
 serve hangup; P_HANG=$P
+serve imperial; P_IMP=$P
 serve badjson; P_BADJ=$P
 serve metno; P_MET=$P
 serve fallback; P_FALL=$P
@@ -44,6 +45,9 @@ W="-c $CFG"
 expect "ok oneline" 0 $W -1 -H 127.0.0.1:$P_OK
 contains "ok oneline text" "54.8F Clear sky, wind 8.7mph SE, humidity 84% (open-meteo 2026-10-24T04:45)"
 expect "ok metric flag" 0 $W -u metric -1 -H 127.0.0.1:$P_OK
+contains "metric output is converted and labelled" "12.7C Clear sky, wind 14.0km/h SE"
+expect "server ignoring the unit parameters is refused" 65 $W -u metric -1 -H 127.0.0.1:$P_IMP
+contains "units mismatch explained" "units in the response do not match the request"
 expect "ok full" 0 $W -H 127.0.0.1:$P_OK
 contains "full layout" "Weather for Madison, WI from open-meteo, observed 2026-10-24T04:45 UTC"
 contains "full wind line" "Wind 8.7 mph from SE   Humidity 84%"
