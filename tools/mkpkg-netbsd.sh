@@ -23,8 +23,9 @@ EOC
 cat > "$OUT/DESCR" <<'EOC'
 weather prints the current conditions for a place; xweather shows them in a small
 CDE-look X11 window with a weather picture, menus, a Location dialog and automatic
-refresh every 15 minutes. Data comes from Open-Meteo over TLS (built-in BearSSL,
-no proxy needed). Settings live in ~/.weatherrc and are shared by both programs.
+refresh every 15 minutes. Data comes from Open-Meteo and MET Norway (CC BY 4.0) over
+TLS (built-in BearSSL, no proxy needed). Settings live in ~/.weatherrc and are shared
+by both programs. Free software under the GNU GPL, version 3 or later.
 EOC
 
 # shared libraries the binaries need (all part of the base system), as pkgsrc's REQUIRES lines
@@ -44,7 +45,7 @@ req() { # NEEDED names -> absolute paths
 	echo "MACHINE_ARCH=powerpc"
 	echo "PKGTOOLS_VERSION=20091115"
 	echo "PKGPATH=misc/weather"
-	echo "LICENSE=2-clause-bsd"
+	echo "LICENSE=gnu-gpl-v3"
 	echo "BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S +0000')"
 	echo "BUILD_HOST=cross-built on Linux x86_64"
 	echo "CC_VERSION=$(~/scratch/netbsd-xc/tools2/bin/powerpc--netbsd-gcc --version | head -n 1 | sed 's/.*) //;s/^/gcc-/')"
