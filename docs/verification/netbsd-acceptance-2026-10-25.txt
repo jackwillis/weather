@@ -1,0 +1,47 @@
+Main baseline: 0f97430 (merged into acceptance branch)
+NetBSD 11.0 macppc; 7400 revision 2.9; 268435456 bytes RAM
+Linux cross compiler: powerpc--netbsd-g++ 12.5.0
+No compilation or privileged changes on maul.
+Commands: make check-maul smoke-maul
+Robustness driver runs 2000 mutation iterations, versus 20000 on host.
+
+492 checks, 0 failed
+robust: 80820 inputs, 0 failed
+status=0
+ok   file type
+ok   no libstdc++
+ok   version
+ok   live forecast: 63.6F Overcast, wind 4.7mph W, humidity 53% (open-meteo 2026-10-26T00:15)
+ok   no anchors -> exit 76
+ok   TLS follows the platform clock (year 2100 -> exit 76)
+ok   clock before 2025 -> exit 71
+ok   -S saves and keeps comments
+ok   bad host -> exit 68
+ok   bad option -> exit 64
+maul smoke test passed
+
+Command: make check-gui-maul
+ok   virtual X server up on :77
+ok   A: first fetch happens by itself
+ok   A: Refresh button fetches
+ok   A: F5 fetches
+ok   A: File > Refresh fetches
+ok   A: auto-refresh off is saved
+ok   A: metric is saved
+ok   A: changing units refetches
+ok   A: dialog saves location, keeps comments and other settings
+ok   A: new location refetches
+ok   A: bad latitude is not saved
+ok   A: dialog stayed open (no refetch)
+ok   A: Ctrl-Q closes the window
+ok   A: exit status
+ok   B: window closes while the fetch is stuck
+ok   B: exit status
+ok   B: ...promptly, not after the 30 s timeout
+ok   C: failure is tried once
+ok   C: failure is logged
+ok   C: Refresh retries a failed fetch
+ok   C: Ctrl-Q closes the window
+ok   C: exit status
+--- 21 checks passed, 0 failed
+gui scenario passed

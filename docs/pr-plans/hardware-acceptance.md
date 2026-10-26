@@ -1,6 +1,7 @@
 # Hardware acceptance
 
-Status: draft verification plan; no new results are claimed.
+Status: draft; NetBSD main-baseline regression passed, 21-check Xvfb GUI rerun passed.
+OS 9 stalled/delayed DNS acceptance and owner real-display review remain open.
 
 Scope: close the remaining DNS delayed-open/stalled-server hardware gaps, rerun
 NetBSD/macppc regression tests against merged main, and record the owner's real
@@ -23,3 +24,19 @@ Acceptance:
   alone is not hardware acceptance.
 
 Dependencies: merged DNS/seed/parser changes; repeat UI-specific checks after #11/#12.
+
+## NetBSD regression, 2026-10-25
+
+Cross-built main baseline 0f97430 on Linux with GCC 12.5.0; executed on maul
+(NetBSD 11.0 macppc, G4 7400, 256 MiB). Passed 492 unit checks, 80820 mutation
+inputs and all ten smoke checks, including live TLS, missing anchors, future/old
+clock rejection, settings preservation, bad host and bad option. Raw result lines
+are in docs/verification/netbsd-acceptance-2026-10-25.txt. This baseline excludes
+unmerged cache/window/provider fixes; their separate results do not replace it.
+
+No machine configuration or privileged changes were made. The bare sysctl command
+was not on the SSH PATH; /sbin/sysctl reported hardware provenance successfully.
+
+The real PowerPC xweather binary also passed all 21 scripted GUI checks in
+Xvfb on maul. This covers controls, persistence, cancellation and failure retry;
+it does not establish usability on the physical display.
