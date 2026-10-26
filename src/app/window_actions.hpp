@@ -5,7 +5,7 @@
 #include "model.hpp"
 
 namespace wx {
-enum class WindowAction { Refresh, Quit, ToggleAuto, Metric, Imperial, About, DismissAbout };
+enum class WindowAction { Refresh, Quit, ToggleAuto, Metric, Imperial, About, DismissAbout, Location };
 
 inline bool window_seed_failure(const Status &status, sv seed_reason)
 {
@@ -24,6 +24,7 @@ struct WindowActions {
 		if (action == WindowAction::DismissAbout) { bool changed = about; about = false; return changed; }
 		if (model.phase() == Phase::Fetching) return false;
 		switch (action) {
+		case WindowAction::Location: return false; // The native dialog owns its save transaction.
 		case WindowAction::Refresh: model.request_refresh(); break;
 		case WindowAction::ToggleAuto:
 			cfg.auto_refresh = !cfg.auto_refresh;

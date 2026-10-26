@@ -162,3 +162,14 @@ Red/green rule: a bug found by any test or by hand gets a failing test first (js
     src/ui/xweather/      CDE-look Xlib widgets + main
     mk/            host.mk netbsd-macppc.mk (macos9.mk later)
     test/ docs/ spike/
+
+## Native Preferences (PR #12)
+
+The app/preferences.hpp policy selects nonempty Preferences before legacy weather.conf,
+parses atomically, and commits UI changes only after a checked save. LocationDialog
+uses app-owned DLOG/DITL resources and native TextEdit controls. Automatic model ticks
+pause while editing; fields cannot open during a fetch. File Manager storage uses
+private exclusive temporaries and checked flush/exchange/rename, with no physical
+power-loss guarantee. Diagnostics explicitly supply isolated stores and are separate
+executables. Cancel never clears an unresolved startup configuration error.
+See OS9-PREFERENCES.md for migration and native verification gaps.

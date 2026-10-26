@@ -9,6 +9,7 @@ This file is the working agreement. Updated 2026-10-25.
   (`runlog <name>`); never try to work around permissions.
 * **GitHub work uses feature branches and PRs in the existing repo**, as authorized by Jack on 2026-10-25. Do not create another repo.
   Commit at green milestones; commit messages end with the agent's co-author line. Merge only when Jack authorizes it.
+  **Standing authorization (Jack, 2026-10-26, "you can merge non code"):** an agent may merge a PR whose changes are only Markdown or plain-text documentation (README, TODO, CHANGELOG, `docs/`) once hosted checks are green, with a merge commit, and unless it is labelled `needs-owner` or `blocked`. Anything touching code, tests, build files, scripts, workflows, man pages or notices still needs Jack. Tell Jack what was merged.
 * **No Apple material in the repo.** Apple SDK files were only read for reference (outside the repo, `~/scratch/os9-sdk`); our Open Transport
   declarations and glue are our own code. Never copy Apple headers or binaries into the tree.
 * **Never invent contact details** (MET Norway needs a real `contact` in the user's config; do not use the owner's email for external services).
@@ -53,16 +54,19 @@ Check clocks with `date -u +%s` on the Mac versus the app's `clock:` log line.
 
 ## State at handoff
 * CLI and xweather work on NetBSD/macppc; two providers, BearSSL TLS, packaging and host checks are in place.
-* OS 9 Weather is the native window; WeatherConsole retains the console diagnostic. They share bounded, all-or-nothing weather.conf loading.
+* OS 9 Weather is the native window; WeatherConsole retains the console diagnostic. They share bounded, all-or-nothing Preferences/legacy weather.conf loading (see docs/OS9-PREFERENCES.md).
 * WeatherUITest is a separate optional executable. Production Weather links no fixture generator or marker-file driver. See README for the scripted hardware run.
 * DNS/managed TLS seeds are implemented; preserve once-per-process network init and terminal shutdown. Never remove a live seed lock.
 
 ## Next tasks
-1. Location dialog and persistent Preferences (#12); reuse LocationForm/TextEdit and the settings seam.
+**Finishing releases without the owner present:** follow the runbooks. v0.0.1 (a rough pipeline pre-release, milestone v0.0.1): issue #123. v0.1: the "How to finish v0.1" section of issue #45. Both list what only Jack can do (merge authorization, reboots, privileged installs, tag and publish); label and move on when blocked.
+
+1. Finish #12 (Location dialog and persistent Preferences, #103): native UI scenario and owner typing/relaunch persistence have passed; merge needs Jack's authorization. Remaining: read-only volume and power-loss limits stay documented, not verified.
 2. Complete stalled DNS/delayed-open and NetBSD hardware acceptance (#14); owner controls reboots and privileged installation.
 3. Last-good forecast cache (#15), NWS (#16, only api.weather.gov), location search (#17).
 4. Release/terms/package acceptance (issue #67) and big-endian CI (#19, follows #10).
 5. Config reload is conditional (issue #68). Tiger remains parked (issue #69).
+6. **UX** (forecast content, pinned locations, charts, native look): read issue #113 first, then your platform's issue (#98 Mac OS 9, #99 NetBSD/X11). The first data slices are #117 (hourly/daily data) and #118 (pinned locations), both v0.2. Map research is #114. Amend those issues; do not open parallel ones.
 
 ## Project management
 Issues, milestones, labels, the board and the PR flow are described in `docs/PROJECT-MANAGEMENT.md`. Start work from an issue, link it from the PR (`Closes #N`),

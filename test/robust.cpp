@@ -5,6 +5,7 @@
 // sanitizers do the watching. usage: robust [random-iterations] (default 20000)
 #include "app/textedit.hpp"
 #include "app/config_load.hpp"
+#include "app/preferences.hpp"
 #include "core/config.hpp"
 #include "core/http.hpp"
 #include "core/json.hpp"
@@ -136,6 +137,35 @@ static void exercise(const char *p, size_t n)
 	for (int d = 0; d <= 4; d++) { Num x = parse_fixed(in.substr(0, 40), d); if (x.ok) EXPECT(x.v > -2000000000L && x.v < 2000000000L); }
 	for (int d = 5; d <= 9; d++) (void)parse_fixed(in.substr(0, 40), d);
 	(void)json_num(in.substr(0, 40), 1);
+
+    // Preferences precedence and transaction policy share the same hostile text.
+    struct TextSource { sv text; bool saved=false; size_t result_size=0; char result[4096]={}; } source{in}, legacy_source{"latitude=1\n"};
+    auto read_text=[](SettingsStore &store,char *out,size_t cap,size_t *count) {
+        auto &src=*static_cast<TextSource *>(store.ctx); *count=0;
+        if(src.text.size()>=cap) return make(Err::Config,"mutation text too large");
+        memcpy(out,src.text.data(),src.text.size()); *count=src.text.size(); return okay();
+    };
+    SettingsStore prefs, legacy_store;
+    prefs.ctx=&source; prefs.load=read_text;
+    legacy_store.ctx=&legacy_source; legacy_store.load=read_text;
+    prefs.save=[](SettingsStore &store,const char *text,size_t count) {
+        auto &src=*static_cast<TextSource *>(store.ctx);
+        if(count>=sizeof src.result) return make(Err::Config,"mutation save too large");
+        memcpy(src.result,text,count); src.result[count]=0; src.result_size=count; src.saved=true; return okay();
+    };
+    Config loaded_prefs; loaded_prefs.lat_e4=123;
+    Status loaded_status=load_preferences(prefs,legacy_store,loaded_prefs);
+    if(!loaded_status.ok()) EXPECT(loaded_prefs.lat_e4==123);
+    else EXPECT(loaded_prefs.lat_e4>=-900000 && loaded_prefs.lat_e4<=900000);
+    Config current, candidate=current; candidate.lat_e4=10000; candidate.metric=true;
+    Model preference_model;
+    Status committed=commit_preferences(prefs,legacy_store,candidate,current,preference_model,0);
+    if(committed.ok()) {
+        EXPECT(source.saved && current.lat_e4==10000 && current.metric);
+        Config saved_config;
+        EXPECT(config_parse(sv(source.result,source.result_size),&saved_config).ok());
+        EXPECT(saved_config.lat_e4==10000 && saved_config.metric);
+    } else EXPECT(!source.saved && current.lat_e4==430747 && !current.metric);
 
 	// config file and settings editor
 	Config c;

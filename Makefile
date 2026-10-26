@@ -37,7 +37,7 @@ CLI_SRCS     = src/cli/main.cpp
 XW_SRCS      = src/ui/xweather/main.cpp src/ui/xweather/cde.cpp
 WEATHER_OBJS = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(CLI_SRCS))
 XW_OBJS      = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(XW_SRCS))
-TEST_OBJS    = $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o \
+TEST_OBJS    = $(OBJ)/app/preferences.o $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o \
                $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/settings_posix.o
 
 all: $(BUILD)/weather $(XWEATHER_TARGETS)
@@ -59,8 +59,8 @@ $(BUILD)/xweather: $(BUILD)/xweather.debug
 $(BUILD)/xdrive: $(OBJ)/test/xdrive.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(X11_LIBS)
 
-$(BUILD)/robust: $(OBJ)/test/robust.o $(BEARSSL_LIB)
-	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(BEARSSL_LIB)
+$(BUILD)/robust: $(OBJ)/test/robust.o $(OBJ)/app/preferences.o $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(OBJ)/app/preferences.o $(BEARSSL_LIB)
 
 $(BUILD)/unittest: $(TEST_OBJS) $(BEARSSL_LIB)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(TEST_OBJS) $(BEARSSL_LIB)
