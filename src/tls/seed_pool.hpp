@@ -22,10 +22,14 @@ inline bool seed_decode(const unsigned char *record, size_t len, unsigned char s
 	unsigned char digest[32];
 	br_sha256_context h; br_sha256_init(&h);
 	br_sha256_update(&h, record, 40); br_sha256_out(&h, digest);
-	unsigned different = 0;
-	for (size_t i = 0; i < 32; ++i) different |= digest[i] ^ record[40 + i];
+	unsigned different = 0, nonzero = 0;
+	for (size_t i = 0; i < 32; ++i) {
+		different |= digest[i] ^ record[40 + i];
+		nonzero |= record[8 + i];
+	}
 	secret_clear(digest, sizeof digest); secret_clear(&h, sizeof h);
-	if (different) return false;
+	// This rejects an obvious placeholder, not arbitrary weak or public seeds.
+	if (different || !nonzero) return false;
 	std::memcpy(seed, record + 8, 32);
 	return true;
 }

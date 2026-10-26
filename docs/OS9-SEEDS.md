@@ -1,7 +1,7 @@
 # OS 9 TLS seed provisioning and recovery
 
 The managed-seed build requires an independently generated secret seed. It refuses
-TLS if provisioning is missing or invalid, a seed-store lock is already held, or
+TLS if provisioning is missing, invalid or zero-filled, a seed-store lock is already held, or
 the next launch's seed cannot be safely saved. It does not silently fall back to
 jitter and does not import the legacy raw `weather.seed` file.
 
@@ -40,6 +40,10 @@ The record is exactly 72 bytes: eight-byte magic/version `WXSEED1\n`, 32 secret 
 bytes, then SHA-256 of the first 40 bytes. The checksum detects accidental corruption;
 it neither authenticates the file nor proves that a CSPRNG generated its contents.
 Versioning prevents accidental promotion of old jitter-only seed files.
+The decoder also refuses a checksum-valid record whose 32 seed bytes are all
+zero, without changing its output buffer. The provisioning helper refuses
+zero-filled or wrong-length OS random output before creating an import. These
+checks detect a placeholder/fault; nonzero bytes do not prove entropy or secrecy.
 
 The OS 9 adapter uses `FindFolder` for Preferences and fixed managed names:
 `Weather TLS Seed`, `Weather TLS Next`, `Weather TLS Lock`. The active store does
@@ -78,9 +82,9 @@ procedure below to provision an independent new OS CSPRNG seed. Do not rely on
 normal rotation or additional launches to recover secrecy. Protect and remove
 all unneeded copies according to the first-install instructions.
 
-The current checksum/record decoder does not reject all-zero or known diagnostic
-seed values. Admission hardening is tracked separately in issue #59; the tests
-below do not claim to fix it or prove the provenance of any accepted record.
+The current decoder rejects all-zero seeds, but still accepts known nonzero
+diagnostic seed values. That remaining admission hardening is tracked in issue
+#59. The checks do not prove the provenance of any accepted record.
 
 ## Recovery
 

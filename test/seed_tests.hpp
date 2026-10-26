@@ -24,6 +24,35 @@ struct SeedFake {
 static void test_seed_pool()
 {
 	unsigned char out[64], first[64];
+	{ // A valid checksum does not make a zero-filled seed usable.
+	  unsigned char zero[32] = {}, record[wx::kSeedRecordSize], decoded[32];
+	  wx::seed_encode(zero, record);
+	  std::memset(decoded, 0xA5, sizeof decoded);
+	  CHECK(!wx::seed_decode(record, sizeof record, decoded));
+	  bool untouched = true;
+	  for (unsigned char c : decoded) untouched = untouched && c == 0xA5;
+	  CHECK(untouched);
+	  // The check covers all32 bytes without requiring every byte to be nonzero.
+	  for (size_t i = 0; i < sizeof zero; ++i) {
+		zero[i] = 0x80;
+		wx::seed_encode(zero, record);
+		CHECK(wx::seed_decode(record, sizeof record, decoded));
+		CHECK(std::memcmp(zero, decoded, sizeof zero) == 0);
+		zero[i] = 0;
+	  }
+	}
+	{ // Supplemental input cannot promote a refused record into a usable seed.
+	  SeedFake f;
+	  unsigned char zero[32] = {}, extra[] = {1, 2, 3};
+	  wx::seed_encode(zero, f.disk);
+	  wx::SeedPool<SeedFake> pool(f);
+	  std::memset(out, 0xA5, sizeof out);
+	  CHECK(!pool.fill(out, sizeof out, extra, sizeof extra));
+	  bool untouched = true;
+	  for (unsigned char c : out) untouched = untouched && c == 0xA5;
+	  CHECK(untouched && !f.locked && f.saves == 0);
+	  CHECK(!pool.fill(out, sizeof out));
+	}
 	{ SeedFake f; unsigned char seed[32];
 	  CHECK(wx::seed_decode(f.disk, f.len, seed));
 	  for (size_t n = 0; n < wx::kSeedRecordSize; ++n) CHECK(!wx::seed_decode(f.disk, n, seed));

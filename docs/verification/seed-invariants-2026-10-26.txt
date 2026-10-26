@@ -1,6 +1,7 @@
 Seed-pool invariants: #59 T12 and exposure documentation
 
-Production generator/record code is unchanged. Added18 runtime assertions using
+At initial commit19ba781, production generator/record code was unchanged.
+Added18 runtime assertions using
 only the existing synthetic in-memory fixture:
 - Persisted successor seed differs from the first32 bytes released to TLS.
 - Different supplemental inputs before first use change both saved successor
@@ -36,6 +37,9 @@ make check-san: AddressSanitizer explicitly enabled with UBSan; 535 unit checks,
 /tmp/weather-seed-invariants-check.log and /tmp/weather-seed-invariants-san.log.
 Actual NetBSD/macppc G4: 535 unit checks and86242 mutation inputs pass, status0.
 Cross-compilation happened only on Linux. /tmp/weather-seed-invariants-maul.log.
-Production seed_pool.hpp is byte-for-byte unchanged from main after deliberate
+At that initial milestone, seed_pool.hpp was unchanged from main after deliberate
 regressions were restored. No native OS9 or macOS-host run was needed/claimed
 for this tests/docs-only slice; record admission/native acceptance remain open.
+
+Later #86 update rejects zero-filled records; see zero-seed-policy-2026-10-26.txt
+for the new production decoder guard and verification. Generator unchanged.
