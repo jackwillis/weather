@@ -1,12 +1,21 @@
 # Plan
 
-Last updated: 2026-10-23. Keep this to a page or two; details go in the decision log and TODO.md.
+Current delivery priorities reviewed: 2026-10-25. Historical dated decisions below are retained as history, not always current implementation guidance.
 
 ## Goal
 A small, well-behaved Unix weather tool for old big-endian machines, with a UI that looks like
 its own era. Order of targets: NetBSD/macppc (maul), then Mac OS 9 (Retro68). Tiger-native is parked.
-One portable core, one UI layer per OS. NetBSD gets a Motif-style window drawn in plain Xlib
-behind a small Motif-shaped API ("Motif stub") so real Motif could replace it.
+One portable core, one native UI per OS. NetBSD uses lightweight CDE-inspired Xlib drawing, **not** a Motif-compatible stub; classic Mac OS uses the Toolbox/QuickDraw work tracked in PR #11.
+
+## Delivery roadmap (current)
+
+**A — Weather release (blocking):** integrate reviewed audit/correctness fixes (#32, #35, #36, #38, #39, #41); merge/test OS 9 window #11 and location/settings #12; finish real-screen NetBSD acceptance, NetBSD package reinstall, release attribution and Macintosh distribution. Keep mainline C++17/exception-free and its network interfaces stable. Release without waiting for a shared SDK.
+
+**B — independently maintained trust data (next product enhancement):** #40 proposes editable certificate source folders on a modern host, a deterministic installable trust snapshot, safe removal/distrust and native Mac/NetBSD loaders. A shared certificate store does not require CFM or a system extension. No implementation is on main.
+
+**C — Mac-first networking research (non-blocking):** #27 and #42 explore static SDK, narrow C ABI and optional CFM redistributable; #43 audits the current reconstructed OT glue against public InContext APIs and OS-version support. CFM and OS 8/System 7 compatibility must be proven, not assumed. #37 studies C++20/23 feature compatibility; #19 considers big-endian CI. Tiger-native stays parked (#21).
+
+**Release acceptance:** real hardware execution, TLS/clock/seed correctness, clear installation instructions, source attribution, tested packages, and truthful platform labels. Currently verified Mac evidence is **OS 9.2.2 in Classic under Tiger**, not native OS 9 boot or earlier System versions.
 
 ## Constraints
 - Cross-compile only. maul has 256 MB RAM and is the test machine, never the build machine.
@@ -20,8 +29,7 @@ behind a small Motif-shaped API ("Motif stub") so real Motif could replace it.
 - Logging: levels to stderr or syslog, -v/-q, request/response and TLS trace dumps for debugging.
 - Unix behaviour: getopt, --version, usage, sysexits exit codes, config file with CLI overrides,
   signal handling, script-friendly one-line mode, man page.
-- Multiple data sources behind one provider interface, configurable fallback, on-disk cache that
-  serves stale data (marked stale) instead of nothing.
+- Multiple data sources behind one provider interface and configurable fallback. The Model retains last-good data **in memory**; an on-disk offline cache is proposed in #15 but is not implemented.
 - Debuggability: symbols kept in a separate debug copy, offline fixtures, reproducible builds with
   recorded toolchain versions.
 - Releases: BSD- and GNU-make compatible Makefile, check/dist/install (DESTDIR), versioned
@@ -123,6 +131,8 @@ A second agent (e.g. Codex) is optional, used as an independent reviewer of risk
   verified live). Root fingerprint D9:5D:0E:8E... matched my independent recollection and Fedora's bundle.
   macOS: jack logged into the Mac console as `claude`, so GUI apps can be launched over SSH and the screen read with `screencapture`.
 
-## Open questions
-- Which providers beyond Open-Meteo (MET Norway, NWS): TLS compatibility unchecked.
-- Whether Retro68's GCC accepts this C++17 for OS 9; Open Transport usability.
+## Current open questions
+- When can native OS 9.2.2 and earlier versions be independently tested? Open Transport availability alone does not imply this binary works on Mac OS 8 or System 7.
+- Can Retro68 emit and consume an actual shared CFM fragment? See #42 for the isolated spike; no claimed result.
+- Can Apple-documented InContext APIs replace private OT glue reliably for a future shared library? See #43.
+- NWS, geocoding and on-disk cache are future additions, not current provider capabilities.
