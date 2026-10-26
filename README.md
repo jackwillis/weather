@@ -1,8 +1,9 @@
-# weather
+# What It Be Like?
 
 <p align="center"><img src="assets/logo/whatitbelike-512x256.png" alt="What It Be Like? logo" width="384"></p>
 
-A small Unix weather tool for old big-endian machines. It reads forecasts over TLS (BearSSL),
+*What It Be Like?* is the project; its programs are `weather` (command line), `xweather` (NetBSD/X11 window) and `Weather` (Mac OS 9 window).
+A small weather tool for old big-endian machines. It reads forecasts over TLS (BearSSL),
 works without a proxy, and is cross-built from Linux for NetBSD/macppc first, then Mac OS 9.
 The portable core (`src/`, no OS headers except in `net_posix.cpp`/`log.cpp`) is separate from the
 per-OS UI layer. NetBSD gets `xweather`, a CDE-look window drawn in plain Xlib (no Xt, no Motif).
