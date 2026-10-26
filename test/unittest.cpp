@@ -1050,6 +1050,7 @@ static void test_window_actions()
 }
 
 #include "preferences_tests.hpp"
+#include "geocoding_tests.hpp"
 
 int main()
 {
@@ -1066,6 +1067,7 @@ int main()
 	test_window_actions();
 	test_config_load();
 	test_preferences();
+	test_geocoding();
 	test_modal_clock();
 	test_forms();
 	test_metno();
