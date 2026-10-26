@@ -147,7 +147,11 @@ public:
 	static void add_dur(Buf<N> &o, long secs)
 	{
 		if (secs < 60) o.add_int(secs).add(" s");
-		else if (secs < 3600) o.add_int((secs + 30) / 60).add(" min");
+		else if (secs < 3600) {
+			long minutes = (secs + 30) / 60;
+			if (minutes == 60) o.add("1 h");
+			else o.add_int(minutes).add(" min");
+		}
 		else { o.add_int(secs / 3600).add(" h"); if (secs % 3600 >= 60) o.add(' ').add_int(secs % 3600 / 60).add(" min"); }
 	}
 	template <size_t N>

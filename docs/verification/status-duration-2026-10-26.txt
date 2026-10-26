@@ -1,0 +1,23 @@
+Issue #56 F8 partial: shared duration formatting
+
+Model::add_dur rounded3570..3599 seconds to60 min immediately before switching
+to1 h at3600. Keep nearest-minute rounding below an hour, but display the rounded
+hour as1 h. Seconds below60 and hour/minute formatting at/above3600 are unchanged.
+Both X11 and OS9 status lines use this pure helper. No fetch scheduling change.
+
+Red:533 unit checks /3 failures before the fix, covering3570,3599 and actual
+status_line next-refresh output. Fourteen explicit duration cases cover second/
+minute rounding, just below the hour boundary, just above it, hour/minute and
+second-hour boundaries. An hourly Model verifies the complete status message.
+No new parser input path or mutation corpus is required for this formatting fix.
+
+#56 stays open: long Location input rendering and small weather-art bounds are
+separate. cde::fit_text bounds are already fixed in #84 (not merged).
+
+Verified: make check 533 unit /230242 mutation inputs /106 CLI /12 local TLS /
+21 serialized GUI; make check-san explicitly enabled ASan+UBSan,533/230242/106.
+Compile-only Retro68 PowerPC and m68k probes instantiate Model::add_dur, both
+passed. No native OS9 runtime claim. Logs /tmp/weather-duration-{check,san,native}.log.
+
+Actual NetBSD/macppc G4:533 unit /86242 mutation inputs, status=0, using binaries
+cross-built on Linux. Log /tmp/weather-duration-maul.log. No maul compilation.

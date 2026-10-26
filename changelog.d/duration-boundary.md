@@ -1,0 +1,1 @@
+- Display a rounded duration of 60 minutes as “1 h” in refresh countdowns and forecast ages, keeping the existing nearest-minute rounding below an hour.

@@ -645,6 +645,27 @@ static Forecast some_forecast(long t10)
 
 static void test_model()
 {
+	{ // Rounding at the minute/hour boundary must not produce "60 min".
+		struct DurationCase { long seconds; const char *text; };
+		const DurationCase cases[] = {
+			{0, "0 s"}, {59, "59 s"}, {60, "1 min"}, {89, "1 min"},
+			{90, "2 min"}, {3540, "59 min"}, {3569, "59 min"},
+			{3570, "1 h"}, {3599, "1 h"}, {3600, "1 h"},
+			{3659, "1 h"}, {3660, "1 h 1 min"}, {7199, "1 h 59 min"}, {7200, "2 h"}
+		};
+		for (const DurationCase &c : cases) {
+			Buf<64> text;
+			Model::add_dur(text, c.seconds);
+			CHECK(text.view() == sv(c.text));
+		}
+		ModelConfig hourly; hourly.interval_s = 3600;
+		Model model(hourly, 0);
+		CHECK(model.tick(0));
+		Forecast forecast = some_forecast(100);
+		model.finish(0, okay(), &forecast);
+		Buf<128> status; model.status_line(status, 30);
+		CHECK(status.view() == sv("Updated 30 s ago. Next update in 1 h"));
+	}
 	ModelConfig mc;                    // 15 min interval, 60 s backoff base
 	{ // first tick fetches; no second fetch while one is running; refresh during a fetch is ignored
 		Model m(mc, 0);
