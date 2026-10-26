@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 #include <string_view>
 #include <cstdio>
 constexpr int digits(std::string_view s) { int n = 0; for (char c : s) if (c >= '0' && c <= '9') n++; return n; }

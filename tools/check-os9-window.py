@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 """Drive only WeatherUITest's explicit marker protocol; capture native screenshots.
 
 Build with WEATHER_BUILD_DIAGNOSTICS=ON and deliver WeatherUITest first. Never

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // The app model: everything a UI needs to decide, with no drawing and no OS calls.
 // Phases: Idle -> Fetching -> Ok | Failed. The UI owns the (blocking, yielding) fetch:
 //

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // xweather: current conditions in a CDE-look X11 window. One window; menus and dialogs are
 // drawn as overlays inside it. All refresh behaviour comes from app/Model; the (blocking)
 // fetch keeps the window alive through Net::yield, and can be cancelled by closing it.

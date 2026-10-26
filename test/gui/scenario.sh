@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # GUI scenario for xweather, run inside a private virtual X server. Runs on this machine
 # (test/gui-host.sh) and on maul/NetBSD (test/gui-maul.sh); plain POSIX sh.
 #

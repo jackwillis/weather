@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Separate executable: no fixture or marker handling is linked into Weather.
 #include "ui/os9/window.hpp"
 #include "platform/os9/seed_store_os9.hpp"

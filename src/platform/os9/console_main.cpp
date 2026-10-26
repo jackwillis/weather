@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // "weather" for Mac OS 9, console edition: fetch the forecast and print it. The real OS 9 window UI comes later;
 // this proves the whole stack (Open Transport -> TLS -> HTTP -> JSON -> core) on the real machine.
 #include "core/config.hpp"

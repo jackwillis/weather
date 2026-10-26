@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // MET Norway Locationforecast 2.0 "compact" (https://api.met.no): worldwide, no key, one request.
 // The first time step is the current hour. Their terms require a User-Agent with contact details,
 // so this provider is marked needs_contact. The service answers in metric units; we convert.

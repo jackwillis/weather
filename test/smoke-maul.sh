@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Push the cross-built binary to maul (NetBSD) and check it for real.
 # Needs maulctl (see the maul notes) and an up NetBSD session on maul.
 BIN=${1:-build/macppc/weather}

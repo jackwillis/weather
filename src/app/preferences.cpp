@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Keep mutable workspace out of inline-function weak storage: Retro68 may
 // overlap that storage with other globals. This single definition owns both buffers.
 #include "preferences.hpp"

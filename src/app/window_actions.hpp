@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Command policy shared by the native window and its diagnostic driver.
 // During a yielding fetch, only Quit and the informational About overlay change.
 #pragma once

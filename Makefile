@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # GNU make required (BSD hosts: gmake). One fragment per target in mk/.
 #
 #   make                      build for this machine           -> build/host/

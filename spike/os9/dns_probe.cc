@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Diagnostic only. Public API references and coverage limits: DNS-PROBE.md.
 #include <Events.h>
 #include <cstdio>

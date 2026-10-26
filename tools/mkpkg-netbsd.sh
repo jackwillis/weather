@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Build a NetBSD binary package (weather-VERSION.tgz) for macppc.
 # The code is cross-built here; `pkg_create` runs ON maul (it only archives files, so 256 MB is plenty).
 # usage: tools/mkpkg-netbsd.sh        result: build/pkg/weather-VERSION.tgz

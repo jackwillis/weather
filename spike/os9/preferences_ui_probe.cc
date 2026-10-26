@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // A separately linked, seed-free diagnostic. Never reads production Preferences.
 #include "ui/os9/window.hpp"
 #include "app/preferences.hpp"
