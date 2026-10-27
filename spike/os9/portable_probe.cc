@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Self-terminating, seed-free hardware acceptance for the pure compatibility helpers.
 #include "platform/os9/portable.hpp"
 #include "platform/os9/toolbox_extra.h"

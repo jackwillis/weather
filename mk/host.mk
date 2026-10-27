@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Native build on the development machine (Linux). Runs the tests directly.
 CXX         = c++
 STRIP       = cp $< $@
