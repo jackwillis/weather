@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 """Run standalone session-edit scripts exclusively against disposable copies."""
 import os
 import pathlib

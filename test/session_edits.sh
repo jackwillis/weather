@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Portable smoke checks for the standalone editors, on private copies only.
 # Also runs with NetBSD's native sh/awk: pass the directory holding both scripts.
 set -eu
