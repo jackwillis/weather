@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // The OS seam. The core talks only to these function pointers.
 #pragma once
 #include "status.hpp"

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Single-line text field editing (insert, delete, cursor). Printable ASCII only.
 // Pure logic, shared by every UI; the UI only draws it and feeds it keys.
 #pragma once

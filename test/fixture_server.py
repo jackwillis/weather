@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 """Plain-HTTP fixture server for feature tests: fixture_server.py MODE PORT
 
-Modes: ok metno fallback 500 404 slow chunked trunc garbage hangup badjson, and w:CODE:ISDAY:TEMP (a forecast with that WMO code)
+Modes: ok metno fallback imperial 500 404 slow chunked trunc garbage hangup badjson, and w:CODE:ISDAY:TEMP (a forecast with that WMO code)
+`ok` honours the temperature_unit/wind_speed_unit query parameters like the real API (converting the imperial fixture);
+`imperial` ignores them, like a server that does not understand them.
 Not shipped to maul; it only runs on the build machine."""
 import socketserver, sys, time
 
@@ -10,11 +14,25 @@ FIX = open(FIXDIR + 'openmeteo-ok.json', 'rb').read()
 MET = open(FIXDIR + 'metno-ok.json', 'rb').read()
 mode, port = sys.argv[1], int(sys.argv[2])
 
-def weather(code, is_day, temp):
+def om_body(path, cur=None, convert=False):
+    """Open-Meteo answer for this request path. Unit labels follow the query; with convert the imperial fixture's numbers
+    are converted too, otherwise the numbers are served as they are (the w: modes pass their own temperature)."""
     import json
     d = json.loads(FIX)
-    d['current'].update({'weather_code': int(code), 'is_day': int(is_day), 'temperature_2m': float(temp)})
-    return json.dumps(d).encode()
+    metric, kmh = 'temperature_unit=celsius' in path, 'wind_speed_unit=kmh' in path
+    if cur:
+        d['current'].update(cur)
+    if not (metric or kmh) and not cur:
+        return FIX
+    if metric:
+        if convert:
+            d['current']['temperature_2m'] = round((d['current']['temperature_2m'] - 32) / 1.8, 1)
+        d['current_units']['temperature_2m'] = '\u00b0C'
+    if kmh:
+        if convert:
+            d['current']['wind_speed_10m'] = round(d['current']['wind_speed_10m'] * 1.609344, 1)
+        d['current_units']['wind_speed_10m'] = 'km/h'
+    return json.dumps(d, ensure_ascii=False).encode('utf-8')
 
 class H(socketserver.StreamRequestHandler):
     def handle(self):
@@ -24,6 +42,9 @@ class H(socketserver.StreamRequestHandler):
             pass
         w = self.wfile.write
         if mode == 'ok':
+            body = om_body(path, convert=True)
+            w(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n' % len(body) + body)
+        elif mode == 'imperial':    # ignores the unit parameters
             w(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n' % len(FIX) + FIX)
         elif mode == 'metno':
             w(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n' % len(MET) + MET)
@@ -34,7 +55,7 @@ class H(socketserver.StreamRequestHandler):
                 w(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n' % len(MET) + MET)
         elif mode.startswith('w:'):
             _, code, day, temp = mode.split(':')
-            body = weather(code, day, temp)
+            body = om_body(path, {'weather_code': int(code), 'is_day': int(day), 'temperature_2m': float(temp)})
             w(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n' % len(body) + body)
         elif mode == '500':
             w(b'HTTP/1.0 500 Internal Server Error\r\n\r\noops')

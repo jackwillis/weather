@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 """Drive only WeatherPrefsUITest's private marker protocol; never answer system dialogs.
 
 Deliver WeatherPrefsUITest first with diagnostics enabled. Assertions run inside

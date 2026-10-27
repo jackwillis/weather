@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // ~/.weatherrc: "key = value" lines, '#' comments. Command-line flags override it.
 #pragma once
 #include "log.hpp"
@@ -76,8 +78,8 @@ inline Status config_parse(sv text, Config *c)
 	int line = 0;
 	size_t pos = 0;
 	while (pos <= text.size()) {
-		size_t nl = find(text, "\n", pos);
-		sv ln = nl == sv::npos ? text.substr(pos) : text.substr(pos, nl - pos);
+		size_t nl = line_break(text, pos);
+		sv ln = text.substr(pos, nl - pos);
 		line++;
 		size_t hash = find(ln, "#");
 		if (hash != sv::npos) ln = ln.substr(0, hash);
@@ -88,8 +90,8 @@ inline Status config_parse(sv text, Config *c)
 			Status s = config_set(c, trim(ln.substr(0, eq)), trim(ln.substr(eq + 1)), line);
 			if (!s.ok()) return s;
 		}
-		if (nl == sv::npos) break;
-		pos = nl + 1;
+		if (nl >= text.size()) break;
+		pos = after_break(text, nl);
 	}
 	return okay();
 }

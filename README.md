@@ -1,9 +1,14 @@
-# weather
+# What It Be Like?
 
-A small Unix weather tool for old big-endian machines. It reads forecasts over TLS (BearSSL),
+<p align="center"><img src="assets/logo/whatitbelike-512x256.png" alt="What It Be Like? logo" width="384"></p>
+
+*What It Be Like?* is the project; its programs are `weather` (command line), `xweather` (NetBSD/X11 window) and `Weather` (Mac OS 9 window).
+A small weather tool for old big-endian machines. It reads forecasts over TLS (BearSSL),
 works without a proxy, and is cross-built from Linux for NetBSD/macppc first, then Mac OS 9.
 The portable core (`src/`, no OS headers except in `net_posix.cpp`/`log.cpp`) is separate from the
 per-OS UI layer. NetBSD gets `xweather`, a CDE-look window drawn in plain Xlib (no Xt, no Motif).
+
+**Releases:** https://github.com/jackwillis/weather/releases. 0.0.1 is a deliberately rough pre-release that proves the release pipeline (see `docs/release-notes/0.0.1.md`); the version in this tree is the unreleased 0.1.0.
 
 Status (details in `docs/STATUS.md`): the CLI (`weather`) and `xweather` work on maul (NetBSD/macppc). A first Mac OS 9 build
 (`Weather`) has a native window; `WeatherConsole` retains the console diagnostic.
@@ -35,6 +40,8 @@ It shares `~/.weatherrc` with `weather`. Closing the window during a fetch cance
 ## Use
     weather [-1dhqsSV] [-c file] [-l lat,lon] [-n name] [-p sources] [-t secs] [-u metric|imperial] [-v] [-g query]
 Data sources: `open-meteo` (default) and `met-no` (MET Norway; needs `contact = ...` in the config because their terms require it, skipped otherwise); sources are tried in the order given by `-p`/`providers`.
+
+Attribution: weather data comes from [Open-Meteo](https://open-meteo.com) and, if enabled, the [MET Norway Locationforecast API](https://api.met.no), both under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the values are converted to your units and summarised, otherwise unchanged. Open-Meteo's free tier is for non-commercial use. See `docs/PROVIDER-TERMS.md`.
 Config: `~/.weatherrc` (`latitude`, `longitude`, `name`, `units`, `timeout`, `attempts`, `providers`, `contact`, `log`, `autorefresh`),
 flags override it. The default location is Madison, WI 53703 (Capitol Square 43.0747,-89.3841); set `name`, `latitude`, `longitude` or use -l/-n. Exit codes follow BSD sysexits
 (68 dns, 69 connect/no source, 74 io, 75 timeout, 76 http/tls/cert, 65 bad data, 64 usage, 78 config).
@@ -52,6 +59,7 @@ GNU make is required (`gmake` on BSD and under Homebrew; Apple's make 3.81 works
     make check-maul               # cross-build the unit and robustness tests and run them on maul (big-endian ground truth)
     make smoke-maul               # cross-build, push to maul, test the real binary there
     make check-san                # unit + robustness + feature tests with UBSan (trap mode; ASan too if libasan is installed)
+    make check-tls                # certificate verification, offline: real tls.cpp vs a local TLS server with generated certificates (openssl, python3)
     make check-gui                # xweather in a private Xvfb on this machine, with screenshots in build/gui-host/
     make check-gui-maul           # the same scenario with the real PowerPC xweather in Xvfb on maul (build/gui/)
     ONLINE=1 sh test/feature.sh build/host/weather   # also test against the real server
@@ -66,6 +74,8 @@ the cross target the toolchain from `~/scratch/netbsd-xc` (see its README-repro.
 `mk/netbsd-macppc.mk`). Trust anchors: `src/tls/anchors.h` is generated from `src/tls/roots.pem` (`make anchors`) and `make check` verifies
 the header matches the PEM and that the PEM holds exactly ISRG Root X1, ISRG Root X2 and HARICA TLS RSA Root CA 2021 (checked by SHA-256
 fingerprint; `test/anchors.sh` tests the check itself). Refreshing them is a release task.
+
+Project tracking (issues, milestones, labels, the board, PR flow): see [docs/PROJECT-MANAGEMENT.md](docs/PROJECT-MANAGEMENT.md).
 
 ### Host platforms
 Developed on Linux; `make check` (everything except the GUI scenario) also passes on macOS (arm64) with Apple's GNU make 3.81 and with
@@ -136,4 +146,7 @@ pkg_add installs exactly the PLIST and settings are a per-user dotfile.
 - `mk/` per-target build fragments; `test/` unit tests, fixtures, fixture server, feature and maul smoke scripts; `spike/` experiments
 
 ## License
-BSD 2-clause (`LICENSE`). BearSSL (MIT) is linked statically; its notice is in `THIRD_PARTY.md`.
+GNU General Public License, version 3 or (at your option) any later version (`LICENSE`). Copyright (c) 2026 Jack Willis.
+BearSSL (MIT) is linked statically, and the Mac OS 9 build links the Retro68 runtime (GPL-3.0+ with the GCC runtime
+exception) and the Multiversal Interfaces (MIT); their notices are in `THIRD_PARTY.md`. Versions before the GPL change
+were published under the BSD 2-clause licence.

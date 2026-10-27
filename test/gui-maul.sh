@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # GUI test of the real PowerPC xweather on maul (NetBSD), inside Xvfb there, with the same scenario as
 # gui-host.sh. Screenshots (xwd, converted here) go to build/gui/. Needs maul up in NetBSD, python3, ImageMagick.
 cd "$(dirname "$0")/.."

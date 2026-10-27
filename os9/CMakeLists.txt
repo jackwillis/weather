@@ -11,6 +11,7 @@ target_compile_options(bearssl PRIVATE -Os)
 
 set(WEATHER_VERSION_STR "0.1.0")
 set(WEATHER_COMMON
+  ${ROOT}/src/app/preferences.cpp
   ${ROOT}/src/core/fetch.cpp
   ${ROOT}/src/platform/os9/config_os9.cpp
   ${ROOT}/src/tls/tls.cpp

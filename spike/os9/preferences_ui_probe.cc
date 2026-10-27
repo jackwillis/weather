@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // A separately linked, seed-free diagnostic. Never reads production Preferences.
 #include "ui/os9/window.hpp"
 #include "app/preferences.hpp"
@@ -69,7 +71,11 @@ void idle() {
         } else if(stage==3) {
             os9_window_action(WindowAction::Location); os9_window_location_field(0,"80"); os9_window_location_key(27);
             check(!os9_window_location_visible() && os9_window_config().lat_e4==100000 && fetches==2,"Escape cancels without changing location or fetching");
-            os9_window_action(WindowAction::Location); os9_window_location_field(2,"Renamed only"); os9_window_location_key(13);
+            os9_window_action(WindowAction::Location);
+            check(os9_window_location_visible(),"name-only editor reopened after Escape");
+            os9_window_location_field(2,"Renamed only");
+            check(os9_window_location_visible(),"name-only field updated");
+            os9_window_location_key(13);
             check(!os9_window_location_visible() && fetches==2 && os9_window_model().has_forecast(),"name-only Apply preserves forecast and fetch count");
         }
         prepared=true; ready();
@@ -106,9 +112,18 @@ int main() {
     std::snprintf(path,sizeof path,"%s:settings",folder);
     check(os9_settings_init(&actual,path).ok(),"initialize private Preferences adapter");
     prefs=actual.base;
+    prefs.load=[](SettingsStore &,char *text,size_t cap,size_t *n) {
+        check(true,"begin native Preferences load");
+        wx::Status loaded=actual.base.load(actual.base,text,cap,n);
+        check(loaded.ok(),"native Preferences load completed");
+        return loaded;
+    };
     prefs.save=[](SettingsStore &,const char *text,size_t n) {
         if(fail_save) return make(Err::Io,"Simulated save failure: settings were kept unchanged.");
-        return actual.base.save(actual.base,text,n);
+        check(true,"begin native Preferences save");
+        wx::Status saved=actual.base.save(actual.base,text,n);
+        check(saved.ok(),"native Preferences save completed");
+        return saved;
     };
     legacy.load=[](SettingsStore &,char *,size_t,size_t *n) { *n=0; return okay(); };
     WindowTestHooks hooks{setup,idle,fetch,&prefs,&legacy};

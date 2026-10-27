@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // MET Norway Locationforecast 2.0 "compact" (https://api.met.no): worldwide, no key, one request.
 // The first time step is the current hour. Their terms require a User-Agent with contact details,
 // so this provider is marked needs_contact. The service answers in metric units; we convert.
@@ -20,6 +22,8 @@ constexpr MetSymbol kMetSymbols[] = {
 	{"lightrainandthunder", 95}, {"rainandthunder", 95}, {"heavyrainandthunder", 95},
 	{"lightrainshowersandthunder", 95}, {"rainshowersandthunder", 95}, {"heavyrainshowersandthunder", 95},
 	{"lightsleetandthunder", 95}, {"sleetandthunder", 95}, {"heavysleetandthunder", 95},
+	// Locationforecast 2.0 retains these upstream misspellings for compatibility.
+	{"lightssleetshowersandthunder", 95}, {"lightssnowshowersandthunder", 95},
 	{"lightsleetshowersandthunder", 95}, {"sleetshowersandthunder", 95}, {"heavysleetshowersandthunder", 95},
 	{"lightsnowandthunder", 95}, {"snowandthunder", 95}, {"heavysnowandthunder", 95},
 	{"lightsnowshowersandthunder", 95}, {"snowshowersandthunder", 95}, {"heavysnowshowersandthunder", 95},
@@ -99,8 +103,14 @@ constexpr Status metno_parse(sv body, const Query &q, Forecast *f)
 	JsonLookup cl = json_get(details, "cloud_area_fraction");
 	if (cl.r == JsonFind::Found) { n = json_num(cl.value, 1); if (n.ok) { cloud10 = n.v; have_cloud = true; } }
 
+	// Raw values are range-checked before they are converted: on 32-bit targets (PowerPC, Retro68) long is 32 bits and the
+	// unit factors would overflow, and rounding must not turn -0.6 % into 0 %. The metric range holds for the Fahrenheit result too.
+	if (!plausible_temp_t10(c10, true)) return make(Err::BadData, "temperature out of plausible range");
+	if (have_wind && (ms10 < 0 || ms10 > 1000)) return make(Err::BadData, "wind speed out of range");
+	if (have_rh && (rh10 < 0 || rh10 > 1000)) return make(Err::BadData, "humidity out of range");
+	if (have_dir && (dir10 < 0 || dir10 > 3600)) return make(Err::BadData, "wind direction out of range");
+	if (have_cloud && (cloud10 < 0 || cloud10 > 1000)) return make(Err::BadData, "cloud cover out of range");
 	long temp = q.metric ? c10 : c_to_f_t10(c10);
-	if (!plausible_temp_t10(temp, q.metric)) return make(Err::BadData, "temperature out of plausible range");
 
 	// the symbol for the next hour describes "now" best
 	MetCode mc{-1, -1};
@@ -134,7 +144,7 @@ constexpr Status metno_parse(sv body, const Query &q, Forecast *f)
 	}
 	f->source = "met-no";
 	f->metric = q.metric;
-	return okay();
+	return check_fields(*f, q.metric);
 }
 
 constexpr Provider kMetNo = {

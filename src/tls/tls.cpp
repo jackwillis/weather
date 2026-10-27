@@ -1,8 +1,14 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // BearSSL TLS client over an Io stream. Portable: needs no OS headers beyond getenv.
 #include "tls.hpp"
 #include "core/log.hpp"
 #include <bearssl.h>
+#ifdef WEATHER_TEST_ANCHORS
+#include "test_anchors.h"   // test/tls_local.sh builds with a throwaway root instead of the real ones (compile-time only)
+#else
 #include "anchors.h"
+#endif
 #include "timeconv.hpp"
 #include "secret_clear.hpp"
 #include <cstdlib>

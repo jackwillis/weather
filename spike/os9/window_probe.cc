@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Separate executable: no fixture or marker handling is linked into Weather.
 #include "ui/os9/window.hpp"
 #include "platform/os9/seed_store_os9.hpp"
@@ -25,7 +27,7 @@ void init_store() {
     };
 }
 bool announced=false, waiting_fetch=true;
-unsigned long started=0;
+unsigned long started=0, last_fetch_ticks=0;
 FILE *logfile=nullptr;
 Config *test_cfg=nullptr;
 void check(bool ok,const char *what) {
@@ -82,6 +84,8 @@ void idle() {
 		if(!ready) { check(false,"write ready marker"); os9_window_action(WindowAction::Quit); return; }
 		std::fprintf(ready,"%d\n",stage); std::fclose(ready); announced=true;
 	}
+	// Marker acknowledgements can arrive faster than the production manual refresh floor.
+	if(static_cast<unsigned long>(TickCount()-last_fetch_ticks)<300) return;
 	if(!advance()) return;
 	++stage; announced=false;
 	if(stage==7) os9_window_action(WindowAction::About);
@@ -95,6 +99,7 @@ void idle() {
 	}
 }
 wx::Status fetch(const Config &cfg,Net &net,Forecast *f) {
+	last_fetch_ticks=TickCount();
 	++fetches; waiting_fetch=false;
 	if(stage==12) {
 		os9_window_menu_selection((129L<<16)|3); // File > Quit command, while fetching.

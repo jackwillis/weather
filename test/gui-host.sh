@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # GUI test of xweather on this machine, in a private Xvfb. Screenshots go to build/gui-host/.
 # Needs: Xvfb, ImageMagick (import, convert), python3. Skips (exit 0) when Xvfb is missing.
 cd "$(dirname "$0")/.."

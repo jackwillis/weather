@@ -1,4 +1,13 @@
-# Status (2026-10-25)
+# Status (2026-10-27)
+
+## Releases
+**0.0.1 (pre-release), published 2026-10-27:** https://github.com/jackwillis/weather/releases/tag/v0.0.1 (tag at 59b50f0). Built by
+the tag workflow (source tarball and Mac OS 9 `.dsk` on a GitHub runner) with the NetBSD package built on the laptop and maul and
+attached by `tools/release-attach.sh`. Checked: tarball byte-identical to a local `make dist`; package installed, run and removed
+on maul (`runlog pkgtest-weather`); the `.dsk` Weather launched in Classic and fetched live over TLS; the OS 9 About box viewed
+on the real screen (page 1 and 3 of 5). Licence GPL-3.0-or-later. Known issues are in `docs/release-notes/0.0.1.md`.
+The tree is back at the unreleased 0.1.0. Still to do for v0.1: #45.
+
 
 ## What works, and how it was checked
 | Piece | State | Evidence |

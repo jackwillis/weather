@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Explicit first-install utility. Import file is generated on a trusted modern OS.
 #include "seed_store_os9.hpp"
 #include "tls/seed_pool.hpp"

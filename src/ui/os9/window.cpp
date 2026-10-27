@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Native Toolbox window. Network initialization and terminal shutdown occur once.
 #include "window.hpp"
 #include "app/config_load.hpp"
@@ -6,6 +8,9 @@
 #include "platform/os9/settings_os9.hpp"
 #include "platform/os9/config_os9.hpp"
 #include "core/log.hpp"
+#include "core/version.hpp"
+#include "app/credits.hpp"
+#include "app/logo.hpp"
 #include "app/weather_art.hpp"
 #include "core/fetch.hpp"
 #include "core/providers.hpp"
@@ -108,6 +113,41 @@ void wrapped(int x, int y, const char *s, int lines, int width)
 		text(x,y,line,10,width); s+=n; while(*s==' ') ++s; y+=13;
 	}
 }
+constexpr int kAboutPages = 2 + static_cast<int>(kCreditPageCount);   // About, the Credits pages, Seed recovery
+int about_page = 0;
+void draw_logo(Canvas &c, int x, int y)
+{
+	for(int row=0;row<kLogoH;row++) {
+		const uint8_t *r=kLogoBits+row*kLogoRowBytes;
+		int run=-1;
+		for(int col=0;col<=kLogoW;col++) {
+			bool ink=col<kLogoW && (r[col>>3] & (0x80>>(col&7)));
+			if(ink && run<0) run=col;
+			if(!ink && run>=0) { c.rect(x+run,y+row,col-run,1,{0,0,0}); run=-1; }
+		}
+	}
+}
+void draw_about(Canvas &c)
+{
+	c.rect(8,43,324,210,{238,238,238}); Rect a=box(8,43,324,210); color({0,0,0}); FrameRect(&a);
+	if(about_page==0) {
+		draw_logo(c,8+(324-kLogoW)/2,50);
+		Buf<48> v; v.add("Weather ").add(WEATHER_VERSION); text(40,150,v.c_str(),12,260);
+		for(size_t i=0;i<sizeof kCreditsShort/sizeof *kCreditsShort;i++) text(40,170+static_cast<int>(i)*16,kCreditsShort[i],10,270);
+	} else if(about_page<=static_cast<int>(kCreditPageCount)) {
+		const CreditPage &pg=kCreditPages[about_page-1];
+		Buf<48> title; title.add("Credits: ").add(pg.title); text(24,70,title.c_str(),12,290);
+		for(size_t i=0;i<pg.n;i++) text(24,95+static_cast<int>(i)*16,pg.lines[i],10,290);
+	} else {
+		text(24,70,"Seed recovery",12,290);
+		text(24,95,"Forecast source is shown below the data.",10,290);
+		text(24,119,"Seed locked? Quit all Weather apps first.",10,290);
+		text(24,135,"Never remove a lock while one is running.",10,290);
+		text(24,151,"Then follow OS9-SEEDS.md recovery.",10,290);
+	}
+	Buf<64> foot; foot.add(about_page+1<kAboutPages?"Return: next   Esc: close   ":"Return or Esc: close   ").add_int(about_page+1).add(" of ").add_int(kAboutPages);
+	text(24,243,foot.c_str(),9,290);
+}
 void draw_contents()
 {
 	Canvas c; c.rect(0,0,340,kHeight,{221,221,221});
@@ -134,15 +174,7 @@ void draw_contents()
 	wrapped(16,210,status.c_str(),3,308);
 	text(16,287,cfg.auto_refresh?"Automatic updates on":"Automatic updates off",9,205);
 	Rect r=box(236,270,88,24); color({0,0,0}); FrameRoundRect(&r,8,8); text(248,287,"Refresh",12,70);
-	if(actions.about) {
-		c.rect(8,43,324,210,{238,238,238}); Rect a=box(8,43,324,210); color({0,0,0}); FrameRect(&a);
-		text(40,78,"Weather for Mac OS 9",12,260);
-		text(40,103,"Forecast source is shown below the data.",10,260);
-		text(40,125,"Seed locked? Quit all Weather apps first.",10,260);
-		text(40,143,"Never remove a lock while one is running.",10,260);
-		text(40,161,"Then follow OS9-SEEDS.md recovery.",10,260);
-		text(40,185,"Press Return or Escape to close.",10,260);
-	}
+	if(actions.about) draw_about(c);
 }
 void draw()
 {
@@ -173,6 +205,7 @@ void location_closed() {
 }
 void command(WindowAction a) {
     if(actions.quit) return;
+    if(a==WindowAction::About && !actions.about) about_page=0;
     if(a==WindowAction::Quit) { actions.apply(a,cfg,model,net.now(net)); return; }
     if(first_run && a!=WindowAction::Location) return;
     if(location.visible()) return;
@@ -268,6 +301,7 @@ bool pump(Net &)
 		else if (e.what == keyDown) {
 			char ch = e.message & charCodeMask;
 			if (e.modifiers & cmdKey) menu(MenuKey(ch));
+			else if (ch == 13 && actions.about && about_page + 1 < kAboutPages) { ++about_page; draw(); }
 			else if (ch == 13 || ch == 27) command(WindowAction::DismissAbout);
 		} else if (e.what == mouseDown) {
 			WindowPtr w = nullptr;
