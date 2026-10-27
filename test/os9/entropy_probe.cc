@@ -87,7 +87,7 @@ bool save(short fd,unsigned count,bool complete) {
 }
 }
 int main() {
-    InitCursor();
+    InitGraf(&qd.thePort); InitFonts(); InitWindows(); InitMenus(); InitCursor();
     ProcessSerialNumber psn;
     if(GetCurrentProcess(&psn)!=noErr) return 2;
     FSSpec app; ProcessInfoRec info={};

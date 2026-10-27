@@ -32,3 +32,8 @@ collector or conditioner is claimed. maul was unreachable earlier in the session
 NIST source tool/notice reviewed, not installed/vendored or executed. All actual
 measurement/assessment gates remain open. Owner runbook and design boundaries:
 docs/OS9-ENTROPY-MEASUREMENT.md.
+
+Review follow-up: explicitly initialize QuickDraw, fonts, windows and menus before
+creating the diagnostic window, matching the platform startup requirements.
+The final full diagnostics-enabled OS 9 rebuild passed after that correction.
+Native startup, event handling and file output are still unverified on hardware.
