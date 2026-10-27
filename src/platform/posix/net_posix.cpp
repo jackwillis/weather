@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // BSD sockets backend: getaddrinfo, non-blocking connect, poll() I/O in 50 ms slices so
 // Net::yield can run (and cancel). Known limit: getaddrinfo() itself cannot be interrupted.
 #include "net_posix.hpp"

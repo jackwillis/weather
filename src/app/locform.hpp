@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // The "Location" dialog's data and validation, independent of how it is drawn.
 #pragma once
 #include "app/textedit.hpp"
