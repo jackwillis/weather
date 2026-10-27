@@ -50,7 +50,7 @@ class CacheCLI(unittest.TestCase):
     def test_unusable_entries_never_look_live(self):
         corrupt = record(); corrupt[32] ^= 1
         reserved = record(); reserved[144] = 1
-        struct.pack_into(">I", reserved, 156, zlib.crc32(reserved[:156]))
+        struct.pack_into(">I", reserved, 220, zlib.crc32(reserved[:220]))
         for data in (record(latitude=1), record(metric=True), record(stamp=int(time.time()) - 86401),
                      record(stamp=int(time.time()) + 60), record()[:-1], record() + b"x", corrupt, reserved):
             with self.subTest(data=data[:32]):

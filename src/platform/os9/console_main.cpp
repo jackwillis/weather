@@ -88,14 +88,19 @@ int main()
 		q.metric = cfg.metric;
 		static char buf[64 * 1024];
 		Forecast f;
-		s = fetch_forecast(net, chosen, nchosen, q, fo, buf, sizeof buf, &f);
 		bool cached=false;
 		long long at=0,now=net.now(net);
 		Os9Cache cache;
+		bool cache_ready=false;
 		if(cfg.cache) {
 			wx::Status initialized=os9_cache_init(&cache);
 			if(!initialized.ok()) logf(LogWarn,"%s",initialized.msg);
-			else if(s.ok()) {
+			else cache_ready=true;
+		}
+		s=fetch_forecast_cached(net,chosen,nchosen,q,fo,buf,sizeof buf,&f,cache_ready?&cache.base:nullptr,cfg.providers);
+		now=net.now(net);
+		if(cache_ready) {
+			if(s.ok()) {
 				wx::Status saved=write_cached_forecast(cache.base,cache_key(cfg),f,now);
 				if(!saved.ok()) logf(LogWarn,"%s",saved.msg);
 			} else if(s.err!=Err::Cancelled) {

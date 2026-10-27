@@ -57,7 +57,7 @@ static void exercise(const char *p, size_t n)
 	g_cur_len = n;
 	sv in(p, n);
 	CacheKey cache_key{Query{},"open-meteo"};
-	for(sv provider:{sv("open-meteo"),sv("nws")}) {
+	for(sv provider:{sv("open-meteo"),sv("nws"),sv("met-no")}) {
 	cache_key.providers=provider;
 	auto check_cache=[&](const unsigned char *bytes,size_t size) {
 		CachedForecast decoded; decoded.fetched_at=-1;
@@ -72,7 +72,7 @@ static void exercise(const char *p, size_t n)
 	if(n==kForecastCacheBytes) {
 		unsigned char checked[kForecastCacheBytes]; memcpy(checked,p,n);
 		// Reach field validation as well as CRC rejection on mutated records.
-		cache_detail::put32(checked+156,cache_detail::crc(checked,156));
+		cache_detail::put32(checked+220,cache_detail::crc(checked,220));
 		check_cache(checked,n);
 	}
 	}
@@ -122,6 +122,10 @@ static void exercise(const char *p, size_t n)
 
 	// HTTP
 	HttpResponse h = http_parse(in);
+	Buf<256> conditional;
+	bool accepted=http_request(conditional,"fixture.invalid","/","fixture",in);
+	if(accepted) EXPECT(http_validator(in));
+	if(h.st.ok()) EXPECT(http_validator(h.last_modified));
 	if (h.st.ok()) { EXPECT(inside(in, h.body)); EXPECT(h.code >= 0 && h.code <= 999); }
 
 	// JSON navigation
@@ -306,9 +310,11 @@ int main(int argc, char **argv)
 	static char http[9000];
 	snprintf(path, sizeof path, "%s/openmeteo-ok.json", FIXTURE_DIR);
 	slurp(path, seed, sizeof seed, &n);
-	int hl = snprintf(http, sizeof http, "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %zu\r\n\r\n", n);
+	int hl = snprintf(http, sizeof http, "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nLast-Modified: Tue, 27 Oct 2026 12:00:00 GMT\r\nContent-Length: %zu\r\n\r\n", n);
 	memcpy(http + hl, seed, n);
 	mutate_all(http, static_cast<size_t>(hl) + n, iterations, rng);
+	constexpr char not_modified[]="HTTP/1.0 304 Not Modified\r\nLast-Modified: Tue, 27 Oct 2026 12:00:00 GMT\r\nContent-Length: 999\r\n\r\n";
+	mutate_all(not_modified,sizeof not_modified-1,iterations,rng);
 	static const char cfg[] = "# my weather\nlatitude = 43.0747  # home\nlongitude=-89.3841\nname = Madison, WI\nunits = metric\n"
 	    "timeout = 15\nattempts = 3\nproviders = open-meteo\nlog = info\nautorefresh = off\ncache = on\n";
 	mutate_all(cfg, sizeof cfg - 1, iterations, rng);
@@ -321,6 +327,11 @@ int main(int argc, char **argv)
 	unsigned char cache_record[kForecastCacheBytes];
 	if(!cache_encode(CacheKey{Query{},"open-meteo"},cached,1792950000LL,cache_record)) return 1;
 	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);
+	cached.source="met-no";
+	strcpy(cached.last_modified,"Tue, 27 Oct 2026 12:00:00 GMT");
+	if(!cache_encode(CacheKey{Query{},"met-no"},cached,1792950000LL,cache_record)) return 1;
+	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);
+	cached.last_modified[0]=0;
 	cached.source="nws"; cached.code=-1;
 	if(!cache_encode(CacheKey{Query{},"nws"},cached,1792950000LL,cache_record)) return 1;
 	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);

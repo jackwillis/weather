@@ -1,0 +1,30 @@
+Issue #128, stacked on PR #15 at 3aedf92, 2026-10-27
+
+Bounded Last-Modified headers are preserved in cache record v2 (224 bytes),
+echoed as If-Modified-Since only for matching MET forecasts, and used to accept
+304 as revalidation. Location, units, source and usable prior conditions must
+match. Unsolicited 304 remains an error. Open-Meteo stays unconditional. Shared
+cache-aware fetching is wired into CLI, X11, OS 9 console and OS 9 window.
+
+Red: first test build failed for missing metadata/conditional APIs. Linking the
+completed tests against the old fetch implementation then ran 1676 checks with
+7 failures: no retained header, no conditional request, no accepted revalidation,
+and no validator after a persisted restart. Correct implementation: all pass.
+
+make check passed: 1676 unit/storage, 373194 mutated inputs, 111 CLI, 4 cache
+CLI, 12 TLS, 31 GUI, 14 anchors, 3 provisioning and 6 flags checks.
+After adding explicit Last-Modified and 304 mutation seeds, standalone robustness
+passed 396036 inputs. ASan+UBSan check-san uses that expanded corpus and passed
+1676 unit/storage, 396036 inputs, 111 CLI and 4 cache CLI checks.
+
+NetBSD CLI/X11/unit/robustness cross-build and OS 9 production/diagnostic build
+passed. Retro68 portable probes pass for PowerPC and m68k (GCC 16.1.0).
+No hardware run or live HTTP service call on this head. Fixture contact strings
+are test-only and never sent to a service. No source data/seed material logged.
+
+Draft / remaining decision: behavior for MET when cache=off must be settled.
+Current implementation supplies validators only when disk cache is enabled.
+Owner question offers automatic MET metadata without offline fallback, or
+requiring cache=on for MET. No assumption made while the question is pending.
+No full MET terms-compliance claim: Expires deferral remains outside this slice.
+Native runtime acceptance remains unverified. Parent #15 remains unmerged.

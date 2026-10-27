@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Jack Willis
 #pragma once
 #include "core/config.hpp"
+#include "core/fetch.hpp"
+#include "core/log.hpp"
 #include "core/forecast_cache.hpp"
 
 namespace wx {
@@ -29,4 +31,21 @@ inline Status write_cached_forecast(CacheStore &store,const CacheKey &key,const 
 	if(!cache_encode(key,forecast,at,record)) return make(Err::BadData,"forecast cannot be cached");
 	return store.save(store,record,sizeof record);
 }
+// Load only a matching validated record; callers retain existing save/fallback policy.
+inline Status fetch_forecast_cached(Net &net,const Provider *const *providers,size_t count,
+    const Query &query,const FetchOpts &opts,char *buffer,size_t cap,Forecast *out,
+    CacheStore *store,sv selection)
+{
+	ConditionalForecast previous; FetchOpts request=opts;
+	request.conditional=nullptr;
+	if(store && !opts.force_host && net.now) {
+		CachedForecast cached; bool found=false;
+		Status s=read_cached_forecast(*store,CacheKey{query,selection},net.now(net),&cached,&found);
+		if(s.ok() && found) {
+			previous.query=query; previous.forecast=cached.forecast; request.conditional=&previous;
+		} else if(!s.ok()) logf(LogWarn,"%s",s.msg);
+	}
+	return fetch_forecast(net,providers,count,query,request,buffer,cap,out);
+}
+
 }

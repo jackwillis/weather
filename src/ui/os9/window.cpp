@@ -341,7 +341,7 @@ Status os9_window_fetch_live(const Config &c, Net &n, Forecast *f) {
 	FetchOpts opts; opts.timeout_s=c.timeout_s; opts.attempts=c.attempts; opts.contact=c.contact;
 	const Provider *providers[8]; size_t count=0;
 	Status s=resolve_providers(c.providers,kProviders,kNumProviders,providers,8,&count);
-	if(s.ok()) s=fetch_forecast(n,providers,count,q,opts,response,sizeof response,f);
+	if(s.ok()) s=fetch_forecast_cached(n,providers,count,q,opts,response,sizeof response,f,active_cache,c.providers);
 	return s;
 }
 int run_os9_window(const WindowTestHooks *hooks) {

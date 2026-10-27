@@ -31,13 +31,13 @@ forecast into a failure. This is checked replacement, not a physical power-loss
 or filesystem durability guarantee. Broken/unreadable cache entries never block
 live requests, and no fast retry loop is added.
 
-## Record version 1
+## Record version 2
 
-Exactly 160 bytes; integers use big-endian order, never native struct layout:
+Exactly 224 bytes; integers use big-endian order, never native struct layout:
 
 | Offset | Content |
 |---|---|
-| 0 | Eight bytes `WXFCACH1` |
+| 0 | Eight bytes `WXFCACH2` |
 | 8 | Signed 32-bit latitude and longitude, degrees times 10000 |
 | 16 | Metric flag (0/1), source ID (1 Open-Meteo, 2 MET Norway, 3 NWS), six zero bytes |
 | 24 | Nonnegative signed-range 64-bit Unix fetch time |
@@ -45,7 +45,8 @@ Exactly 160 bytes; integers use big-endian order, never native struct layout:
 | 56 | 24-byte NUL-terminated, zero-padded printable observation text |
 | 80 | 64-byte NUL-terminated, zero-padded provider selection |
 | 144 | Twelve zero reserved bytes |
-| 156 | IEEE CRC32 of the first 156 bytes |
+| 156 | 64-byte NUL-terminated, zero-padded MET Last-Modified value |
+| 220 | IEEE CRC32 of the first 220 bytes |
 
 The checksum detects corruption; it does not authenticate a file against someone
 who can modify the user's files. The decoder never creates a source pointer into
@@ -77,3 +78,28 @@ building/delivering the diagnostic app, use
 Production startup never reads diagnostic marker files or fixture overrides.
 Initialized platform adapters carry context pointers; keep them at stable addresses
 and do not copy them after initialization.
+
+## MET Norway conditional requests (#128)
+
+The conditional-request branch adds record version 2. Unreleased version-1
+records are rejected and replaced after the next live success. The new field
+contains only a bounded printable Last-Modified header value, never a timestamp
+invented by Weather. Outer HTTP header whitespace is removed; the value itself
+is preserved unchanged. Non-MET records must leave this field empty.
+
+Before a MET request, the shared fetch adapter reads a matching, nonexpired
+cache record and sends its validator as If-Modified-Since. A 304 is accepted only
+with a matching location, units, source and valid prior forecast. It revalidates
+the old conditions as a live success; normal save updates the validation time.
+A 200 replaces the forecast and validator. An unsolicited 304 cannot manufacture
+an empty success. Open-Meteo requests stay unconditional. Plain HTTP fixture
+requests bypass disk validators as well as persistence.
+
+Current wiring follows cache=on. The owner decision for MET when cache=off is
+pending: automatic service metadata without offline fallback, or requiring
+cache=on. This PR remains draft until that policy is settled and implemented.
+This slice does not establish complete compliance with every MET traffic rule,
+such as request deferral until Expires.
+
+Reference: [MET Norway Terms of Service](https://api.met.no/doc/TermsOfService),
+Traffic and Caching sections, checked 2026-10-27.

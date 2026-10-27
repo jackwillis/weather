@@ -600,7 +600,7 @@ void do_fetch()
 	Query q;
 	q.lat_e4 = g.cfg.lat_e4; q.lon_e4 = g.cfg.lon_e4; q.metric = g.cfg.metric;
 	Forecast f;
-	Status s = fetch_forecast(g.net, g.providers, g.nprov, q, g.fo, buf, sizeof buf, &f);
+	Status s = fetch_forecast_cached(g.net,g.providers,g.nprov,q,g.fo,buf,sizeof buf,&f,g.have_cache?&g.cache.base:nullptr,g.cfg.providers);
 	if(s.ok() && g.have_cache) {
 		Status saved=write_cached_forecast(g.cache.base,cache_key(g.cfg),f,now_s());
 		if(!saved.ok()) logf(LogWarn,"%s",saved.msg);

@@ -1,0 +1,1 @@
+- Persist MET Norway Last-Modified values and use matching If-Modified-Since requests. Valid 304 responses revalidate the matching forecast; unsolicited or mismatched 304 responses remain errors.

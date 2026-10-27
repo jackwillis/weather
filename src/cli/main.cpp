@@ -211,7 +211,6 @@ int main(int argc, char **argv)
 
 	static char buf[64 * 1024];
 	Forecast f;
-	Status s = fetch_forecast(net, chosen, nchosen, q, fo, buf, sizeof buf, &f);
 	PosixCache cache;
 	bool cache_enabled=false, cached=false;
 	long long fetched_at=0, now=net.now(net);
@@ -221,6 +220,8 @@ int main(int argc, char **argv)
 		cache_enabled=initialized.ok();
 		if(!initialized.ok()) logf(LogWarn,"%s",initialized.msg);
 	}
+	Status s=fetch_forecast_cached(net,chosen,nchosen,q,fo,buf,sizeof buf,&f,cache_enabled?&cache.base:nullptr,cfg.providers);
+	now=net.now(net);
 	if(s.ok() && cache_enabled) {
 		Status saved=write_cached_forecast(cache.base,cache_key(cfg),f,now);
 		if(!saved.ok()) logf(LogWarn,"%s",saved.msg);

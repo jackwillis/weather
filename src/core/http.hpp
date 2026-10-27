@@ -8,10 +8,19 @@
 
 namespace wx {
 
+// Opaque Last-Modified value: bounded printable ASCII, safe to echo as one header.
+constexpr bool http_validator(sv value)
+{
+	if(value.size()>=64) return false;
+	for(unsigned char c:value) if(c<32 || c>126) return false;
+	return true;
+}
+
 struct HttpResponse {
 	Status st;
 	int code = 0;
 	sv body;
+	sv last_modified = {};
 };
 
 constexpr HttpResponse http_parse(sv raw)
@@ -37,6 +46,7 @@ constexpr HttpResponse http_parse(sv raw)
 	if (hend == sv::npos) return {make(Err::Truncated, "response cut off in headers"), code, {}};
 
 	long clen = -1;
+	sv modified; bool have_modified=false;
 	size_t pos = eol + 2;
 	while (pos < hend + 2) {
 		size_t le = find(raw, "\r\n", pos);
@@ -45,7 +55,10 @@ constexpr HttpResponse http_parse(sv raw)
 		if (colon != sv::npos) {
 			sv name = line.substr(0, colon);
 			sv val = trim(line.substr(colon + 1));
-			if (eq_nocase(name, "content-length")) {
+			if(eq_nocase(name,"last-modified")) {
+				if(have_modified || !http_validator(val)) return {make(Err::Parse,"invalid Last-Modified"),code,{}};
+				modified=val; have_modified=true;
+			} else if (eq_nocase(name, "content-length")) {
 				Num n = parse_fixed(val, 0);
 				if (!n.ok) return {make(Err::Parse, "bad Content-Length"), code, {}};
 				clen = n.v;
@@ -56,21 +69,28 @@ constexpr HttpResponse http_parse(sv raw)
 		pos = le + 2;
 	}
 	sv body = raw.substr(hend + 4);
+	if(code==304) {
+		if(!body.empty()) return {make(Err::BadData,"304 response contains a body"),code,{}};
+		return {okay(),code,body,modified};
+	}
 	if (clen >= 0) {
 		if (static_cast<long>(body.size()) < clen)
 			return {make(Err::Truncated, "body shorter than Content-Length"), code, body};
 		body = body.substr(0, static_cast<size_t>(clen));
 	}
-	return {okay(), code, body};
+	return {okay(), code, body, modified};
 }
 
 // Write "GET path HTTP/1.0" into out. False if it does not fit.
 template <size_t N>
-constexpr bool http_request(Buf<N> &out, sv host, sv path, sv agent)
+constexpr bool http_request(Buf<N> &out, sv host, sv path, sv agent, sv modified = {})
 {
+	if(!http_validator(modified)) return false;
 	out.add("GET ").add(path).add(" HTTP/1.0\r\nHost: ").add(host)
 	    .add("\r\nUser-Agent: ").add(agent)
-	    .add("\r\nAccept: application/json\r\nConnection: close\r\n\r\n");
+	    .add("\r\nAccept: application/json\r\n");
+	if(!modified.empty()) out.add("If-Modified-Since: ").add(modified).add("\r\n");
+	out.add("Connection: close\r\n\r\n");
 	return !out.truncated;
 }
 
