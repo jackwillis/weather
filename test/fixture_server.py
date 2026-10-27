@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 """Plain-HTTP fixture server for feature tests: fixture_server.py MODE PORT (0 chooses a free port, printed after listen)
 
 Modes: ok metno fallback imperial 500 404 slow chunked trunc garbage hangup badjson, and w:CODE:ISDAY:TEMP (a forecast with that WMO code)
