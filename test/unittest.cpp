@@ -25,6 +25,7 @@
 #include "platform/os9/dns_resolve.hpp"
 #include "platform/os9/modal_clock.hpp"
 #include <arpa/inet.h>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -263,6 +264,15 @@ static void test_fetch()
 		fetch_retry(gn, "h", "80", false, "/", tight, buf, sizeof buf, &body);
 		CHECK(g.nsleeps == 3 && g.sleeps[0] == 1000 && g.sleeps[1] == 1000 && g.sleeps[2] == 1000);
 	}
+	{ // The complete response can fill the buffer, but the next byte must not fit.
+		Fake f; f.steps[0]={okay(),kGood,Err::Ok}; f.nsteps=1;
+		Net n=make_net(&f); size_t size=std::strlen(kGood);
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,size,&body).ok());
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,size-1,&body).err==Err::BadData);
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,0,&body).err==Err::BadData);
+		f.steps[0].read_err=Err::Timeout;
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,size,&body).err==Err::Timeout);
+	}
 	{ // chunked response: refused, not retried
 		Fake f; f.steps[0] = {okay(), kChunked, Err::Ok}; f.nsteps = 1;
 		Net n = make_net(&f);
@@ -482,7 +492,11 @@ static void test_posix_net()
 		unsetenv("WEATHER_NOW");
 		CHECK(n.now(n) > kMinSaneTime);
 		setenv("WEATHER_NOW", "4102444800", 1);
+		#ifdef WEATHER_TEST_HOOKS
 		CHECK(n.now(n) == 4102444800LL);
+#else
+		CHECK(n.now(n) != 4102444800LL && n.now(n) > kMinSaneTime);
+#endif
 		unsetenv("WEATHER_NOW");
 	}
 	CHECK(unix_to_br_time(1790000000LL).days == 719528 + 1790000000LL / 86400);
@@ -610,6 +624,39 @@ static void test_settings_store()
 	struct stat sb;
 	CHECK(stat(path, &sb) == 0 && (sb.st_mode & 0777) == 0600);
 
+	// Replacement must preserve the existing mode even under a restrictive umask.
+	CHECK(chmod(path, 0644) == 0);
+	mode_t previous_mask = umask(0077);
+	Status mode_save = settings_save(st.base, c);
+	umask(previous_mask);
+	CHECK(mode_save.ok());
+	CHECK(stat(path, &sb) == 0 && (sb.st_mode & 0777) == 0644);
+
+	// Near the fixed text limit, successful rewrites remain loadable and repeatable.
+	char large[4096], saved[4096];
+	const char *owned = "latitude = 59.9100\nlongitude = 10.7500\nname = Oslo\nunits = metric\n";
+	size_t owned_n = strlen(owned);
+	memset(large, 'x', 4094);
+	large[0] = '#'; large[4094 - owned_n - 1] = '\n';
+	memcpy(large + 4094 - owned_n, owned, owned_n);
+	large[4094] = 0;
+	f = fopen(path, "wb"); CHECK(f != nullptr);
+	if (f) { CHECK(fwrite(large, 1, 4094, f) == 4094); fclose(f); }
+	CHECK(settings_save(st.base, c).ok());
+	CHECK(slurp(path, saved, sizeof saved) && !strcmp(saved, large));
+	CHECK(settings_save(st.base, c).ok());
+	CHECK(st.base.load(st.base, saved, sizeof saved, &n).ok() && n == 4094);
+
+	// A smaller input can grow past the limit when missing keys are appended.
+	// Refuse clearly, preserving every byte and leaving no temporary files.
+	memset(large, 'x', 4090); large[0] = '#'; large[4090] = 0;
+	f = fopen(path, "wb"); CHECK(f != nullptr);
+	if (f) { CHECK(fwrite(large, 1, 4090, f) == 4090); fclose(f); }
+	Status too_big = settings_save(st.base, c);
+	CHECK(too_big.err == Err::Config && !strcmp(too_big.msg, "settings file too large"));
+	CHECK(slurp(path, saved, sizeof saved) && !strcmp(saved, large));
+	CHECK(count_entries(dir) == 1);
+
 	// a symlinked dotfile stays a symlink and the real file is updated
 	char real[300], link[300];
 	snprintf(real, sizeof real, "%s/real", dir);
@@ -622,6 +669,24 @@ static void test_settings_store()
 	struct stat lsb;
 	CHECK(lstat(link, &lsb) == 0 && S_ISLNK(lsb.st_mode));
 	CHECK(slurp(real, text, sizeof text) && strstr(text, "name = Oslo") != nullptr);
+
+	// Atomic replacement must not bypass the existing file's protection or split links.
+	CHECK(chmod(real, 0444) == 0);
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	CHECK(stat(real, &sb) == 0 && (sb.st_mode & 0777) == 0444);
+	CHECK(chmod(real, 0600) == 0);
+	char alias[300];
+	snprintf(alias, sizeof alias, "%s/alias", dir);
+	CHECK(::link(real, alias) == 0);
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	struct stat asb;
+	CHECK(stat(real, &sb) == 0 && stat(alias, &asb) == 0 && sb.st_ino == asb.st_ino && sb.st_nlink == 2);
+	CHECK(unlink(alias) == 0);
+	CHECK(unlink(real) == 0); // the dotfile is now a dangling symlink
+	CHECK(posix_settings_init(&ls, link, false).ok());
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	CHECK(lstat(link, &lsb) == 0 && S_ISLNK(lsb.st_mode));
+	CHECK(stat(real, &sb) != 0 && errno == ENOENT);
 
 	// a directory we cannot write to: a clean Io error, original untouched
 	if (geteuid() != 0) {
@@ -821,7 +886,42 @@ static void test_model()
 		CHECK(m.tick(100001));
 		m.finish(100002, okay(), &f);
 		m.set_auto_refresh(true, 100003);
-		CHECK(m.seconds_until_refresh(100003) == 900);
+		CHECK(m.seconds_until_refresh(100003) == 899);
+	}
+	{ // resuming automatic updates keeps the original deadline, even when overdue
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		m.set_auto_refresh(false, 1);
+		CHECK(!m.tick(7200));
+		m.set_auto_refresh(true, 7200);
+		CHECK(m.seconds_until_refresh(7200) == 0 && m.next_refresh_at() == 900);
+		CHECK(m.tick(7200) && !m.tick(7200));
+	}
+	{ // toggles and repeated enable calls cannot postpone a pending failure retry
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		m.finish(0, fail_dns(), nullptr);
+		m.set_auto_refresh(false, 5);
+		m.set_auto_refresh(true, 6);
+		m.set_auto_refresh(true, 7);
+		CHECK(m.next_refresh_at() == 60 && !m.tick(59) && m.tick(60));
+		m.finish(60, fail_dns(), nullptr);
+		m.set_auto_refresh(false, 61);
+		CHECK(!m.tick(200));
+		m.set_auto_refresh(true, 200);
+		CHECK(m.tick(200));
+	}
+	{ // toggling during a fetch neither starts another nor changes its completion schedule
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		m.set_auto_refresh(false, 1);
+		m.set_auto_refresh(true, 2);
+		CHECK(!m.tick(3));
+		Forecast f = some_forecast(548);
+		m.finish(4, okay(), &f);
+		CHECK(m.next_refresh_at() == 904 && !m.tick(903) && m.tick(904));
 	}
 	{ // the clock jumped back by years: the next refresh is not postponed that long
 		Model m(mc, 1000000);
@@ -878,6 +978,28 @@ static void test_model()
 		m.finish(0, okay(), &f);
 		m.location_changed();
 		CHECK(!m.has_forecast() && m.tick(1));
+	}
+	{ // a cancelled manual retry preserves the failed forecast and retry count
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		CHECK(m.tick(900));
+		m.finish(900, fail_dns(), nullptr);
+		m.request_refresh();
+		CHECK(!m.tick(901));             // within the 5 s manual floor
+		m.request_refresh();
+		CHECK(m.tick(905));
+		m.finish(906, make(Err::Cancelled, "cancelled"), nullptr);
+		CHECK(m.phase() == Phase::Failed && m.has_forecast() && m.failures() == 1);
+		CHECK(m.last_error().err == Err::Dns && m.next_refresh_at() == 1806);
+		m.location_changed();
+		CHECK(!m.has_forecast() && m.failures() == 0 && m.phase() == Phase::Idle);
+		CHECK(m.tick(903));
+		m.location_changed();
+		m.finish(904, fail_dns(), nullptr); // discard failure about the previous location too
+		CHECK(m.phase() == Phase::Idle && !m.has_forecast() && m.failures() == 0);
+		CHECK(m.tick(904));
 	}
 	{ // status text
 		Model m(mc, 0);

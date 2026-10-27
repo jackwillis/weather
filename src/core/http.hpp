@@ -36,7 +36,7 @@ constexpr HttpResponse http_parse(sv raw)
 	size_t hend = find(raw, "\r\n\r\n");
 	if (hend == sv::npos) return {make(Err::Truncated, "response cut off in headers"), code, {}};
 
-	long clen = -1;
+	size_t clen = 0; bool has_length=false;
 	size_t pos = eol + 2;
 	while (pos < hend + 2) {
 		size_t le = find(raw, "\r\n", pos);
@@ -46,20 +46,28 @@ constexpr HttpResponse http_parse(sv raw)
 			sv name = line.substr(0, colon);
 			sv val = trim(line.substr(colon + 1));
 			if (eq_nocase(name, "content-length")) {
-				Num n = parse_fixed(val, 0);
-				if (!n.ok) return {make(Err::Parse, "bad Content-Length"), code, {}};
-				clen = n.v;
-			} else if (eq_nocase(name, "transfer-encoding") && find(val, "chunked") != sv::npos) {
-				return {make(Err::BadData, "chunked encoding not supported"), code, {}};
+				if(val.empty()) return {make(Err::Parse,"bad Content-Length"),code,{}};
+				size_t length=0;
+				for(char c:val) {
+					if(c<'0' || c>'9') return {make(Err::Parse,"bad Content-Length"),code,{}};
+					size_t digit=static_cast<size_t>(c-'0');
+					if(length>(static_cast<size_t>(-1)-digit)/10) return {make(Err::Parse,"Content-Length overflow"),code,{}};
+					length=length*10+digit;
+				}
+				if(has_length && length!=clen) return {make(Err::Parse,"conflicting Content-Length"),code,{}};
+				clen=length; has_length=true;
+			} else if (eq_nocase(name, "transfer-encoding")) {
+				// No transfer coding is implemented; never treat encoded bytes as JSON.
+				return {make(Err::BadData, "transfer encoding not supported"), code, {}};
 			}
 		}
 		pos = le + 2;
 	}
 	sv body = raw.substr(hend + 4);
-	if (clen >= 0) {
-		if (static_cast<long>(body.size()) < clen)
+	if (has_length) {
+		if (body.size() < clen)
 			return {make(Err::Truncated, "body shorter than Content-Length"), code, body};
-		body = body.substr(0, static_cast<size_t>(clen));
+		body = body.substr(0,clen);
 	}
 	return {okay(), code, body};
 }

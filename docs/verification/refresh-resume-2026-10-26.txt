@@ -1,0 +1,39 @@
+Automatic refresh resume: issue #51 / audit F6
+
+Scope
+Preserve the pending automatic refresh/retry deadline when the user disables or
+re-enables automatic updates. An overdue deadline becomes due on the next model
+tick. Fresh data retains its remaining interval. Failure retries retain their
+backoff, and toggling during an active fetch does not queue another fetch.
+The existing timestamp argument remains accepted for callers; changing the
+option itself no longer needs the current time. Clock rollback clamping remains
+in tick().
+
+Red evidence
+The updated host unit suite against the old model produced 528 checks, 5 failed.
+Failures covered fresh countdown extension, overdue refresh suppression and
+failure retry postponement. See /tmp/weather-refresh-red.log.
+
+Limit
+This is the scheduling part of #51. Validation of provider observation timestamps
+against the current time remains outstanding. No timestamp age threshold is
+introduced here.
+
+Host verification
+make check: 537 unit checks, 230242 mutation inputs, 106 CLI scenarios,
+12 local real-TLS checks, 21 serialized GUI checks; lint, anchors, provisioning
+and Makefile flag checks passed. Final run /tmp/weather-refresh-check.log.
+make check-san: AddressSanitizer explicitly enabled alongside UBSan; 537 unit
+checks, 230242 mutation inputs and 106 CLI scenarios passed.
+Additional model regressions cover cancellation after failure, manual refresh
+while failed, location changes while failed and discard of a failed in-flight
+response about the previous location. The overdue resume case covers a forward
+clock jump; the existing backwards-clock tests remain green.
+
+Hardware and compiler verification
+make check-maul: actual NetBSD/macppc G4 ran 537 unit checks and 86242 mutation
+inputs, all passing (status=0). Cross-compilation happened only on Linux.
+make probe-os9: Retro68 PowerPC and m68k compiled the portable core/model and
+compile-time tests. This is compile-only evidence, not native runtime evidence.
+Logs: /tmp/weather-refresh-maul.log and /tmp/weather-refresh-portable.log.
+No OS 9 runtime, macOS host or physical display verification was performed.

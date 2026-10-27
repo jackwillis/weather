@@ -6,10 +6,12 @@
 # usage: sh test/feature.sh path/to/weather        ONLINE=1 also tests the real server
 BIN=${1:-build/host/weather}
 HERE=$(dirname "$0")
-BASE=${PORT_BASE:-18700}
+FIXTURE_HERE=$HERE
+. "$HERE/fixture-lib.sh"
+fixture_init || exit 1
 pass=0; fail=0
-pids=""
-trap 'kill $pids 2>/dev/null' EXIT INT TERM
+trap 'fixture_cleanup' EXIT
+trap 'exit 1' INT TERM
 
 ok()   { pass=$((pass+1)); }
 bad()  { fail=$((fail+1)); echo "FAIL: $1"; }
@@ -22,9 +24,9 @@ expect() {
 }
 contains() { case "$OUT" in *"$2"*) ok;; *) bad "$1: output lacks '$2' (got: $OUT)";; esac; }
 
-serve() {  # serve MODE -> sets $P to the port
-	P=$BASE; BASE=$((BASE+1))
-	python3 "$HERE/fixture_server.py" "$1" "$P" & pids="$pids $!"
+serve() {  # serve MODE -> sets $P to a bound, ready port
+    fixture_start "$1" || exit 1
+    P=$FIXTURE_PORT
 }
 
 serve ok; P_OK=$P
@@ -39,9 +41,7 @@ serve imperial; P_IMP=$P
 serve badjson; P_BADJ=$P
 serve metno; P_MET=$P
 serve fallback; P_FALL=$P
-sleep 1
-
-CFG=$(mktemp); echo "attempts = 1" > "$CFG"
+CFG="$FIXTURE_STATE/config"; echo "attempts = 1" > "$CFG"
 W="-c $CFG"
 
 expect "ok oneline" 0 $W -1 -H 127.0.0.1:$P_OK
@@ -229,6 +229,7 @@ case "$SOUT" in *weather:*) bad "log text on stdout";; *) ok;; esac
 
 if [ -n "$ONLINE" ]; then
 	expect "online live fetch" 0 -1
+	if [ "${TEST_HOOKS_ENABLED:-0}" = 1 ]; then
 	# the TLS layer must judge certificates by the platform clock (seam), not its own idea of time
 	WEATHER_NOW=4102444800 "$BIN" -1 >/dev/null 2>"$CFG.err"; got=$?
 	if [ "$got" = 76 ] && grep -q "expired or not yet valid" "$CFG.err"; then ok; else bad "year-2100 clock: exit $got $(cat $CFG.err)"; fi
@@ -238,6 +239,7 @@ if [ -n "$ONLINE" ]; then
 	if [ "$got" = 71 ]; then ok; else bad "1970 clock: exit $got (wanted 71, clock)"; fi
 	WEATHER_NO_TA=1 "$BIN" -1 >/dev/null 2>"$CFG.err"; got=$?
 	if [ "$got" = 76 ] && grep -q "cert" "$CFG.err"; then ok; else bad "no-anchor run: exit $got $(cat $CFG.err)"; fi
+	fi
 	rm -f "$CFG.err"
 fi
 

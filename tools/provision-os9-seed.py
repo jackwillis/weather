@@ -13,7 +13,10 @@ def provision(output):
     checkout = Path(__file__).resolve().parents[1]
     if output == checkout or checkout in output.parents:
         raise ValueError("seed output must be outside the checkout")
-    record = b"WXSEED1\n" + os.urandom(32)
+    seed = os.urandom(32)
+    if len(seed) != 32 or not any(seed):
+        raise ValueError("OS random source returned unusable seed material")
+    record = b"WXSEED1\n" + seed
     record += hashlib.sha256(record).digest()
     # Exclusive creation and owner-only access; an existing seed is never replaced.
     fd = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

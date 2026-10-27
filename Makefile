@@ -20,11 +20,24 @@ BEARSSL ?= third_party/bearssl
 
 include mk/$(TARGET).mk
 
-BUILD = build/$(TARGET)
+# Explicit test-only builds never share objects or release paths with production.
+TEST_HOOKS ?= 0
+ifneq ($(TEST_HOOKS),0)
+ifneq ($(TEST_HOOKS),1)
+$(error TEST_HOOKS must be 0 or 1)
+endif
+endif
+ifeq ($(TEST_HOOKS),1)
+ifneq ($(filter install package-netbsd dist distcheck,$(MAKECMDGOALS)),)
+$(error test-hook builds cannot be installed, packaged or distributed)
+endif
+endif
+BUILD = build/$(TARGET)$(if $(filter 1,$(TEST_HOOKS)),-test-hooks)
+TEST_HOOK_FLAGS = $(if $(filter 1,$(TEST_HOOKS)),-DWEATHER_TEST_HOOKS)
 OBJ   = $(BUILD)/obj
 WARN  = -Wall -Wextra -Wno-unused-parameter
 CXXFLAGS_ALL = -std=c++17 -O2 -g $(WARN) $(EXTRA_CXXFLAGS) $(X11_CXXFLAGS) -fno-exceptions -fno-rtti \
-    -MMD -MP -DWEATHER_VERSION='"$(VERSION)"' -Isrc -I$(BEARSSL)/inc $(CXXFLAGS)
+    -MMD -MP -DWEATHER_VERSION='"$(VERSION)"' -Isrc -I$(BEARSSL)/inc $(CXXFLAGS) $(TEST_HOOK_FLAGS)
 
 BEARSSL_OUT = $(BUILD)/bearssl
 BEARSSL_LIB = $(BEARSSL_OUT)/libbearssl.a
@@ -66,6 +79,10 @@ $(BUILD)/cde-field-test: $(OBJ)/test/cde_field.o $(OBJ)/ui/xweather/cde.o $(OBJ)
 
 $(BUILD)/xdrive: $(OBJ)/test/xdrive.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(X11_LIBS)
+
+# Optional live TLS compatibility probe, never part of the offline check suite.
+$(BUILD)/tls-live: $(OBJ)/test/tls_live.o $(OBJ)/tls/tls.o $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/log_posix.o $(OBJ)/platform/$(PLATFORM)/nocxx.o $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^
 
 $(BUILD)/robust: $(OBJ)/test/robust.o $(OBJ)/app/preferences.o $(BEARSSL_LIB)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(OBJ)/app/preferences.o $(BEARSSL_LIB)
@@ -178,10 +195,21 @@ distcheck: dist
 
 # ---- tests
 check: $(CHECK_TARGET)
+
+# Exercise both configurations, preserving production defaults and release artifacts.
+check-test-hooks: $(BUILD)/weather
+	$(MAKE) TARGET=$(TARGET) TEST_HOOKS=1 build/$(TARGET)-test-hooks/unittest build/$(TARGET)-test-hooks/weather
+	build/$(TARGET)-test-hooks/unittest
+	TEST_HOOKS_ENABLED=1 sh test/feature.sh build/$(TARGET)-test-hooks/weather
+	sh test/test-builds.sh $(BUILD)/weather build/$(TARGET)-test-hooks/weather
 check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather
 	$(BUILD)/unittest
 	$(BUILD)/robust
-	sh test/feature.sh $(BUILD)/weather
+	TEST_HOOKS_ENABLED=$(TEST_HOOKS) sh test/feature.sh $(BUILD)/weather
+	python3 test/fixture_startup.py
+ifeq ($(TEST_HOOKS),0)
+	$(MAKE) TARGET=$(TARGET) check-test-hooks
+endif
 	python3 test/seed_provision.py
 	sh test/flags.sh "$(MAKE)"
 # Everything again under AddressSanitizer + UBSan: unit tests, parser robustness, the CLI's feature tests.
@@ -195,6 +223,7 @@ check-san:
 	    $(MAKE) TARGET=host-san X11_LIBS=-lX11 build/host-san/cde-text-test build/host-san/cde-field-test && \
 	    build/host-san/cde-text-test && sh test/field-host.sh build/host-san/cde-field-test; \
 	else echo "check-san: CDE tests skipped (no X11 headers)"; fi
+	$(MAKE) TARGET=host-san TEST_HOOKS=0 check-test-hooks
 
 san-note:
 	@echo "check-san: $(SAN_NOTE)"
@@ -217,7 +246,8 @@ check-maul:
 
 smoke-maul:
 	$(MAKE) TARGET=netbsd-macppc all
-	sh test/smoke-maul.sh build/netbsd-macppc/weather
+	$(MAKE) TARGET=netbsd-macppc TEST_HOOKS=1 build/netbsd-macppc-test-hooks/weather
+	sh test/smoke-maul.sh build/netbsd-macppc/weather build/netbsd-macppc-test-hooks/weather
 
 # Layering rule: core/ and app/ may include only freestanding headers.
 ALLOWED_INCLUDES = cstddef|cstdint|cstring|cstdarg|string_view|utility|type_traits|limits
@@ -232,4 +262,4 @@ clean:
 
 -include $(wildcard $(OBJ)/*.d $(OBJ)/*/*.d $(OBJ)/*/*/*.d)
 
-.PHONY: os9 FORCE san-note check-san anchors check-anchors check-tls all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
+.PHONY: check-test-hooks os9 FORCE san-note check-san anchors check-anchors check-tls all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean

@@ -34,10 +34,11 @@ public:
 	// Manual refresh. Ignored while fetching; tick drops requests within 5 s of a fetch start.
 	void request_refresh() { if (phase_ != Phase::Fetching) manual_ = true; }
 
-	void set_auto_refresh(bool on, long long now)
+	// Pausing automatic updates does not move the pending success/retry deadline.
+	// On resume, tick() immediately fetches if that deadline has passed.
+	void set_auto_refresh(bool on, long long /*now*/)
 	{
 		cfg_.auto_refresh = on;
-		if (on && phase_ != Phase::Fetching) next_at_ = now + cfg_.interval_s;
 	}
 
 	// The location changed: the old forecast describes somewhere else. Forget it and refetch.
