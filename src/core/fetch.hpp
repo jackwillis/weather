@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Fetching with timeouts, bounded retries and provider fallback.
 #pragma once
 #include "forecast.hpp"
@@ -12,7 +14,8 @@ constexpr long long kMinSaneTime = 1735689600LL;
 struct FetchOpts {
 	int timeout_s = 15;
 	int attempts = 3;            // tries per provider
-	long backoff_ms = 500;       // doubles each retry
+	long backoff_ms = 500;       // doubles each retry ...
+	long max_backoff_ms = 30000; // ... up to this (also keeps the doubling from overflowing a 32-bit long)
 	bool dump = false;           // log request/response text at debug level
 	const char *force_host = nullptr;  // testing: plain HTTP to this host/port instead
 	const char *force_port = nullptr;

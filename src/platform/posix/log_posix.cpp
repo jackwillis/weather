@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 #include "core/log.hpp"
 #include <cstdarg>
 #include <cstdio>

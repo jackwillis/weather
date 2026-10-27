@@ -1,0 +1,17 @@
+name: Owner decision
+description: A question only the project owner can answer
+labels: ["decision", "needs-owner"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: The question
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options and recommendation
+      description: Each option with its cost, and which one is recommended and why.
+    validations:
+      required: true

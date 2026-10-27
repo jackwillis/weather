@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Cross build for NetBSD/macppc from Linux. Toolchain: ~/scratch/netbsd-xc (see its README-repro.md).
 XROOT   = $(HOME)/scratch/netbsd-xc
 XPFX    = $(XROOT)/tools2/bin/powerpc--netbsd
