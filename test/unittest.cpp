@@ -811,7 +811,42 @@ static void test_model()
 		CHECK(m.tick(100001));
 		m.finish(100002, okay(), &f);
 		m.set_auto_refresh(true, 100003);
-		CHECK(m.seconds_until_refresh(100003) == 900);
+		CHECK(m.seconds_until_refresh(100003) == 899);
+	}
+	{ // resuming automatic updates keeps the original deadline, even when overdue
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		m.set_auto_refresh(false, 1);
+		CHECK(!m.tick(7200));
+		m.set_auto_refresh(true, 7200);
+		CHECK(m.seconds_until_refresh(7200) == 0 && m.next_refresh_at() == 900);
+		CHECK(m.tick(7200) && !m.tick(7200));
+	}
+	{ // toggles and repeated enable calls cannot postpone a pending failure retry
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		m.finish(0, fail_dns(), nullptr);
+		m.set_auto_refresh(false, 5);
+		m.set_auto_refresh(true, 6);
+		m.set_auto_refresh(true, 7);
+		CHECK(m.next_refresh_at() == 60 && !m.tick(59) && m.tick(60));
+		m.finish(60, fail_dns(), nullptr);
+		m.set_auto_refresh(false, 61);
+		CHECK(!m.tick(200));
+		m.set_auto_refresh(true, 200);
+		CHECK(m.tick(200));
+	}
+	{ // toggling during a fetch neither starts another nor changes its completion schedule
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		m.set_auto_refresh(false, 1);
+		m.set_auto_refresh(true, 2);
+		CHECK(!m.tick(3));
+		Forecast f = some_forecast(548);
+		m.finish(4, okay(), &f);
+		CHECK(m.next_refresh_at() == 904 && !m.tick(903) && m.tick(904));
 	}
 	{ // the clock jumped back by years: the next refresh is not postponed that long
 		Model m(mc, 1000000);
@@ -868,6 +903,28 @@ static void test_model()
 		m.finish(0, okay(), &f);
 		m.location_changed();
 		CHECK(!m.has_forecast() && m.tick(1));
+	}
+	{ // a cancelled manual retry preserves the failed forecast and retry count
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		CHECK(m.tick(900));
+		m.finish(900, fail_dns(), nullptr);
+		m.request_refresh();
+		CHECK(!m.tick(901));             // within the 5 s manual floor
+		m.request_refresh();
+		CHECK(m.tick(905));
+		m.finish(906, make(Err::Cancelled, "cancelled"), nullptr);
+		CHECK(m.phase() == Phase::Failed && m.has_forecast() && m.failures() == 1);
+		CHECK(m.last_error().err == Err::Dns && m.next_refresh_at() == 1806);
+		m.location_changed();
+		CHECK(!m.has_forecast() && m.failures() == 0 && m.phase() == Phase::Idle);
+		CHECK(m.tick(903));
+		m.location_changed();
+		m.finish(904, fail_dns(), nullptr); // discard failure about the previous location too
+		CHECK(m.phase() == Phase::Idle && !m.has_forecast() && m.failures() == 0);
+		CHECK(m.tick(904));
 	}
 	{ // status text
 		Model m(mc, 0);
