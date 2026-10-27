@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Harness for test/tls_local.sh: tls_harness HOST PORT CLOCK_UNIX_SECONDS [DEADLINE_S]
 // One HTTPS fetch of https://HOST:PORT/ through the real fetch_once and the real tls.cpp (built by the script with a
 // throwaway trust anchor, see WEATHER_TEST_ANCHORS), with a clock that starts at the given time. Prints one line: RESULT err=NAME detail=NAME|N

@@ -1,9 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Parser robustness: deterministic mutation testing. Every parser sees truncated, byte-flipped,
 // byte-deleted and randomly edited versions of real inputs, plus hostile shapes (deep nesting,
 // huge numbers, embedded NULs). The point is "never crashes, never reads out of range, and if it
 // says OK the answer is sane"; build it with -fsanitize=address,undefined (make check-san) and the
 // sanitizers do the watching. usage: robust [random-iterations] (default 20000)
 #include "app/textedit.hpp"
+#include "app/config_load.hpp"
+#include "app/preferences.hpp"
 #include "core/config.hpp"
 #include "core/http.hpp"
 #include "core/json.hpp"
@@ -51,6 +55,19 @@ static void exercise(const char *p, size_t n)
 	g_runs++;
 	g_cur_len = n;
 	sv in(p, n);
+	SettingsStore config_store; config_store.ctx=&in;
+	config_store.load=[](SettingsStore &store,char *out,size_t cap,size_t *size) {
+		sv value=*static_cast<sv *>(store.ctx);
+		*size=value.size();
+		if(value.size()<cap) memcpy(out,value.data(),value.size());
+		return okay();
+	};
+	Config loaded;
+	Status config_status=load_config(config_store,loaded);
+	if(!config_status.ok()) {
+		EXPECT(loaded.lat_e4==430747 && loaded.lon_e4==-893841);
+		EXPECT(!loaded.metric && loaded.auto_refresh && !strcmp(loaded.name,"Madison, WI"));
+	}
 	// Format adapter: bounded output, failure empties it, deterministic prefix.
 	char full[257], small[18];
 	memset(small, 0x5a, sizeof small);
@@ -75,6 +92,9 @@ static void exercise(const char *p, size_t n)
 	EXPECT(!strcmp(decimal, expected));
 	unsigned char seed_out[32], encoded[kSeedRecordSize];
 	if (seed_decode(reinterpret_cast<const unsigned char *>(p), n, seed_out)) {
+		unsigned nonzero = 0;
+		for (unsigned char c : seed_out) nonzero |= c;
+		EXPECT(nonzero != 0);
 		seed_encode(seed_out, encoded);
 		EXPECT(n == kSeedRecordSize && std::memcmp(p, encoded, n) == 0);
 	}
@@ -106,6 +126,17 @@ static void exercise(const char *p, size_t n)
 		Buf<300> one; format_oneline(one, f);                         // formatting any accepted forecast must be safe
 		Buf<400> full; format_full(full, f, "Madison, WI");
 	}
+	// A successful parse must never ignore explicitly ill-typed unit metadata.
+	if (s.ok()) {
+		JsonLookup units = json_get(in, "current_units");
+		if (units.r == JsonFind::Found) {
+			for (sv key : {sv("temperature_2m"), sv("wind_speed_10m")}) {
+				JsonLookup label = json_get(units.value, key);
+				EXPECT(label.r != JsonFind::Malformed);
+				if (label.r == JsonFind::Found) { sv text; EXPECT(json_str(label.value, &text)); }
+			}
+		}
+	}
 	Forecast mq;                                                  // the same bytes asked for metric: accepted only if sane as metric
 	if (openmeteo_parse(in, Query{0, 0, true}, &mq).ok()) EXPECT(sane(mq, true));
 	Forecast mf;                                                  // MET Norway: same rules
@@ -122,6 +153,35 @@ static void exercise(const char *p, size_t n)
 	for (int d = 0; d <= 4; d++) { Num x = parse_fixed(in.substr(0, 40), d); if (x.ok) EXPECT(x.v > -2000000000L && x.v < 2000000000L); }
 	for (int d = 5; d <= 9; d++) (void)parse_fixed(in.substr(0, 40), d);
 	(void)json_num(in.substr(0, 40), 1);
+
+    // Preferences precedence and transaction policy share the same hostile text.
+    struct TextSource { sv text; bool saved=false; size_t result_size=0; char result[4096]={}; } source{in}, legacy_source{"latitude=1\n"};
+    auto read_text=[](SettingsStore &store,char *out,size_t cap,size_t *count) {
+        auto &src=*static_cast<TextSource *>(store.ctx); *count=0;
+        if(src.text.size()>=cap) return make(Err::Config,"mutation text too large");
+        memcpy(out,src.text.data(),src.text.size()); *count=src.text.size(); return okay();
+    };
+    SettingsStore prefs, legacy_store;
+    prefs.ctx=&source; prefs.load=read_text;
+    legacy_store.ctx=&legacy_source; legacy_store.load=read_text;
+    prefs.save=[](SettingsStore &store,const char *text,size_t count) {
+        auto &src=*static_cast<TextSource *>(store.ctx);
+        if(count>=sizeof src.result) return make(Err::Config,"mutation save too large");
+        memcpy(src.result,text,count); src.result[count]=0; src.result_size=count; src.saved=true; return okay();
+    };
+    Config loaded_prefs; loaded_prefs.lat_e4=123;
+    Status loaded_status=load_preferences(prefs,legacy_store,loaded_prefs);
+    if(!loaded_status.ok()) EXPECT(loaded_prefs.lat_e4==123);
+    else EXPECT(loaded_prefs.lat_e4>=-900000 && loaded_prefs.lat_e4<=900000);
+    Config current, candidate=current; candidate.lat_e4=10000; candidate.metric=true;
+    Model preference_model;
+    Status committed=commit_preferences(prefs,legacy_store,candidate,current,preference_model,0);
+    if(committed.ok()) {
+        EXPECT(source.saved && current.lat_e4==10000 && current.metric);
+        Config saved_config;
+        EXPECT(config_parse(sv(source.result,source.result_size),&saved_config).ok());
+        EXPECT(saved_config.lat_e4==10000 && saved_config.metric);
+    } else EXPECT(!source.saved && current.lat_e4==430747 && !current.metric);
 
 	// config file and settings editor
 	Config c;
@@ -214,7 +274,8 @@ int main(int argc, char **argv)
 	static char seed[8192];
 	size_t n = 0;
 	char path[256];
-	const char *fixtures[] = {"openmeteo-ok.json", "openmeteo-400.json", "metno-ok.json"};
+	const char *fixtures[] = {"openmeteo-ok.json", "openmeteo-400.json", "metno-ok.json",
+	    "metno-thunder-sleet.json", "metno-thunder-snow.json"};
 	for (const char *fx : fixtures) {
 		snprintf(path, sizeof path, "%s/%s", FIXTURE_DIR, fx);
 		if (!slurp(path, seed, sizeof seed, &n)) { printf("cannot read %s\n", path); return 1; }
@@ -237,6 +298,9 @@ int main(int argc, char **argv)
 	mutate_all(formats, sizeof formats - 1, iterations, rng);
 	unsigned char synthetic_seed[32], record[kSeedRecordSize];
 	for (size_t i = 0; i < sizeof synthetic_seed; ++i) synthetic_seed[i] = static_cast<unsigned char>(i + 1);
+	seed_encode(synthetic_seed, record);
+	mutate_all(reinterpret_cast<const char *>(record), sizeof record, iterations, rng);
+	memset(synthetic_seed, 0, sizeof synthetic_seed);
 	seed_encode(synthetic_seed, record);
 	mutate_all(reinterpret_cast<const char *>(record), sizeof record, iterations, rng);
 

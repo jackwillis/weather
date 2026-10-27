@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 """Provisioning checks use temporary files and never display random material."""
 import hashlib
 import importlib.util
 import stat
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +30,16 @@ class ProvisionTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 MODULE.provision(a)
             self.assertTrue(a.read_bytes() == data)
+
+    def test_invalid_random_source_creates_no_import(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for index, invalid in enumerate([bytes(32), bytes(31), b"x" * 31, b""]):
+                output = Path(directory) / ("invalid-%d.import" % index)
+                with self.subTest(length=len(invalid)):
+                    with mock.patch.object(MODULE.os, "urandom", return_value=invalid):
+                        with self.assertRaises(ValueError):
+                            MODULE.provision(output)
+                    self.assertFalse(output.exists())
 
     def test_checkout_is_rejected(self):
         with self.assertRaises(ValueError):

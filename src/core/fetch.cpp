@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 #include "fetch.hpp"
 #include "http.hpp"
 #include "log.hpp"
@@ -43,7 +45,7 @@ struct DeadlineIo {
 	Io io;                       // io.ctx points back at this struct
 	Io *inner;
 	Net *net;
-	long long start, limit;
+	long long start, limit, last;
 };
 long dl_late(DeadlineIo *d)
 {
@@ -53,12 +55,13 @@ long dl_late(DeadlineIo *d)
 bool dl_expired(DeadlineIo *d)
 {
 	long long current = d->net->monotonic_ms(*d->net);
-	if (current < d->start) {
+	if (current < d->last) {
 		d->io.err = Err::Clock; d->io.msg = "monotonic clock unavailable or moved backwards";
 		return true;
 	}
+	d->last = current;
 	// Both values are nonnegative and ordered, so subtraction cannot overflow.
-	if (current - d->start > d->limit) { dl_late(d); return true; }
+	if (current - d->start >= d->limit) { dl_late(d); return true; }
 	return false;
 }
 long dl_read(Io &io, void *buf, size_t len)
@@ -108,7 +111,7 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 
 	DeadlineIo dio;
 	dio.io.ctx = &dio; dio.io.read = dl_read; dio.io.write = dl_write;
-	dio.inner = &raw; dio.net = &net; dio.start = start; dio.limit = limit;
+	dio.inner = &raw; dio.net = &net; dio.start = start; dio.limit = limit; dio.last = start;
 	Io tio;
 	Io *io = &dio.io;
 	if (tls) {

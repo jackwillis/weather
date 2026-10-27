@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Fixed-capacity string builder and number helpers. No heap, all constexpr.
 #pragma once
 #include <cstddef>

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // BearSSL TLS client over an Io stream. Portable: needs no OS headers beyond getenv.
 #include "tls.hpp"
 #include "core/log.hpp"

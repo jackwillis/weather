@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Minimal JSON navigation: no allocation, no tree. Finds a key among the
 // direct children of one object, so a same-named key in a sibling object
 // (Open-Meteo's "current_units" repeats every key with a string) can never be

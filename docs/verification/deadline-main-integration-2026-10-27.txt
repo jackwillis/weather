@@ -1,0 +1,39 @@
+PR #41 / issue #71, main integration, 2026-10-27
+Merged main e3b5a87 into the existing fix/fetch-deadline feature branch.
+
+Resolved build links for out-of-line Preferences, kept the current OS 9
+ModalClock and its licence header, and exposed that same active-time clock
+through Net::monotonic_ms. Retained main's native window scheduling notes and
+the deadline branch's separate UTC/monotonic domains and borrowed budgets.
+
+New red/green:
+1115 unit checks initially reported three failures:
+- test/unittest.cpp:268: raw reads still started at exact 3 s expiry
+- test/unittest.cpp:281: explicit 2 s deadline also allowed one extra raw read
+- test/unittest.cpp:328: samples 1000 -> 2000 -> 1500 were accepted, although the
+  clock regressed (it remained above the attempt start)
+DeadlineIo now tracks the last stream sample and refuses elapsed >= limit.
+After correction, 1115 checks pass.
+
+Final host/sanitizer results and hosted CI are recorded on the PR.
+Linux cross-builds passed for NetBSD CLI/X11/unit/robustness/backend-budget and
+OS 9 production plus enabled diagnostics. Retro68 portable probes pass for both
+PowerPC and m68k (GCC 16.1.0). No compilation ran on maul.
+
+maulctl status could reach the gateway, but NetBSD failed with
+"Name or service not known" and OS X failed with "No route to host".
+No hardware tests or production delivery on this head.
+
+Limits: POSIX getaddrinfo still blocks; elapsed lookup time is charged only when
+it returns. OS 9 asynchronous DNS honors the budget, but TCP/stream wait internals
+still use per-wait timeouts. Core stream checks occur before reads/writes, not
+during arbitrary backend calls. Native OS 9 menu-hold/DNS-stall and real hardware
+acceptance remain pending. A remote peer may close an idle connection while the
+local active clock is paused.
+
+Final local verification:
+make check: 1115 unit, 34 backend-budget, 299308 mutated inputs, 114 CLI,
+16 TLS, 22 GUI, 14 anchors, 3 provisioning and 6 flags checks; all passed.
+make REQUIRE_ASAN=1 check-san: ASan+UBSan enabled, 1115 unit, 34 backend-budget,
+299308 mutation inputs and 114 CLI checks; all passed.
+Repository policy and diff whitespace checks pass for the feature diff.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // One active-time clock shared by DNS and socket/TLS deadlines. TickCount and
 // credited modal intervals are modulo 2^32; sample at least once per full wrap.
 #pragma once

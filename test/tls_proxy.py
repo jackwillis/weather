@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 """Slow relay for test/tls_local.sh:  tls_proxy.py PORTS_FILE TARGET_PORT NAME:DELAY ...
 
 One listening socket per NAME on an ephemeral port of 127.0.0.1. Each connection is relayed to 127.0.0.1:TARGET_PORT:

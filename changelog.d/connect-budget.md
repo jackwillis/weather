@@ -1,3 +1,4 @@
 - Share one POSIX connection timeout across all resolved addresses, including elapsed lookup time once the blocking resolver returns. Reject late success and fail closed on missing or regressing monotonic clocks. Blocking DNS interruption remains outstanding.
 - Pass the earlier attempt/caller deadline into POSIX connect, read and write waits, so a short explicit fetch deadline also bounds a silent socket wait. Restore the caller budget after each attempt; blocking DNS and native OS 9 wait integration remain outstanding.
 - Apply the borrowed attempt budget to OS 9 asynchronous DNS open/query waits and abandoned-open cleanup, preserving cancellation precedence and callback storage.
+- Refuse stream operations at the exact attempt deadline, and reject a backwards stream-clock step even when it remains above the attempt start.

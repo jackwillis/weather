@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Open Transport backend. One endpoint at a time (a small windowed or console app).
 // Endpoints are synchronous + non-blocking: every call returns at once and "no data yet" is polled, so Net::yield
 // runs about every 50 ms (the event loop stays alive and the user can cancel). Known limit, like getaddrinfo on
@@ -41,18 +43,20 @@ struct DnsBackend {
 	OTResult open_code = 0, query_code = 0;
 	void *query_cookie = nullptr;
 	UInt32 open_done = 0, query_done = 0;
+	static constexpr UInt32 kOpenComplete = 0x20000007;
+	static constexpr UInt32 kQueryComplete = 0x10000001;
 	static pascal void notify(void *context, UInt32 event, OTResult result, void *cookie)
 	{
 		DnsBackend &b = *static_cast<DnsBackend *>(context);
-		if (event == 0x20000007) {
+		if (event == kOpenComplete) {
 			b.provider = cookie; b.open_code = result;
 			__atomic_store_n(&b.open_done, 1, __ATOMIC_RELEASE);
-		} else if (event == 0x10000001) {
+		} else if (event == kQueryComplete) {
 			b.query_code = result; b.query_cookie = cookie;
 			__atomic_store_n(&b.query_done, 1, __ATOMIC_RELEASE);
 		}
 	}
-	uint32_t now() { return TickCount(); }
+	uint32_t now() { return g_active_clock.ticks(TickCount()); }
 	bool yield() { return !net || !net->yield || net->yield(*net); }
 	void sleep() { long fin; Delay(3, &fin); }
 	int open(const char *name)
@@ -341,6 +345,12 @@ bool os9_entropy(Net &, void *buf, size_t len)
 }
 
 } // namespace
+
+void os9_credit_modal_ticks(uint32_t begin, uint32_t end) { g_active_clock.credit(begin, end); }
+uint32_t os9_active_ticks() { return g_active_clock.ticks(TickCount()); }
+long long os9_active_milliseconds() { return mono_ms(); }
+
+const char *os9_entropy_error() { return g_exit_ready ? g_seed_pool.error() : "cannot register TLS seed cleanup"; }
 
 void os9_net_shutdown()
 {

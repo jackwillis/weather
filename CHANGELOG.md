@@ -1,7 +1,16 @@
 # Changelog
 
+## 0.0.1 (pre-release)
+- Licence changed from BSD 2-clause to GPL-3.0-or-later (owner decision, 2026-10-26).
+A deliberately rough release to prove the packaging and release pipeline (issue #123). It promises no support
+and is not the v0.1 gate. See `docs/release-notes/0.0.1.md` for what works and the known issues.
+- Same code as the `0.1.0 (unreleased)` list below, as of the tagged commit; only the version differs.
+
 ## 0.1.0 (unreleased)
 First version.
+- Both windows ignore manual refresh requests within five seconds of the last fetch starting; automatic refresh and location changes remain immediate.
+- OS 9 Preferences uses a single compiled writer to prevent Retro68 inline workspace storage from overlapping other globals.
+- OS 9 Preferences replacement checks native write access before exchanging files, preserving locked settings.
 - `weather`: current conditions over TLS (built-in BearSSL, no proxy) from Open-Meteo; retries with backoff,
   data-source fallback, sysexits exit codes, settings file (`~/.weatherrc`), `-S` to save the location,
   clean cancel on SIGINT/SIGTERM.
@@ -31,5 +40,7 @@ First version.
 - A provider answer with an impossible humidity (outside 0-100 %), wind speed, wind direction, `is_day` or weather code is refused, so the next
   source is tried; before, it was shown. Open-Meteo answers whose `current_units` differ from the requested units are refused too (the
   labels come from the request). MET Norway values are range-checked before unit conversion, which also removes a 32-bit overflow.
+- Open-Meteo rejects explicitly malformed unit metadata (non-object `current_units`, non-string labels, and unknown temperature labels),
+  instead of silently accepting it. Missing metadata and supported unit aliases remain compatible.
 - Tests: compile-time `static_assert`s, 203 unit checks, parser mutation tests, 65 CLI feature tests, a 21-step GUI
   scenario (also on real hardware), UBSan build, vendored and pinned BearSSL, reproducible trust anchors.

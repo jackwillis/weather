@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Compile the actual backend with deterministic syscall boundaries, not a copy
 // of the address loop. No real DNS, sockets, wall-clock waits or interposition.
 #include "platform/posix/net_posix.hpp"
