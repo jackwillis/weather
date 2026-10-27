@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 #ifndef CLASSIC_RUNTIME_SPIKE_API_H
 #define CLASSIC_RUNTIME_SPIKE_API_H
 
