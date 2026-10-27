@@ -667,6 +667,37 @@ static void test_model()
 		CHECK(m.age(65) == 60 && !m.stale(65));
 		CHECK(!m.tick(904) && m.tick(905));            // 5 + 900
 	}
+	{ // Manual requests inside the five-second floor are dropped, never queued.
+		Model m(mc, 100);
+		Forecast f = some_forecast(548);
+		CHECK(m.tick(100)); m.finish(101, okay(), &f);
+		m.request_refresh(); CHECK(!m.tick(101));
+		m.request_refresh(); CHECK(!m.tick(104));
+		CHECK(!m.tick(105));
+		m.request_refresh(); CHECK(m.tick(105));
+		m.finish(106, fail_dns(), nullptr);
+		m.request_refresh(); CHECK(!m.tick(109));
+		m.request_refresh(); CHECK(m.tick(110));
+		m.finish(116, okay(), &f);
+		m.request_refresh(); CHECK(m.tick(116)); // measured from start, not finish
+	}
+	{ // Automatic refresh and location changes bypass the manual floor.
+		ModelConfig fast = mc; fast.interval_s = 2;
+		Model m(fast, 100);
+		Forecast f = some_forecast(548);
+		CHECK(m.tick(100)); m.finish(100, okay(), &f);
+		m.request_refresh(); CHECK(!m.tick(101));
+		CHECK(m.tick(102)); m.finish(102, okay(), &f);
+		m.location_changed(); CHECK(m.tick(103));
+	}
+	{ // A backwards clock step starts a fresh bounded cooldown.
+		Model m(mc, 1000);
+		Forecast f = some_forecast(548);
+		CHECK(m.tick(1000)); m.finish(1000, okay(), &f);
+		m.request_refresh(); CHECK(!m.tick(100));
+		m.request_refresh(); CHECK(!m.tick(104));
+		m.request_refresh(); CHECK(m.tick(105));
+	}
 	{ // failures back off 60, 120, 240 ... capped at the interval; success resets
 		Model m(mc, 0);
 		long long t = 0;
@@ -1127,12 +1158,14 @@ static void test_window_actions()
 	actions.apply(WindowAction::ToggleAuto, cfg, model, 5);
 	CHECK(!cfg.auto_refresh && model.seconds_until_refresh(5) == -1);
 	actions.apply(WindowAction::Refresh, cfg, model, 6);
-	CHECK(model.tick(6)); // Manual refresh still works with automatic refresh off.
-	actions.apply(WindowAction::Quit, cfg, model, 6);
-	CHECK(actions.quit);
-	model.finish(7, make(Err::Cancelled, "quit"), nullptr);
+	CHECK(!model.tick(6)); // The manual floor also applies with automatic refresh off.
 	actions.apply(WindowAction::Refresh, cfg, model, 8);
-	CHECK(!model.tick(8)); // Quit is terminal for command dispatch.
+	CHECK(model.tick(8)); // Five seconds since the units-change fetch began.
+	actions.apply(WindowAction::Quit, cfg, model, 8);
+	CHECK(actions.quit);
+	model.finish(9, make(Err::Cancelled, "quit"), nullptr);
+	actions.apply(WindowAction::Refresh, cfg, model, 10);
+	CHECK(!model.tick(10)); // Quit is terminal for command dispatch.
 	CHECK(window_seed_failure(make(Err::Tls,"no source of random numbers"),"locked"));
 	CHECK(!window_seed_failure(make(Err::Dns,"cannot resolve"),"locked"));
 	CHECK(!window_seed_failure(make(Err::Tls,"handshake failed"),"locked"));
