@@ -92,6 +92,9 @@ static void exercise(const char *p, size_t n)
 	EXPECT(!strcmp(decimal, expected));
 	unsigned char seed_out[32], encoded[kSeedRecordSize];
 	if (seed_decode(reinterpret_cast<const unsigned char *>(p), n, seed_out)) {
+		unsigned nonzero = 0;
+		for (unsigned char c : seed_out) nonzero |= c;
+		EXPECT(nonzero != 0);
 		seed_encode(seed_out, encoded);
 		EXPECT(n == kSeedRecordSize && std::memcmp(p, encoded, n) == 0);
 	}
@@ -295,6 +298,9 @@ int main(int argc, char **argv)
 	mutate_all(formats, sizeof formats - 1, iterations, rng);
 	unsigned char synthetic_seed[32], record[kSeedRecordSize];
 	for (size_t i = 0; i < sizeof synthetic_seed; ++i) synthetic_seed[i] = static_cast<unsigned char>(i + 1);
+	seed_encode(synthetic_seed, record);
+	mutate_all(reinterpret_cast<const char *>(record), sizeof record, iterations, rng);
+	memset(synthetic_seed, 0, sizeof synthetic_seed);
 	seed_encode(synthetic_seed, record);
 	mutate_all(reinterpret_cast<const char *>(record), sizeof record, iterations, rng);
 
