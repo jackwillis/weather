@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Add xweather to the ctwm configuration on maul: a "Weather" entry in the root menu and
 # XWeather in OccupyAll (shown on every workspace, like XClock). Idempotent, with a backup.
 #   sh ctwm-weather.sh          install      (as root: the file is /etc/X11/ctwm/system.ctwmrc)

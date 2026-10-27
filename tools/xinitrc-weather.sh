@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Start xweather with the X session: adds "xweather &" to ~/.xinitrc just before the line that execs the window manager.
 # Run as yourself (not root):   sh /tmp/xinitrc-weather.sh          install
 #                               sh /tmp/xinitrc-weather.sh undo     remove it again

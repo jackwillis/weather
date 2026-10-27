@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Unit tests: plain C++, no framework. Build-time checks (static_assert) come first:
 // if the core is wrong, this file does not compile.
 #include "core/config.hpp"
@@ -7,8 +9,12 @@
 #include "core/log.hpp"
 #include "core/openmeteo.hpp"
 #include "core/version.hpp"
+#include "app/credits.hpp"
 #include "app/locform.hpp"
 #include "app/model.hpp"
+#include "app/config_load.hpp"
+#include "app/preferences.hpp"
+#include "app/window_actions.hpp"
 #include "app/textedit.hpp"
 #include "core/providers.hpp"
 #include "core/settings.hpp"
@@ -16,6 +22,7 @@
 #include "platform/posix/settings_posix.hpp"
 #include "tls/timeconv.hpp"
 #include "platform/os9/dns_resolve.hpp"
+#include "platform/os9/modal_clock.hpp"
 #include <arpa/inet.h>
 #include <cstdio>
 #include <cstdlib>
@@ -660,6 +667,37 @@ static void test_model()
 		CHECK(m.age(65) == 60 && !m.stale(65));
 		CHECK(!m.tick(904) && m.tick(905));            // 5 + 900
 	}
+	{ // Manual requests inside the five-second floor are dropped, never queued.
+		Model m(mc, 100);
+		Forecast f = some_forecast(548);
+		CHECK(m.tick(100)); m.finish(101, okay(), &f);
+		m.request_refresh(); CHECK(!m.tick(101));
+		m.request_refresh(); CHECK(!m.tick(104));
+		CHECK(!m.tick(105));
+		m.request_refresh(); CHECK(m.tick(105));
+		m.finish(106, fail_dns(), nullptr);
+		m.request_refresh(); CHECK(!m.tick(109));
+		m.request_refresh(); CHECK(m.tick(110));
+		m.finish(116, okay(), &f);
+		m.request_refresh(); CHECK(m.tick(116)); // measured from start, not finish
+	}
+	{ // Automatic refresh and location changes bypass the manual floor.
+		ModelConfig fast = mc; fast.interval_s = 2;
+		Model m(fast, 100);
+		Forecast f = some_forecast(548);
+		CHECK(m.tick(100)); m.finish(100, okay(), &f);
+		m.request_refresh(); CHECK(!m.tick(101));
+		CHECK(m.tick(102)); m.finish(102, okay(), &f);
+		m.location_changed(); CHECK(m.tick(103));
+	}
+	{ // A backwards clock step starts a fresh bounded cooldown.
+		Model m(mc, 1000);
+		Forecast f = some_forecast(548);
+		CHECK(m.tick(1000)); m.finish(1000, okay(), &f);
+		m.request_refresh(); CHECK(!m.tick(100));
+		m.request_refresh(); CHECK(!m.tick(104));
+		m.request_refresh(); CHECK(m.tick(105));
+	}
 	{ // failures back off 60, 120, 240 ... capped at the interval; success resets
 		Model m(mc, 0);
 		long long t = 0;
@@ -875,6 +913,26 @@ static void test_forms()
 
 static void test_metno()
 {
+	// Independently vendored upstream filename list, rather than iterating our own map.
+	static const char *published[] = {
+#include "met_symbols.inc"
+	};
+	CHECK(sizeof published / sizeof published[0] == 83);
+	for (const char *symbol : published) {
+		MetCode code = met_symbol(symbol);
+		CHECK(code.code >= 0);
+		int day = ends_with(symbol, "_day") ? 1 : ends_with(symbol, "_night") ? 0 : -1;
+		CHECK(code.is_day == day);
+		char input[512];
+		snprintf(input, sizeof input, "{\"properties\":{\"timeseries\":[{\"data\":{\"instant\":{\"details\":{\"air_temperature\":5.0,\"cloud_area_fraction\":0}},\"next_1_hours\":{\"summary\":{\"symbol_code\":\"%s\"}}}}]}}", symbol);
+		Forecast parsed;
+		Status st = metno_parse(input, Query{}, &parsed);
+		CHECK(st.ok() && parsed.code == code.code);
+		if (strstr(symbol, "thunder")) CHECK(parsed.code == 95);
+	}
+	// Keep compatibility with corrected spellings accepted by earlier Weather versions.
+	CHECK(met_symbol("lightsleetshowersandthunder_day").code == 95);
+	CHECK(met_symbol("lightsnowshowersandthunder_night").code == 95);
 	Query q;
 	Forecast f;
 	Status s = metno_parse(fixture(0, "metno-ok.json"), q, &f);
@@ -919,7 +977,7 @@ static void test_metno()
 		Net n = make_net(&fk);
 		Status r = fetch_forecast(n, only, 1, lq, o, buf, sizeof buf, &out);
 		CHECK(r.ok() && out.temp_t10 == 545);
-		CHECK(strstr(fk.request, "User-Agent: weather/0.1.0 (contact: tester@example.org)\r\n") != nullptr);
+		CHECK(strstr(fk.request, "User-Agent: weather/" WEATHER_VERSION " (contact: tester@example.org)\r\n") != nullptr);
 		CHECK(strstr(fk.request, "Host: fake\r\n") != nullptr);
 	}
 	{ // Open-Meteo fails, MET Norway answers
@@ -1019,6 +1077,126 @@ static void test_os9_dns()
 	  CHECK(r.resolve("h", 0).err == Err::Timeout); CHECK(f.opens == 0); }
 }
 
+static void test_modal_clock()
+{
+	os9::ModalClock clock;
+	CHECK(clock.ticks(100)==100);
+	CHECK(clock.milliseconds(100)==0);
+	CHECK(clock.milliseconds(160)==1000);
+	clock.credit(160,760);
+	CHECK(clock.ticks(760)==160);
+	CHECK(clock.milliseconds(760)==1000);
+	CHECK(clock.milliseconds(820)==2000);
+	os9::ModalClock wrap;
+	CHECK(wrap.milliseconds(UINT32_MAX-20)==0);
+	CHECK(wrap.milliseconds(39)==1000);
+	os9::ModalClock paused_wrap;
+	CHECK(paused_wrap.milliseconds(UINT32_MAX-10)==0);
+	paused_wrap.credit(UINT32_MAX-10,49);
+	CHECK(paused_wrap.milliseconds(49)==0);
+	CHECK(paused_wrap.milliseconds(109)==1000);
+	os9::ModalClock counter_wrap;
+	counter_wrap.credit(0,UINT32_MAX-10);
+	counter_wrap.credit(0,20);
+	CHECK(counter_wrap.ticks(40)==31);
+	os9::ModalClock dns;
+	uint32_t start=dns.ticks(40);
+	dns.credit(40,5000);
+	CHECK(static_cast<uint32_t>(dns.ticks(5000)-start)==0);
+	CHECK(static_cast<uint32_t>(dns.ticks(5060)-start)==60);
+}
+
+static void test_config_load()
+{
+	SettingsStore store;
+	store.load = [](SettingsStore &s, char *out, size_t cap, size_t *n) {
+		const char *text = static_cast<const char *>(s.ctx);
+		if (!text) return make(Err::Config, "read failure");
+		*n = strlen(text);
+		if (*n < cap) memcpy(out, text, *n);
+		return okay();
+	};
+	Config cfg;
+	store.ctx = const_cast<char *>("units=metric\nlatitude=1\nnot-a-key=bad");
+	CHECK(!load_config(store,cfg).ok()); CHECK(!cfg.metric && cfg.lat_e4==430747);
+	store.ctx = const_cast<char *>("units=metric\nlatitude=1\nautorefresh=off");
+	CHECK(load_config(store,cfg).ok()); CHECK(cfg.metric && cfg.lat_e4==10000 && !cfg.auto_refresh);
+	store.ctx = const_cast<char *>(""); CHECK(load_config(store,cfg).ok()); CHECK(cfg.metric);
+	store.ctx = nullptr; CHECK(!load_config(store,cfg).ok()); CHECK(cfg.metric);
+	static char large[4097]; memset(large,' ',sizeof large-1);
+	store.ctx = large; CHECK(!load_config(store,cfg).ok()); CHECK(cfg.metric);
+}
+
+static void test_window_actions()
+{
+	Config cfg;
+	Model model;
+	WindowActions actions;
+	CHECK(model.tick(0));
+	actions.apply(WindowAction::Metric, cfg, model, 1);
+	CHECK(!cfg.metric);
+	actions.apply(WindowAction::ToggleAuto, cfg, model, 1);
+	CHECK(cfg.auto_refresh);
+	actions.apply(WindowAction::About, cfg, model, 1);
+	CHECK(actions.about);
+	actions.apply(WindowAction::DismissAbout, cfg, model, 1);
+	CHECK(!actions.about);
+	actions.apply(WindowAction::Refresh, cfg, model, 1);
+	Forecast forecast;
+	model.finish(2, okay(), &forecast);
+	CHECK(!model.tick(3)); // No queued refresh from a click during the request.
+	actions.apply(WindowAction::Metric, cfg, model, 3);
+	CHECK(cfg.metric && !model.has_forecast());
+	CHECK(model.tick(3));
+	model.finish(4, okay(), &forecast);
+	actions.apply(WindowAction::Metric, cfg, model, 4);
+	CHECK(model.has_forecast() && !model.tick(4)); // Same units do not fetch again.
+	actions.apply(WindowAction::About, cfg, model, 4);
+	CHECK(actions.about);
+	actions.apply(WindowAction::DismissAbout, cfg, model, 4);
+	CHECK(!actions.about);
+	actions.apply(WindowAction::ToggleAuto, cfg, model, 5);
+	CHECK(!cfg.auto_refresh && model.seconds_until_refresh(5) == -1);
+	actions.apply(WindowAction::Refresh, cfg, model, 6);
+	CHECK(!model.tick(6)); // The manual floor also applies with automatic refresh off.
+	actions.apply(WindowAction::Refresh, cfg, model, 8);
+	CHECK(model.tick(8)); // Five seconds since the units-change fetch began.
+	actions.apply(WindowAction::Quit, cfg, model, 8);
+	CHECK(actions.quit);
+	model.finish(9, make(Err::Cancelled, "quit"), nullptr);
+	actions.apply(WindowAction::Refresh, cfg, model, 10);
+	CHECK(!model.tick(10)); // Quit is terminal for command dispatch.
+	CHECK(window_seed_failure(make(Err::Tls,"no source of random numbers"),"locked"));
+	CHECK(!window_seed_failure(make(Err::Dns,"cannot resolve"),"locked"));
+	CHECK(!window_seed_failure(make(Err::Tls,"handshake failed"),"locked"));
+	CHECK(!window_seed_failure(make(Err::Tls,"no source of random numbers"),""));
+}
+
+#include "preferences_tests.hpp"
+
+static bool credits_mention(const char *what)
+{
+	for (const CreditPage &p : kCreditPages)
+		for (size_t i = 0; i < p.n; i++) if (strstr(p.lines[i], what)) return true;
+	return false;
+}
+static void test_credits()
+{
+	// Everything THIRD_PARTY.md names, both data sources and the licence must be credited in full.
+	for (const char *what : {"Open-Meteo", "MET Norway", "CC BY 4.0", "BearSSL", "Retro68", "Multiversal", "General", "NO WARRANTY",
+	                         "Jack Willis", "THIRD_PARTY.md", "github.com/jackwillis/weather"})
+		CHECK(credits_mention(what));
+	for (const char *what : {"Jack Willis", "GPL-3.0-or-later", "Open-Meteo", "MET Norway"}) {
+		bool found = false;
+		for (const char *line : kCreditsShort) if (strstr(line, what)) found = true;
+		CHECK(found);
+	}
+	for (const CreditPage &p : kCreditPages) {
+		CHECK(p.n >= 1 && p.n <= 9);                    // a page must fit both About boxes without scrolling
+		for (size_t i = 0; i < p.n; i++) CHECK(strlen(p.lines[i]) <= 46);
+	}
+}
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -1031,6 +1209,11 @@ int main()
 	test_settings_text();
 	test_settings_store();
 	test_model();
+	test_credits();
+	test_window_actions();
+	test_config_load();
+	test_preferences();
+	test_modal_clock();
 	test_forms();
 	test_metno();
 	test_os9_dns();

@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Build a NetBSD binary package (weather-VERSION.tgz) for macppc.
 # The code is cross-built here; `pkg_create` runs ON maul (it only archives files, so 256 MB is plenty).
 # usage: tools/mkpkg-netbsd.sh        result: build/pkg/weather-VERSION.tgz
@@ -22,8 +24,10 @@ EOC
 cat > "$OUT/DESCR" <<'EOC'
 weather prints the current conditions for a place; xweather shows them in a small
 CDE-look X11 window with a weather picture, menus, a Location dialog and automatic
-refresh every 15 minutes. Data comes from Open-Meteo over TLS (built-in BearSSL,
-no proxy needed). Settings live in ~/.weatherrc and are shared by both programs.
+refresh every 15 minutes. Data comes from Open-Meteo and MET Norway (CC BY 4.0) over
+TLS (built-in BearSSL, no proxy needed). Settings live in ~/.weatherrc and are shared
+by both programs. Free software under the GNU GPL, version 3 or later.
+Source code: https://github.com/jackwillis/weather
 EOC
 
 # shared libraries the binaries need (all part of the base system), as pkgsrc's REQUIRES lines
@@ -48,7 +52,7 @@ CC_VERSION=$(sed -n '1{s/.*) //;s/^/gcc-/;p;}' "$OUT/compiler.txt")
 	echo "MACHINE_ARCH=powerpc"
 	echo "PKGTOOLS_VERSION=20091115"
 	echo "PKGPATH=misc/weather"
-	echo "LICENSE=2-clause-bsd"
+	echo "LICENSE=gnu-gpl-v3"
 	echo "BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S +0000')"
 	echo "BUILD_HOST=cross-built on Linux x86_64"
 	echo "CC_VERSION=$CC_VERSION"

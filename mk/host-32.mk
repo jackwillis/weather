@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Native 32-bit development checks on x86 Linux (requires g++ multilib).
 # This catches long-width regressions; it is not a big-endian hardware substitute.
 include mk/host.mk

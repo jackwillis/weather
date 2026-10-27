@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Run the cross-built unit tests on maul (big-endian PowerPC, NetBSD): the ground truth for endianness.
 BIN=${1:-build/netbsd-macppc/unittest}
 ROB=${2:-build/netbsd-macppc/robust}

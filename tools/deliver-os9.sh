@@ -1,7 +1,11 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Run in the FOREGROUND on Mac OS X 10.4. Copies a Retro68 disk image's APPL
 # with its resource fork. deliver.done indicates success, not merely termination.
 # usage: sh deliver-os9.sh /tmp/App.dsk AppName
+# Weather is the native window; WeatherConsole is the console diagnostic. WeatherUITest is a separate optional test app.
+# Quit an old copy normally before replacing it; force-quitting can leave a managed TLS seed lock.
 # Defaults: /Volumes/MacOS9Lives/weather-dev and /tmp/deliver.{log,done}.
 # WEATHER_DELIVER_DEST / WEATHER_DELIVER_STATE override them for isolated tests.
 set -eu
