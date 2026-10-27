@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Offline test of certificate verification: the real tls.cpp, the real fetch_once and net_posix, a local TLS server,
 # and certificates made here with openssl. The only difference from production is the trust anchor: tls.cpp is
 # rebuilt with -DWEATHER_TEST_ANCHORS so it trusts a throwaway CA instead of the compiled-in roots.

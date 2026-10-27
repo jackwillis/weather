@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Does Retro68's compiler (the OS 9 toolchain) accept the portable core and pass every compile-time test?
 # Uses Retro68's published container image (rootless podman or docker); nothing is installed on the host.
 # usage: tools/probe-os9.sh        (compile-only, PowerPC and 68k)

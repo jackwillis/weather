@@ -17,9 +17,16 @@ are the source of truth, not this page.
 
 Issues and PRs share one number space, so `#12` may be either.
 
+**Amend, do not supersede.** Each topic has one issue that is its single source of truth. Extend that issue (add a section, update its checklist)
+instead of opening a second one; open a new issue only for a new topic or for a slice of work that has been adopted. If a duplicate slips in, fold it
+into the original, label it `duplicate`, and close it with a link.
+
+**UX map (2026-10-26).** Shared UX rules: #113. Platform plans: #98 (Mac OS 9) and #99 (NetBSD/X11); each has a product plan (Part A) and an
+earlier proposal (Part B). Map research: #114. First work slices (v0.2): #117 and #118. Index: #46 and #48.
+
 ## Milestones
 
-Each milestone has a tracking issue with a task list: **#45** (v0.1), **#46** (v0.2), **#47** (v0.3), **#48** (Research). Start there to see what is left.
+Each milestone has a tracking issue with a task list: **#123** (v0.0.1, a rough pipeline pre-release), **#45** (v0.1, includes the runbook for finishing it), **#46** (v0.2), **#47** (v0.3), **#48** (Research). Start there to see what is left.
 
 * **v0.1**: first usable NetBSD and Mac OS 9 release. An ordinary user can install, configure and use every platform we advertise.
   Keep it narrow; the tracking issue lists the gate.
@@ -59,6 +66,15 @@ text so merging closes the issue. Delete the branch after it merges.
 5. **The owner decides what merges.** Agents do not merge unless Jack has said so for that batch. When several PRs are merged together, each is
    merged on top of the previous result and the full checks are re-run on the combination.
 6. Until #77 (changelog fragments) lands, each PR adds a line to `CHANGELOG.md`. Expect conflicts there when several PRs merge together; keep both entries.
+
+## Releasing
+
+Jack tags and publishes; agents prepare. See the runbook in issue #123 (v0.0.1) and #45 (v0.1).
+1. `make check check-san distcheck os9` pass on `main`; the version in `Makefile` is the one to release (`docs/release-notes/X.Y.Z.md` exists).
+2. With maul booted into NetBSD: `make package-netbsd`, inspect with `pkg_info -L -B -d` (licence `gnu-gpl-v3`, LICENSE and THIRD_PARTY.md present) and run the unpacked `weather` once.
+3. **Jack pushes the tag** `vX.Y.Z`. The `Release` workflow builds the source tarball and the `.dsk` (with LICENSE, THIRD_PARTY.md and a Read Me added by `tools/stage-dsk.sh`), checks them (`tools/check-release.sh`) and creates a **draft** pre-release. It never publishes.
+4. `tools/release-attach.sh vX.Y.Z` (try `--dry-run` first) attaches the NetBSD package and extends `SHA512SUMS`. It refuses anything that is not a draft.
+5. **Jack reads the draft and publishes it.** The pipeline can be exercised without a tag from the Actions tab (workflow dispatch builds and checks artifacts, creates no release).
 
 ## Automated checks
 

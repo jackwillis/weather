@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // CDE-look drawing primitives on plain Xlib (immediate mode: callers redraw everything
 // into a Pixmap, then copy it to the window). Not the Motif API: no Xt, no libXm.
 // Resources (xrdb): xweather.background, .foreground, .font, .boldFont, .bigFont.
@@ -38,6 +40,8 @@ private:
 };
 
 void fill(Theme &t, Drawable w, Rect r, unsigned long color);
+// Draw a 1-bit bitmap (MSB first, rows padded to rowbytes, 1 = ink) at x,y as horizontal runs in one colour.
+void bitmap1(Theme &t, Drawable w, int x, int y, const unsigned char *bits, int bw, int bh, int rowbytes, unsigned long color);
 void shadow(Theme &t, Drawable w, Rect r, int thick, bool out);
 int text_width(XFontStruct *f, sv s);
 void text(Theme &t, Drawable w, XFontStruct *f, int x, int baseline, sv s, unsigned long color);

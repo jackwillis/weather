@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # 1. src/tls/anchors.h must be exactly what the PEM generates (nobody hand-edited it).
 # 2. The PEM must contain exactly the roots we expect (SHA-256 fingerprints below).
 # usage: tools/check-anchors.sh BRSSL

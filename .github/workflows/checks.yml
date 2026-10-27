@@ -25,9 +25,10 @@ jobs:
         with:
           persist-credentials: false
       - name: Install build and GUI dependencies
+        timeout-minutes: 12
         run: |
-          sudo apt-get update
-          sudo apt-get install -y g++ make python3 openssl libx11-dev xvfb imagemagick xfonts-base xfonts-75dpi
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends g++ make python3 openssl libx11-dev xvfb imagemagick xfonts-base xfonts-75dpi
       - name: Host checks, including GUI and provisioning
         run: make check
       - name: Address and undefined-behavior sanitizers
@@ -52,8 +53,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Install 32-bit build dependencies
+        timeout-minutes: 12
         run: |
-          sudo apt-get update
-          sudo apt-get install -y g++-multilib make python3 openssl
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends g++-multilib make python3 openssl
       - name: Unit, mutation and CLI checks with 32-bit long and UBSan
         run: make TARGET=host-32 check

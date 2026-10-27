@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Disposable filesystem capability checks; never opens the real weather seed.
 #include <Files.h>
 #include <cstdio>
