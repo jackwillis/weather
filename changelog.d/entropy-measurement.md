@@ -1,0 +1,1 @@
+- Add a separate optional OS 9 timing probe and exploratory offline analysis for #120/#121. No production entropy or provisioning behavior changes; hardware measurements and entropy credit remain pending.

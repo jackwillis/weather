@@ -1,0 +1,34 @@
+Issues #120/#121: design and diagnostic preparation, 2026-10-27
+Base main e3b5a87; production seed/provisioning code unchanged.
+
+Prepared separate EntropyProbe target only when WEATHER_BUILD_DIAGNOSTICS=ON.
+It samples raw timings and event kind/time/coordinates in a bounded static buffer,
+pauses outside the foreground app, and records no key contents. Disk reads use
+only a uniquely created 512-byte zero-filled scratch file beside its own app.
+Output is exclusively created, with a completion/count footer. No seed store,
+Preferences, networking, seed creation, conditioning or entropy-credit code links
+into the probe. Production Weather links no probe source.
+
+Python analyzer has bounded input/schema/range checks, separate phase/environment
+labels, descriptive concentration/autocorrelation/run/rate statistics and an
+unconditional zero-credit result. Predictable counters may have high empirical
+marginal variation; the tool explicitly does not treat that as entropy.
+Five host tests pass, including incomplete/oversized/malformed captures and a
+character-by-character mutation pass. Initial red run failed because the analysis
+module did not yet exist; after implementation all tests pass.
+
+Passed:
+- make check: 1074 unit, 299308 mutation inputs, 111 CLI, 12 TLS, 22 GUI,
+  14 anchors, 3 provisioning, 6 flags; five new Python analysis tests.
+- make REQUIRE_ASAN=1 check-san: ASan+UBSan, 1074 unit, 299308 inputs, 111 CLI.
+- full OS 9 diagnostics-enabled cross-build; final EntropyProbe_APPL rebuild
+  after making the output directory explicit from the probe's own app metadata.
+- separate diagnostics-OFF Weather_APPL cross-build; no EntropyProbe build
+  directory or probe markers in production Weather.pef.
+- source whitespace and licence policy checks.
+
+No hardware run, raw capture, per-environment entropy estimate, threshold,
+collector or conditioner is claimed. maul was unreachable earlier in the session.
+NIST source tool/notice reviewed, not installed/vendored or executed. All actual
+measurement/assessment gates remain open. Owner runbook and design boundaries:
+docs/OS9-ENTROPY-MEASUREMENT.md.

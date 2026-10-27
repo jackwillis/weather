@@ -67,3 +67,11 @@ plan. The isolated PreferencesProbe and WeatherPrefsUITest are prepared but have
 not run. Layout, typing, locked/read-only volume behavior, actual process restart
 and production delivery await Tiger. See OS9-PREFERENCES.md for source precedence
 and explicit failure/durability limits.
+
+## OS 9 entropy research (#120 / #121, 2026-10-27)
+
+A diagnostic-only EntropyProbe and a bounded offline analyzer are prepared.
+They collect timings from owned resources without reading seeds or logging key
+contents. The analyzer always credits zero bits; no hardware measurements,
+source credit, seed collector or threshold is claimed. Production provisioning
+is unchanged. See OS9-ENTROPY-MEASUREMENT.md for the owner runbook and review gate.

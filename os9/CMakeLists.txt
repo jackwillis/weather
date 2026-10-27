@@ -45,6 +45,11 @@ target_link_libraries(SeedInstall bearssl)
 
 option(WEATHER_BUILD_DIAGNOSTICS "Build self-running OS 9 network checks" OFF)
 if(WEATHER_BUILD_DIAGNOSTICS)
+  add_application(EntropyProbe
+    ${ROOT}/test/os9/entropy_probe.cc ${ROOT}/test/os9/entropy_probe.r
+    ${ROOT}/src/platform/posix/nocxx.cpp)
+  target_include_directories(EntropyProbe PRIVATE ${ROOT}/src)
+  target_compile_options(EntropyProbe PRIVATE -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
   add_application(PreferencesProbe CONSOLE
     ${ROOT}/spike/os9/preferences_probe.cc
     ${ROOT}/src/platform/os9/settings_os9.cpp
