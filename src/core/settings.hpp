@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Editing ~/.weatherrc without damaging it: change the keys we own, keep every other
 // line, comment and blank exactly as the user left them. Pure text in, pure text out;
 // reading and writing the bytes is the platform's SettingsStore.

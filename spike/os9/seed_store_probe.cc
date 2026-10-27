@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Actual OS 9 store failure tests, confined to a newly created disposable folder.
 #include "platform/os9/seed_store_os9.hpp"
 #include "tls/seed_pool.hpp"

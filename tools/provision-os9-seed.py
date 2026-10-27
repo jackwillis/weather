@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 """Generate a unique OS 9 seed import. Never overwrite a file or print seed bytes."""
 import argparse
 import hashlib

@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Regenerate src/tls/anchors.h from src/tls/roots.pem with BearSSL's brssl.
 # usage: tools/gen-anchors.sh BRSSL > src/tls/anchors.h
 BRSSL=${1:?usage: gen-anchors.sh path/to/brssl}

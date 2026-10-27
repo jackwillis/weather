@@ -35,7 +35,7 @@ build on a hit, so the rule is enforced, not hoped for. No heap in `core/`; no e
 ## 3. The Model (portable, drives every UI; implemented in src/app/model.hpp)
 State: Idle, Fetching, Ok(forecast, fetched_at), Error(status, last good forecast kept as Stale).
 Inputs: `refresh()`, `tick(now)`, `settings_changed()`. Output: what to draw. Rules: auto-refresh every
-15 min (Open-Meteo's update interval) when enabled; manual refresh always; failure backs off (1, 2, 4... up to
+15 min (Open-Meteo's update interval) when enabled; manual refresh requests within five seconds of the last fetch starting are ignored (never queued); automatic refresh and location changes bypass that floor; failure backs off (1, 2, 4... up to
 15 min) and keeps showing the last good data marked stale with its age; never fetches while one is running.
 The UI is a thin renderer on top, so all refresh behaviour is tested natively with a fake clock and fake Net.
 
@@ -65,6 +65,7 @@ Retro68 container. Layers: the same core, app and tls code; `src/platform/os9/` 
   controller (2026-10-25). The foreground loop yields and enforces a wrap-safe deadline. An abandoned open retains its callback
   storage until a later request drains it, or OT shuts down; a failed close quarantines the resolver until restart.
   POSIX `getaddrinfo` still blocks. See `spike/os9/DNS-PROBE.md` for hardware coverage and limits.
+* **Window scheduling**: SIZE allows background execution. The event pump checks osEvt suspend/resume flags and redraws on resume. A shared active-time clock excludes measured MenuSelect/DragWindow/TrackGoAway intervals from both DNS and socket/TLS deadlines, using modulo-32-bit tick arithmetic and an extended millisecond counter. This pauses only local deadline accounting; a server may close a connection during a long menu hold. New background/menu interaction acceptance is pending a Tiger boot; earlier window artwork/live-TLS scenarios passed under Classic.
 * **Clock**: UTC is derived from the Date & Time time zone (`gmtDelta` plus the daylight-saving flag); TLS certificate dates
   use it, and `fetch` refuses a clock before 2025. Verified against OS X on the real machine: gmtDelta already includes daylight saving (an extra DST term made it an hour slow).
 * **Entropy**: a unique secret seed provisioned from a modern OS CSPRNG initializes an in-process BearSSL HMAC_DRBG.
@@ -161,3 +162,14 @@ Red/green rule: a bug found by any test or by hand gets a failing test first (js
     src/ui/xweather/      CDE-look Xlib widgets + main
     mk/            host.mk netbsd-macppc.mk (macos9.mk later)
     test/ docs/ spike/
+
+## Native Preferences (PR #12)
+
+The app/preferences.hpp policy selects nonempty Preferences before legacy weather.conf,
+parses atomically, and commits UI changes only after a checked save. LocationDialog
+uses app-owned DLOG/DITL resources and native TextEdit controls. Automatic model ticks
+pause while editing; fields cannot open during a fetch. File Manager storage uses
+private exclusive temporaries and checked flush/exchange/rename, with no physical
+power-loss guarantee. Diagnostics explicitly supply isolated stores and are separate
+executables. Cancel never clears an unresolved startup configuration error.
+See OS9-PREFERENCES.md for migration and native verification gaps.

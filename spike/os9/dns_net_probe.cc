@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Exercises production Net::connect on OS 9 without touching the TLS seed store.
 #include "platform/os9/net_os9.hpp"
 #include <Events.h>

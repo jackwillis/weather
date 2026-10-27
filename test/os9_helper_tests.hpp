@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Run on the host; the helpers themselves include no Toolbox headers.
 #include "platform/os9/portable.hpp"
 #include <climits>
