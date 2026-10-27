@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // xdrive: drive an X application with synthetic events and take screenshots, for GUI tests
 // on a virtual X server (Xvfb). No XTest needed: events are sent straight to the window.
 //

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Logging for Mac OS 9: console window plus an appended "weather.log" next to the application.
 #include "core/log.hpp"
 #include "portable.hpp"

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Real TLS fetch and seed rotation check. Never logs random or seed bytes.
 #include "platform/os9/net_os9.hpp"
 #include "platform/os9/seed_store_os9.hpp"

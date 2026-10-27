@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // TLS spike: resolve, connect, BearSSL handshake, HTTP/1.0 GET, dump body.
 // usage: tlsfetch HOST PORT PATH     (logs to stderr, body to stdout)
 #include <bearssl.h>
