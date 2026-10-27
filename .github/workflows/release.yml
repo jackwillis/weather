@@ -1,0 +1,127 @@
+name: Release
+
+# Builds the artifacts a GitHub runner can build and, for a pushed tag vX.Y.Z only, creates a DRAFT pre-release.
+# The workflow never publishes and never creates a tag. Jack tags, then publishes the draft (docs/PROJECT-MANAGEMENT.md).
+# A manual run (workflow_dispatch) builds and checks everything and uploads workflow artifacts; it creates no release.
+# NetBSD binaries/package are attached afterwards by tools/release-attach.sh (they need the cross toolchain or maul).
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+  pull_request:   # changes to the pipeline itself are proven by a build with no release
+    paths: ['.github/workflows/release.yml', 'tools/check-release.sh', 'tools/stage-dsk.sh']
+
+permissions:
+  contents: read
+
+env:
+  # Pinned by digest; record it in the release notes. Update deliberately.
+  RETRO68_IMAGE: ghcr.io/autc04/retro68@sha256:2c2ec5ca764c98b7460522be7327426e3b4d039a317c22d6ccdcc64e5247f21a
+
+jobs:
+  build:
+    name: Source tarball and Mac OS 9 image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install build and check dependencies
+        timeout-minutes: 12
+        run: |
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends g++ make python3 openssl libx11-dev xvfb imagemagick xfonts-base xfonts-75dpi hfsutils podman
+      - name: Version from the Makefile
+        id: version
+        run: echo "version=$(sed -n 's/^VERSION *= *//p' Makefile)" >> "$GITHUB_OUTPUT"
+      - name: Repository policy
+        run: sh tools/check-policy.sh
+      - name: Source tarball, reproducibility and full host checks
+        run: |
+          make dist
+          make distcheck
+      - name: Mac OS 9 image (Retro68 container pinned by digest)
+        run: make os9 CONTAINER=podman RETRO68_IMAGE="$RETRO68_IMAGE"
+      - name: Add LICENSE, THIRD_PARTY.md and a Read Me to the image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: sh tools/stage-dsk.sh build/os9/Weather.dsk build/os9/Weather-release.dsk "$VERSION"
+      - name: Check and list the release artifacts
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: sh tools/check-release.sh "$VERSION" "build/dist/weather-$VERSION.tar.gz" build/os9/Weather-release.dsk "$TAG"
+      - name: Collect artifacts and checksums
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p out
+          cp "build/dist/weather-$VERSION.tar.gz" out/
+          cp build/os9/Weather-release.dsk "out/Weather-$VERSION.dsk"
+          echo "Retro68 image: $RETRO68_IMAGE" > out/retro68-image.txt
+          cd out
+          # Only the release files: not SHA512SUMS itself, not the image note
+          for f in "weather-$VERSION.tar.gz" "Weather-$VERSION.dsk"; do
+            printf 'SHA512 (%s) = %s\n' "$f" "$(sha512sum "$f" | cut -d' ' -f1)"
+          done > SHA512SUMS.new
+          mv SHA512SUMS.new SHA512SUMS
+          cat SHA512SUMS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-artifacts
+          path: out/*   # one glob: files land at the artifact root, so the draft job finds dl/<name>
+          if-no-files-found: error
+          retention-days: 14
+
+  verify:
+    name: Artifact layout and checksums
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-artifacts
+          path: dl
+      - name: Same files the draft job uses, with matching checksums
+        run: |
+          version=$(sed -n 's/^VERSION *= *//p' Makefile)
+          ls -l dl
+          for f in "weather-$version.tar.gz" "Weather-$version.dsk" SHA512SUMS retro68-image.txt; do
+            [ -f "dl/$f" ] || { echo "missing dl/$f"; exit 1; }
+          done
+          [ "$(wc -l < dl/SHA512SUMS)" = 2 ] || { echo "SHA512SUMS must list exactly the tarball and the .dsk"; cat dl/SHA512SUMS; exit 1; }
+          cd dl && sed -E 's/^SHA512 \((.*)\) = (.*)$/\2  \1/' SHA512SUMS | sha512sum -c -
+
+  draft-release:
+    name: Draft pre-release
+    if: github.ref_type == 'tag'
+    needs: [build, verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-artifacts
+          path: dl
+      - name: Create the draft (never published here)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=${TAG#v}
+          notes=docs/release-notes/$version.md
+          [ -f "$notes" ] || { echo "missing $notes"; exit 1; }
+          { cat "$notes"; echo; echo "## Build"; cat dl/retro68-image.txt; } > notes.md
+          gh release create "$TAG" --draft --prerelease --verify-tag --title "What It Be Like? $version" --notes-file notes.md \
+            dl/weather-"$version".tar.gz dl/Weather-"$version".dsk dl/SHA512SUMS

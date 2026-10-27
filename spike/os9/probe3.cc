@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // OS 9 probe 3: can we reach the network through Open Transport from a Retro68 PPC app?
 // Uses the public Open Transport API (declared in ot_min.h) linked with Apple's static glue (see ot_min.h / CMakeLists.txt).
 // Resolves api.open-meteo.com, then opens a TCP connection to port 443 and sends a few bytes (no TLS yet).
