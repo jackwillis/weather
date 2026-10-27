@@ -162,6 +162,23 @@ static_assert(om_status("", false, Err::BadData, R"({"temperature_2m":"°F","win
     om_status("", true, Err::BadData, R"({"temperature_2m":"°C","wind_speed_10m":"kn"})"), "unknown wind unit");
 static_assert(om_status("", false, Err::Ok, R"({"temperature_2m":"°F"})") && om_status("", false, Err::Ok), "units absent: nothing to check");
 
+// Explicit metadata is a typed contract; absent metadata remains compatible.
+constexpr bool om_bad_unit_metadata()
+{
+	const sv bad[] = {"123", "null", "true", "[]", R"("units")",
+	    R"({"temperature_2m":123})", R"({"temperature_2m":null})",
+	    R"({"temperature_2m":false})", R"({"temperature_2m":{}})",
+	    R"({"wind_speed_10m":123})", R"({"wind_speed_10m":null})",
+	    R"({"wind_speed_10m":[]})", R"({"temperature_2m":"junkF"})",
+	    R"({"temperature_2m":""})", R"({"wind_speed_10m":""})"};
+	for (sv u : bad) if (!om_status("", false, Err::BadData, u)) return false;
+	return true;
+}
+static_assert(om_bad_unit_metadata(), "malformed explicit unit metadata must be refused");
+static_assert(om_status("", false, Err::Ok, "{}") &&
+    om_status("", false, Err::Ok, R"({"temperature_2m":"F","wind_speed_10m":"mph"})") &&
+    om_status("", true, Err::Ok, R"({"temperature_2m":"C","wind_speed_10m":"kmh"})"), "unit aliases and absent keys");
+
 constexpr bool met_status(sv details, bool metric, Err want)
 {
 	char doc[400] = {};

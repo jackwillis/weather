@@ -123,6 +123,17 @@ static void exercise(const char *p, size_t n)
 		Buf<300> one; format_oneline(one, f);                         // formatting any accepted forecast must be safe
 		Buf<400> full; format_full(full, f, "Madison, WI");
 	}
+	// A successful parse must never ignore explicitly ill-typed unit metadata.
+	if (s.ok()) {
+		JsonLookup units = json_get(in, "current_units");
+		if (units.r == JsonFind::Found) {
+			for (sv key : {sv("temperature_2m"), sv("wind_speed_10m")}) {
+				JsonLookup label = json_get(units.value, key);
+				EXPECT(label.r != JsonFind::Malformed);
+				if (label.r == JsonFind::Found) { sv text; EXPECT(json_str(label.value, &text)); }
+			}
+		}
+	}
 	Forecast mq;                                                  // the same bytes asked for metric: accepted only if sane as metric
 	if (openmeteo_parse(in, Query{0, 0, true}, &mq).ok()) EXPECT(sane(mq, true));
 	Forecast mf;                                                  // MET Norway: same rules
