@@ -8,6 +8,7 @@ and is not the v0.1 gate. See `docs/release-notes/0.0.1.md` for what works and t
 
 ## 0.1.0 (unreleased)
 First version.
+- Both windows ignore manual refresh requests within five seconds of the last fetch starting; automatic refresh and location changes remain immediate.
 - OS 9 Preferences uses a single compiled writer to prevent Retro68 inline workspace storage from overlapping other globals.
 - OS 9 Preferences replacement checks native write access before exchanging files, preserving locked settings.
 - `weather`: current conditions over TLS (built-in BearSSL, no proxy) from Open-Meteo; retries with backoff,
