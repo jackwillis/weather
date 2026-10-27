@@ -1,6 +1,11 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Runs ON the Mac (OS X 10.4): copy an app out of a Retro68 .dsk image into MacOS9Lives:weather-dev with its resource fork.
 # usage: sh deliver-os9.sh /tmp/App.dsk AppName      (writes /tmp/deliver.done when finished, log in /tmp/deliver.log)
+# Weather is the native window; WeatherConsole is the console diagnostic.
+# WeatherUITest is a separate optional self-running test app. Quit an old copy
+# normally before replacing it; force-quitting can leave a managed TLS seed lock.
 # Notes: plain `hdiutil attach` hung/failed here ("Device not configured") while a stale hdiutil was running; attaching with
 # -nomount and mounting through diskutil is the reliable path. Run it in the FOREGROUND over ssh: under nohup/& the attach fails. A stuck `hdiutil attach` needs kill -9.
 dsk=$1 app=$2 dest=/Volumes/MacOS9Lives/weather-dev

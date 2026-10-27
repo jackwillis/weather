@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // The app model: everything a UI needs to decide, with no drawing and no OS calls.
 // Phases: Idle -> Fetching -> Ok | Failed. The UI owns the (blocking, yielding) fetch:
 //
@@ -29,8 +31,8 @@ public:
 
 	void start(long long now) { phase_ = Phase::Idle; next_at_ = now; want_ = true; }
 
-	// Manual refresh. Ignored while a fetch is running.
-	void request_refresh() { if (phase_ != Phase::Fetching) want_ = true; }
+	// Manual refresh. Ignored while fetching; tick drops requests within 5 s of a fetch start.
+	void request_refresh() { if (phase_ != Phase::Fetching) manual_ = true; }
 
 	void set_auto_refresh(bool on, long long now)
 	{
@@ -53,9 +55,15 @@ public:
 		if (phase_ == Phase::Fetching) return false;
 		// A clock that jumped backwards must not postpone the next refresh by years.
 		if (next_at_ > now + cfg_.interval_s) next_at_ = now + cfg_.interval_s;
-		bool due = want_ || (cfg_.auto_refresh && now >= next_at_);
+		// Rebase after a backwards clock step so the cooldown stays bounded.
+		if (started_ && now < last_start_) last_start_ = now;
+		bool manual_due = manual_ && (!started_ ||
+			static_cast<unsigned long long>(now) - static_cast<unsigned long long>(last_start_) >= 5);
+		manual_ = false; // ignored requests must not turn into delayed fetches
+		bool due = want_ || manual_due || (cfg_.auto_refresh && now >= next_at_);
 		if (!due) return false;
 		want_ = false;
+		started_ = true; last_start_ = now;
 		prev_ = phase_;
 		phase_ = Phase::Fetching;
 		return true;
@@ -168,6 +176,8 @@ private:
 	Phase phase_ = Phase::Idle, prev_ = Phase::Idle;
 	Forecast fc_;
 	bool have_ = false, want_ = true, pending_reset_ = false;
+	bool manual_ = false, started_ = false;
+	long long last_start_ = 0;
 	long long at_ = 0, next_at_ = 0;
 	int failures_ = 0;
 	Status last_;

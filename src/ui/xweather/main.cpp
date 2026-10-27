@@ -1,7 +1,11 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // xweather: current conditions in a CDE-look X11 window. One window; menus and dialogs are
 // drawn as overlays inside it. All refresh behaviour comes from app/Model; the (blocking)
 // fetch keeps the window alive through Net::yield, and can be cancelled by closing it.
+#include "app/credits.hpp"
 #include "app/locform.hpp"
+#include "app/logo.hpp"
 #include "app/model.hpp"
 #include "cde.hpp"
 #include "core/config.hpp"
@@ -34,7 +38,7 @@ constexpr unsigned kLeftTab = 0xfe20;  // XK_ISO_Left_Tab
 
 enum Mode { Normal, MenuOpen, Location, About };
 enum Cmd { CmdRefresh = 1, CmdLocation, CmdExit, CmdAuto, CmdImperial, CmdMetric, CmdAbout };
-enum Press { PNone = 0, PRefresh, PLocation, POk, PCancel, PAboutOk };
+enum Press { PNone = 0, PRefresh, PLocation, POk, PCancel, PAboutOk, PCredits, PNext, PBack };
 
 struct MenuItem { const char *label, *accel; int cmd; int kind; };   // kind: 0 plain, 1 check, 2 radio
 const MenuItem kFile[] = {{"Refresh", "F5", CmdRefresh, 0}, {"Location...", "Ctrl+L", CmdLocation, 0}, {"Exit", "Ctrl+Q", CmdExit, 0}};
@@ -59,6 +63,7 @@ struct App {
 	size_t nprov = 0;
 	Menu menus[3];
 	Mode mode = Normal;
+	int about_page = -1;   // -1: About; 0..kCreditPageCount-1: that Credits page
 	int menu_open = -1, menu_hover = -1;
 	bool menu_by_press = false;   // opened by a click (a second click on its title closes it), not by hovering
 	Press pressed = PNone;
@@ -88,8 +93,9 @@ Rect d_field(int i) { Rect p = d_panel(); return Rect{p.x + 104, p.y + 42 + i * 
 Rect d_units() { Rect p = d_panel(); return Rect{p.x + 16, p.y + 148, 300, 22}; }
 Rect d_ok() { Rect p = d_panel(); return Rect{p.x + 60, p.y + 200, 96, 26}; }
 Rect d_cancel() { Rect p = d_panel(); return Rect{p.x + 184, p.y + 200, 96, 26}; }
-Rect a_panel() { return Rect{70, 60, 300, 170}; }
-Rect a_ok() { Rect p = a_panel(); return Rect{p.x + 102, p.y + 130, 96, 26}; }
+Rect a_panel() { return Rect{50, 20, 340, 260}; }
+Rect a_ok() { Rect p = a_panel(); return Rect{p.x + 194, p.y + 218, 96, 26}; }        // About: OK; Credits: Next
+Rect a_credits() { Rect p = a_panel(); return Rect{p.x + 50, p.y + 218, 96, 26}; }   // About: Credits...; Credits: Back
 
 bool menu_checked(const MenuItem &m)
 {
@@ -272,13 +278,26 @@ void draw_about(Drawable d)
 {
 	cde::Theme &t = g.th;
 	Rect p = a_panel();
-	draw_panel(d, p, "About xweather");
 	Buf<48> v; v.add("xweather ").add(WEATHER_VERSION);
-	cde::text(t, d, t.bold, p.x + 16, p.y + 52, v.view(), t.fg);
-	cde::text(t, d, t.normal, p.x + 16, p.y + 72, "Weather for old Unix machines.", t.fg);
-	cde::text(t, d, t.normal, p.x + 16, p.y + 90, "Data from Open-Meteo.com.", t.fg);
-	cde::text(t, d, t.normal, p.x + 16, p.y + 108, "BSD 2-clause license.", t.fg);
-	cde::button(t, d, a_ok(), "OK", g.pressed == PAboutOk, true);
+	if (g.about_page < 0) {
+		draw_panel(d, p, "About xweather");
+		cde::bitmap1(t, d, p.x + (p.w - kLogoW) / 2, p.y + 36, kLogoBits, kLogoW, kLogoH, kLogoRowBytes, t.fg);
+		cde::text(t, d, t.bold, p.x + 16, p.y + 144, v.view(), t.fg);
+		for (size_t i = 0; i < sizeof kCreditsShort / sizeof *kCreditsShort; i++)
+			cde::text(t, d, t.normal, p.x + 16, p.y + 164 + static_cast<int>(i) * 16, kCreditsShort[i], t.fg);
+		cde::button(t, d, a_credits(), "Credits...", g.pressed == PCredits, false);
+		cde::button(t, d, a_ok(), "OK", g.pressed == PAboutOk, true);
+		return;
+	}
+	const CreditPage &pg = kCreditPages[g.about_page];
+	Buf<48> title; title.add("Credits: ").add(pg.title);
+	draw_panel(d, p, title.c_str());
+	for (size_t i = 0; i < pg.n; i++)
+		cde::text(t, d, t.normal, p.x + 16, p.y + 56 + static_cast<int>(i) * 18, pg.lines[i], t.fg);
+	Buf<16> n; n.add_int(g.about_page + 1).add(" of ").add_int(static_cast<long long>(kCreditPageCount));
+	cde::text(t, d, t.normal, p.x + 16, p.y + 206, n.c_str(), t.dim);
+	cde::button(t, d, a_credits(), "Back", g.pressed == PBack, false);
+	cde::button(t, d, a_ok(), "Next", g.pressed == PNext, true);
 }
 
 void redraw()
@@ -356,7 +375,7 @@ void run_command(int cmd)
 	case CmdRefresh: g.model.request_refresh(); break;
 	case CmdLocation: open_location(); break;
 	case CmdExit: g.quit = true; break;
-	case CmdAbout: g.mode = About; break;
+	case CmdAbout: g.mode = About; g.about_page = -1; break;
 	case CmdAuto: {
 		g.cfg.auto_refresh = !g.cfg.auto_refresh;
 		g.model.set_auto_refresh(g.cfg.auto_refresh, now_s());
@@ -428,7 +447,12 @@ void on_button_press(const XButtonEvent &e)
 		else if (d_cancel().contains(e.x, e.y)) g.pressed = PCancel;
 		return;
 	}
-	if (g.mode == About) { if (a_ok().contains(e.x, e.y)) g.pressed = PAboutOk; return; }
+	if (g.mode == About) {
+		bool credits = g.about_page >= 0;
+		if (a_ok().contains(e.x, e.y)) g.pressed = credits ? PNext : PAboutOk;
+		else if (a_credits().contains(e.x, e.y)) g.pressed = credits ? PBack : PCredits;
+		return;
+	}
 	if (r_refresh().contains(e.x, e.y)) g.pressed = PRefresh;
 	else if (r_locbtn().contains(e.x, e.y)) g.pressed = PLocation;
 }
@@ -439,13 +463,16 @@ void on_button_release(const XButtonEvent &e)
 	g.pressed = PNone;
 	g.dirty = true;
 	if (p == PNone) return;
-	Rect r = p == PRefresh ? r_refresh() : p == PLocation ? r_locbtn() : p == POk ? d_ok() : p == PCancel ? d_cancel() : a_ok();
+	Rect r = p == PRefresh ? r_refresh() : p == PLocation ? r_locbtn() : p == POk ? d_ok() : p == PCancel ? d_cancel() : (p == PCredits || p == PBack) ? a_credits() : a_ok();
 	if (!r.contains(e.x, e.y)) return;
 	switch (p) {
 	case PRefresh: g.model.request_refresh(); break;
 	case PLocation: open_location(); break;
 	case POk: apply_location(); break;
-	case PCancel: case PAboutOk: g.mode = Normal; break;
+	case PCancel: case PAboutOk: g.mode = Normal; g.about_page = -1; break;
+	case PCredits: g.about_page = 0; break;
+	case PNext: g.about_page = g.about_page + 1 < static_cast<int>(kCreditPageCount) ? g.about_page + 1 : -1; break;
+	case PBack: g.about_page = -1; break;
 	default: break;
 	}
 }
@@ -496,7 +523,14 @@ void on_key(XKeyEvent &e)
 		}
 		return;
 	}
-	if (g.mode == About) { if (ks == XK_Escape || ks == XK_Return || ks == XK_space) g.mode = Normal; return; }
+	if (g.mode == About) {
+		if (g.about_page >= 0) {   // Credits: Return/space/Right next page (after the last: About), Escape/Left back
+			if (ks == XK_Return || ks == XK_space || ks == XK_Right) g.about_page = g.about_page + 1 < static_cast<int>(kCreditPageCount) ? g.about_page + 1 : -1;
+			else if (ks == XK_Escape || ks == XK_Left) g.about_page = -1;
+		} else if (ks == XK_Escape || ks == XK_Return || ks == XK_space) g.mode = Normal;
+		else if (ks == XK_c || ks == XK_C) g.about_page = 0;
+		return;
+	}
 	if (g.mode == MenuOpen) { if (ks == XK_Escape) { g.mode = Normal; g.menu_open = -1; } return; }
 	if (ks == kF5) g.model.request_refresh();
 	else if (ctrl && (ks == XK_l || ks == XK_L)) open_location();

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // The weather picture, as geometry only. Every UI supplies a small Canvas (the same four calls) so the sun, moon, clouds,
 // rain, snow and storm look the same on X11 and on Mac OS 9:
 //
