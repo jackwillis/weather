@@ -11,15 +11,21 @@ namespace wx {
 static void dump_text(const char *what, const char *p, size_t n)
 {
 	if (log_level() < LogDebug) return;
-	if (n > 1500) n = 1500;
-	char tmp[1600];
-	size_t k = 0;
-	for (size_t i = 0; i < n && k + 1 < sizeof tmp; i++) {
-		unsigned char c = static_cast<unsigned char>(p[i]);
-		tmp[k++] = (c == '\r' || c == '\n' || c == '\t' || (c >= 32 && c < 127)) ? static_cast<char>(c) : '.';
+	// Both platform loggers bound a formatted record to 512 bytes. Keep each
+	// payload small and on one line, with offsets for reconstructing the dump.
+	logf(LogDebug, "%s (%zu bytes):", what, n);
+	char chunk[241];
+	for (size_t offset = 0; offset < n;) {
+		size_t count = n - offset;
+		if (count > sizeof chunk - 1) count = sizeof chunk - 1;
+		for (size_t i = 0; i < count; i++) {
+			unsigned char c = static_cast<unsigned char>(p[offset + i]);
+			chunk[i] = c >= 32 && c < 127 ? static_cast<char>(c) : '.';
+		}
+		chunk[count] = 0;
+		logf(LogDebug, "%s [%zu]: %s", what, offset, chunk);
+		offset += count;
 	}
-	tmp[k] = 0;
-	logf(LogDebug, "%s (%zu bytes):\n%s", what, n, tmp);
 }
 
 static Status io_fail(const Io &io, const char *what)
@@ -113,20 +119,23 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
     const FetchOpts &o, char *buf, size_t cap, Forecast *out)
 {
 	Status last = make(Err::NoSource, "no data sources configured");
+	bool attempted = false;
 	for (size_t i = 0; i < n; i++) {
 		const Provider &p = *providers[i];
-        if (!o.save_forecasts && sv(p.name)=="met-no") {
-            last=make(Err::Config,"MET Norway requires forecast saving");
-            logf(LogWarn,"%s",last.msg); continue;
-        }
+		if (!o.save_forecasts && sv(p.name)=="met-no") {
+			Status skipped=make(Err::Config,"MET Norway requires forecast saving");
+			if (!attempted) last=skipped;
+			logf(LogWarn,"%s",skipped.msg); continue;
+		}
 		char path[320];
 		if (!p.path(q, path, sizeof path)) {
-			last = make(Err::BadData, "request path too long");
+			if (!attempted) last = make(Err::BadData, "request path too long");
 			continue;
 		}
 		if (p.needs_contact && !(o.contact && o.contact[0])) {
-			last = make(Err::Config, "this data source requires 'contact' in the config file (see weatherrc(5))");
-			logf(LogWarn, "%s skipped: %s", p.name, last.msg);
+			Status skipped = make(Err::Config, "this data source requires 'contact' in the config file (see weatherrc(5))");
+			if (!attempted) last = skipped;
+			logf(LogWarn, "%s skipped: %s", p.name, skipped.msg);
 			continue;
 		}
 		const char *host = o.force_host ? o.force_host : p.host;
@@ -164,9 +173,9 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 			logf(LogWarn, "%s failed: %s: %s (detail %d)", p.name, err_name(s.err), s.msg, s.detail);
 		}
 		last = s;
+		attempted = true;
 		if (s.err == Err::Cancelled) return s;   // do not fall back after a cancel
 	}
-	if (n > 1) return make(Err::NoSource, "all data sources failed", static_cast<int>(n));
 	return last;
 }
 

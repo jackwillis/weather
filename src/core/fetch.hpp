@@ -38,8 +38,10 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 Status fetch_retry(Net &net, const char *host, const char *port, bool tls, const char *path,
     const FetchOpts &o, char *buf, size_t cap, sv *body);
 
-// Try providers in order; the first good forecast wins. With one provider the
-// real error is returned, with several NoSource (each failure is logged).
+// Try providers in order; the first good forecast wins. Otherwise return the
+// last attempted source's error (kind, message and detail), or the last skip
+// reason if none was attempted. Empty lists return NoSource. Each failure is
+// logged at warning level; skipped providers do not hide an attempted failure.
 Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, const Query &q,
     const FetchOpts &o, char *buf, size_t cap, Forecast *out);
 

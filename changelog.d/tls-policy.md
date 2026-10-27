@@ -1,0 +1,2 @@
+- Restrict TLS to TLS 1.2 and six ECDHE ChaCha20-Poly1305/AES-GCM suites. Live production-client handshakes passed all four forecast/geocoding services.
+- Exclude environment clock/trust overrides from production; explicitly flagged test builds use separate output paths and cannot be installed, packaged or distributed.

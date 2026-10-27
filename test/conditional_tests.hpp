@@ -111,4 +111,10 @@ static void test_conditional_requests()
     opts.force_host=nullptr;
     CHECK(fetch_forecast_cached(net,om,1,q,opts,buf,sizeof buf,&reused,&store,"open-meteo").ok());
     CHECK(reads==0);
+    // A skipped MET choice must not hide the last attempted provider's failure.
+    f.steps[0]={make(Err::Dns,"fixture DNS failure"),"",Err::Ok}; f.nsteps=1; f.next=0;
+    opts.force_host="fake";
+    const Provider *attempt_then_skip[]={&kOpenMeteo,&kMetNo};
+    CHECK(fetch_forecast(net,attempt_then_skip,2,q,opts,buf,sizeof buf,&reused).err==Err::Dns);
+
 }

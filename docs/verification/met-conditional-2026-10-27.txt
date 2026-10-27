@@ -95,3 +95,29 @@ Evening integration results: make check passed 1708 unit/storage/preferences,
 OS 9 production/diagnostic and NetBSD CLI/X11/unit cross-builds passed; existing
 sysroot cabs/cabsf linker warnings remain. Policy and whitespace checks passed.
 No failing tests remain. No hardware run, delivery or live HTTP API request.
+
+Auto-merge batch integration (2026-10-27): parent #15 is 80e9f99, incorporating
+main 435a711 (#145 TLS production/test isolation, #83 complete debug dumps and
+last-attempted-provider errors, #84 UI gestures/CDE bounds, #43 OT ABI checks).
+GitHub performed those main merges; no manual PR merge by Codex. #146 remains
+stacked on #15 and draft. Kept both cache-preference and interrupted-gesture GUI
+scenarios, both status sections, strict HTTP/conditional behavior and test modes.
+
+The automatically merged MET-off skip initially overwrote an earlier attempted
+provider's DNS failure. Red regression output:
+FAIL test/conditional_tests.hpp:118: fetch_forecast(net,attempt_then_skip,2,q,opts,buf,sizeof buf,&reused).err==Err::Dns
+1722 checks, 1 failed
+Corrected the skip to replace the result only if no provider was attempted;
+the MET explanation is still logged. The regression and all suites now pass.
+
+Final serial verification: make check passed 1722 unit/storage/preferences in
+both production and explicit test-hook builds, 396036 mutation inputs, 116 CLI
+checks in each build, 5 cache CLI, 24 TLS, 48 GUI, 95 CDE text, 3 fixture-startup,
+14 anchors, 3 provisioning, 6 flags and linked-artifact build isolation.
+ASan+UBSan passed both unit/CLI build modes, mutation/cache suites and 95 CDE checks.
+OS 9 production/diagnostic and NetBSD CLI/X11/unit cross-builds passed. Existing
+NetBSD cabs/cabsf sysroot linker warnings remain. Policy and feature-diff whitespace
+checks passed. The imported OT RFC's intentional Markdown hard break is unchanged.
+No hardware run, delivery or live HTTP request. Jack's default-on saving and true
+off/MET-skip decision is unchanged. GitHub required checks must pass; drafts have
+no auto-merge request. Hardware steps remain in docs/FORECAST-CACHE.md.

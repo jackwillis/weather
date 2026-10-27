@@ -8,7 +8,8 @@ problem before trying again. An externally configured `cache = off` still blocks
 reads/writes even when deletion fails, and reports that failure. MET Norway is
 skipped with an explanation because it requires response caching. Open-Meteo
 remains available without saving. The app does not silently change the configured
-provider list. In-memory forecasts remain available until quitting.
+provider list. A skipped MET selection does not replace an earlier attempted
+provider failure. In-memory forecasts remain available until quitting.
 
 POSIX storage is a separate `<config path>.cache`
 file, created privately with mode 0600. Contact details and TLS seeds are never
