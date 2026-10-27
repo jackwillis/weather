@@ -15,7 +15,7 @@ struct Config {
 	char name[48] = "Madison, WI";
 	bool metric = false;
 	bool auto_refresh = true;   // xweather: refresh every 15 minutes
-	bool cache = false;         // opt-in disk restore after failure; MET response caching is automatic
+	bool cache = true;          // save forecasts; off also disables MET Norway
 	int timeout_s = 15;
 	int attempts = 3;
 	char providers[64] = "open-meteo";   // comma separated, in fallback order

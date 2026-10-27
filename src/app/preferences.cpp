@@ -17,8 +17,8 @@ Status commit_preferences(SettingsStore &prefs, SettingsStore &legacy, const Con
     Buf<16> lat, lon;
     lat.add_fixed(candidate.lat_e4, 4); lon.add_fixed(candidate.lon_e4, 4);
     KeyVal kv[] = {{"latitude",lat.view()}, {"longitude",lon.view()}, {"name",candidate.name},
-                   {"units",candidate.metric?"metric":"imperial"}, {"autorefresh",candidate.auto_refresh?"on":"off"}};
-    s = settings_update(sv(before,n),kv,5,after,sizeof after,&written);
+                   {"units",candidate.metric?"metric":"imperial"}, {"autorefresh",candidate.auto_refresh?"on":"off"}, {"cache",candidate.cache?"on":"off"}};
+    s = settings_update(sv(before,n),kv,6,after,sizeof after,&written);
     if (s.ok()) s = prefs.save(prefs,after,written);
     if (!s.ok()) return s;
     bool changed = cfg.lat_e4 != candidate.lat_e4 || cfg.lon_e4 != candidate.lon_e4 || cfg.metric != candidate.metric;

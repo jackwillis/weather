@@ -69,9 +69,9 @@ static void test_conditional_requests()
     f.steps[0].response=response;
     CHECK(fetch_forecast(net,om,1,q,opts,buf,sizeof buf,&reused).ok());
     CHECK(!reused.last_modified[0] && strstr(f.request,"If-Modified-Since:")==nullptr);
-    // Automatic MET persistence does not grant offline fallback or persist OM data.
+    // Saving defaults on; off forbids persistence for every provider.
     strcpy(cfg.providers,"open-meteo,met-no"); strcpy(cfg.contact,"fixture.invalid");
-    CHECK(!cfg.cache && cache_storage_needed(cfg));
+    CHECK(cfg.cache && cache_storage_needed(cfg));
     struct Writes { unsigned count=0; unsigned char record[kForecastCacheBytes]={}; } writes;
     CacheStore tracked; tracked.ctx=&writes;
     tracked.save=[](CacheStore &s,const unsigned char *bytes,size_t size) {
@@ -84,12 +84,28 @@ static void test_conditional_requests()
     CHECK(!strcmp(decoded.forecast.last_modified,modified));
     Forecast open=fresh; open.source="open-meteo"; open.last_modified[0]=0;
     CHECK(update_forecast_cache(tracked,cache_key(cfg),open,f.clock,cfg.cache).ok());
-    CHECK(writes.count==1); // Open-Meteo success leaves the automatic MET validator intact.
-    cfg.cache=true;
-    CHECK(update_forecast_cache(tracked,cache_key(cfg),open,f.clock,cfg.cache).ok() && writes.count==2);
+    CHECK(writes.count==2);
+    cfg.cache=false;
+    CHECK(update_forecast_cache(tracked,cache_key(cfg),fresh,f.clock,cfg.cache).ok() && writes.count==2);
     cfg.cache=false; cfg.contact[0]=0;
     CHECK(!cache_storage_needed(cfg));
     strcpy(cfg.contact,"fixture.invalid"); strcpy(cfg.providers,"open-meteo");
     CHECK(!cache_storage_needed(cfg));
 
+    opts.save_forecasts=false;
+    strcpy(f.request,"untouched");
+    Status disabled=fetch_forecast(net,only,1,q,opts,buf,sizeof buf,&reused);
+    CHECK(disabled.err==Err::Config && strstr(disabled.msg,"forecast saving"));
+    CHECK(!strcmp(f.request,"untouched"));
+    CHECK(fetch_forecast(net,om,1,q,opts,buf,sizeof buf,&reused).ok());
+    const Provider *fallback[]={&kMetNo,&kOpenMeteo};
+    CHECK(fetch_forecast(net,fallback,2,q,opts,buf,sizeof buf,&reused).ok());
+    CHECK(sv(reused.source)=="open-meteo");
+    unsigned reads=0; store.ctx=&reads;
+    store.load=[](CacheStore &s,unsigned char *,size_t,size_t *) {
+        ++*static_cast<unsigned *>(s.ctx); return make(Err::Io,"unexpected read");
+    };
+    opts.force_host=nullptr;
+    CHECK(fetch_forecast_cached(net,om,1,q,opts,buf,sizeof buf,&reused,&store,"open-meteo").ok());
+    CHECK(reads==0);
 }

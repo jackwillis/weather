@@ -76,7 +76,13 @@ int main() {
 		fault=f; closes=0; check(wx::os9_cache_init(&store,path,&ops).ok(),"open faulted reader");
 		check(!wx::read_cached_forecast(store.base,key,at,&cached,&found).ok() && !found,"read/close failure is not a cache hit");
 	}
-	fault=Fault::None;
+	fault=Fault::Remove; removes=0;
+    check(wx::os9_cache_init(&store,path,&ops).ok(),"open deletion fault");
+    check(!wx::remove_cached_forecast(store.base).ok(),"deletion failure reported");
+    fault=Fault::None;
+    check(wx::remove_cached_forecast(store.base).ok(),"delete saved forecast");
+    check(wx::remove_cached_forecast(store.base).ok(),"deleting absent forecast succeeds");
+    check(wx::write_cached_forecast(store.base,key,forecast,at).ok(),"re-enable saving");
 	FSSpec file; check(spec(path,file)==noErr && FSpDelete(&file)==noErr,"remove diagnostic primary");
 	check(FSpDelete(&dir)==noErr,"remove empty diagnostic directory");
 	std::fprintf(logfile,"finished: %d failures\n",failures); std::fclose(logfile);

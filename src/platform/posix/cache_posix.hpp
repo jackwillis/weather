@@ -13,6 +13,7 @@ struct CacheFileOps {
 	int (*sync)(int);
 	int (*close)(int);
 	int (*replace)(const char *,const char *);
+	int (*remove)(const char *) = nullptr;
 };
 const CacheFileOps &posix_cache_file_ops();
 struct PosixCache {

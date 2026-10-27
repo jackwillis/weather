@@ -109,6 +109,10 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 	Status last = make(Err::NoSource, "no data sources configured");
 	for (size_t i = 0; i < n; i++) {
 		const Provider &p = *providers[i];
+        if (!o.save_forecasts && sv(p.name)=="met-no") {
+            last=make(Err::Config,"MET Norway requires forecast saving");
+            logf(LogWarn,"%s",last.msg); continue;
+        }
 		char path[320];
 		if (!p.path(q, path, sizeof path)) {
 			last = make(Err::BadData, "request path too long");

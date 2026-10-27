@@ -83,6 +83,7 @@ Stacked on cache PR #15: bounded Last-Modified persistence, matching
 If-Modified-Since requests and safe 304 reuse are implemented through the shared
 CLI/X11/OS 9 path. Cache record v2 is 224 bytes; unsupported draft v1 records are
 refetched. Host/GUI and cross-build results are recorded in the implementation
-PR. MET metadata persists automatically; cache=off still disables disk restoration
-after failure, and Open-Meteo persistence remains opt-in. Native runtime
+PR. Forecast saving defaults on, with a persisted Options setting on both window
+apps. Turning it off deletes the saved forecast and disables MET Norway with an
+explanation; Open-Meteo remains available without disk storage. Native runtime
 acceptance remains pending.

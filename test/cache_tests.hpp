@@ -7,7 +7,7 @@
 #include <fcntl.h>
 
 namespace cache_test {
-enum Fault { None, Read, PartialThenFail, Partial, SyncFile, CloseFile, Replace, SyncDirectory, CloseDirectory };
+enum Fault { None, Read, PartialThenFail, Partial, SyncFile, CloseFile, Replace, SyncDirectory, CloseDirectory, Remove };
 static Fault fault=None;
 static int writes=0,syncs=0,closes=0;
 static ssize_t read(int fd,void *p,size_t n) { if(fault==Read) { errno=EIO; return -1; } return ::read(fd,p,n); }
@@ -30,6 +30,7 @@ static int close(int fd)
 	return result;
 }
 static int replace(const char *a,const char *b) { if(fault==Replace) { errno=EIO; return -1; } return ::rename(a,b); }
+static int remove(const char *path) { if(fault==Remove) { errno=EACCES; return -1; } return ::unlink(path); }
 }
 
 static void test_cache_storage()
@@ -45,7 +46,7 @@ static void test_cache_storage()
 	CHECK(write_cached_forecast(store.base,key,forecast,at).ok());
 	CHECK(read_cached_forecast(store.base,key,at,&cached,&found).ok() && found && cached.forecast.temp_t10==650);
 	struct stat info; CHECK(stat(path,&info)==0 && (info.st_mode&0777)==0600);
-	CacheFileOps ops{cache_test::read,cache_test::write,cache_test::sync,cache_test::close,cache_test::replace};
+	CacheFileOps ops{cache_test::read,cache_test::write,cache_test::sync,cache_test::close,cache_test::replace,cache_test::remove};
 	for(cache_test::Fault fault:{cache_test::PartialThenFail,cache_test::SyncFile,cache_test::CloseFile,cache_test::Replace,cache_test::SyncDirectory,cache_test::CloseDirectory}) {
 		CHECK(posix_cache_init(&store,path).ok()); forecast.temp_t10=650;
 		CHECK(write_cached_forecast(store.base,key,forecast,at).ok());
@@ -67,10 +68,18 @@ static void test_cache_storage()
 	int fd=open(path,O_WRONLY|O_TRUNC); CHECK(fd>=0);
 	CHECK(::write(fd,"x",1)==1); CHECK(::close(fd)==0);
 	CHECK(!read_cached_forecast(store.base,key,at,&cached,&found).ok() && !found);
-	CHECK(unlink(path)==0);
+	cache_test::fault=cache_test::Remove;
+    CHECK(posix_cache_init(&store,path,&ops).ok());
+    CHECK(!remove_cached_forecast(store.base).ok() && access(path,F_OK)==0);
+    cache_test::fault=cache_test::None;
+    CHECK(remove_cached_forecast(store.base).ok());
+	CHECK(remove_cached_forecast(store.base).ok()); // Already absent.
 	CHECK(symlink("missing-target",path)==0);
 	CHECK(!read_cached_forecast(store.base,key,at,&cached,&found).ok() && !found);
-	CHECK(unlink(path)==0);
+	CHECK(remove_cached_forecast(store.base).ok()); // Removes link, never its target.
+    CHECK(mkdir(path,0700)==0);
+    CHECK(!remove_cached_forecast(store.base).ok()); // Failure is reported.
+    CHECK(rmdir(path)==0);
 	DIR *directory=opendir(dir); CHECK(directory!=nullptr);
 	int entries=0; if(directory) { while(dirent *entry=readdir(directory)) if(strcmp(entry->d_name,".") && strcmp(entry->d_name,"..")) ++entries; closedir(directory); }
 	CHECK(entries==0); // Failure paths did not leak temporary files.
@@ -145,7 +154,7 @@ static void test_cache_codec()
 	CHECK(!cache_encode(key,forecast,at,record));
 	forecast.source="open-meteo"; key.providers="open-meteo";
 	CHECK(!cache_encode(key,forecast,at,record));
-	Config cfg; CHECK(!cfg.cache);
+	Config cfg; CHECK(cfg.cache);
 	CHECK(config_parse("cache=on",&cfg).ok() && cfg.cache);
 	CHECK(config_parse("cache=off",&cfg).ok() && !cfg.cache);
 	CHECK(!config_parse("cache=maybe",&cfg).ok());

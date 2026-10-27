@@ -214,13 +214,18 @@ int main(int argc, char **argv)
 	PosixCache cache;
 	bool cache_enabled=false, cached=false;
 	long long fetched_at=0, now=net.now(net);
-	if(cache_storage_needed(cfg) && !fo.force_host && store_st.ok()) {
+	if(!fo.force_host && store_st.ok()) {
 		Buf<1024> path; path.add(store.path).add(".cache");
 		Status initialized=path.truncated?make(Err::Config,"cache path too long"):posix_cache_init(&cache,path.c_str());
 		cache_enabled=initialized.ok();
 		if(!initialized.ok()) logf(LogWarn,"%s",initialized.msg);
 	}
-	Status s=fetch_forecast_cached(net,chosen,nchosen,q,fo,buf,sizeof buf,&f,cache_enabled?&cache.base:nullptr,cfg.providers);
+	if(cache_enabled && !cfg.cache) {
+        Status removed=remove_cached_forecast(cache.base);
+        if(!removed.ok()) logf(LogWarn,"%s",removed.msg);
+    }
+    fo.save_forecasts=cfg.cache && (cache_enabled || fo.force_host);
+    Status s=fetch_forecast_cached(net,chosen,nchosen,q,fo,buf,sizeof buf,&f,cache_enabled && cfg.cache?&cache.base:nullptr,cfg.providers);
 	now=net.now(net);
 	if(s.ok() && cache_enabled) {
 		Status saved=update_forecast_cache(cache.base,cache_key(cfg),f,now,cfg.cache);

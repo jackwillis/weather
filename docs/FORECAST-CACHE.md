@@ -1,10 +1,16 @@
 # Last-good forecast cache
 
-Set `cache = on` in the config shared by `weather` and `xweather` to enable the
-offline restore. It is off by default. MET Norway response caching remains active
-when MET is configured with contact information, to support conditional requests;
-cache=off never displays that disk record after a failed live request. Open-Meteo
-is persisted only with cache=on. POSIX storage is a separate `<config path>.cache`
+Forecast saving defaults on. Both window apps offer **Save forecasts on this
+computer** under Options, corresponding to `cache = on` in the config. Turning it
+off removes the saved forecast and prevents subsequent disk reads and writes.
+If deletion fails, the menu setting stays on and shows an error; fix the storage
+problem before trying again. An externally configured `cache = off` still blocks
+reads/writes even when deletion fails, and reports that failure. MET Norway is
+skipped with an explanation because it requires response caching. Open-Meteo
+remains available without saving. The app does not silently change the configured
+provider list. In-memory forecasts remain available until quitting.
+
+POSIX storage is a separate `<config path>.cache`
 file, created privately with mode 0600. Contact details and TLS seeds are never
 stored in this file. Plain-HTTP `-H` fixture requests bypass persistent caching.
 
@@ -82,6 +88,18 @@ Production startup never reads diagnostic marker files or fixture overrides.
 Initialized platform adapters carry context pointers; keep them at stable addresses
 and do not copy them after initialization.
 
+### Native saving-preference acceptance (pending)
+
+On the owner's OS 9 test setup, start with a successful saved forecast, then
+relaunch and confirm its age is visible during an update. In Options, uncheck
+**Save forecasts on this computer**: the checkmark should clear and the owned
+`Weather Forecast Cache` file should disappear. Quit normally and relaunch;
+confirm the preference remains off and no disk forecast is restored. With MET
+selected, Refresh must explain that forecast saving is required; with Open-Meteo
+selected, a successful update must leave no forecast cache file. Turn saving back
+on, refresh successfully, and relaunch to confirm restoration works again. Do not
+remove or modify any TLS seed or lock file. These steps have not run on hardware.
+
 ## MET Norway conditional requests (#128)
 
 The conditional-request branch adds record version 2. Unreleased version-1
@@ -98,11 +116,10 @@ A 200 replaces the forecast and validator. An unsolicited 304 cannot manufacture
 an empty success. Open-Meteo requests stay unconditional. Plain HTTP fixture
 requests bypass disk validators as well as persistence.
 
-MET response caching is automatic when the provider and contact are configured.
-The cache=off setting disables offline restoration, not MET revalidation storage.
-In this mode an Open-Meteo success does not overwrite the retained MET validator.
-All frontends use the same storage policy. Diagnostics use only an explicitly
-supplied cache store; a null test store disables persistence.
+MET response caching follows the same saving preference as every provider.
+With saving off, MET is skipped before network access, including when a contact
+is configured. Diagnostics use only an explicitly supplied cache store; a null
+test store disables persistence.
 This slice does not establish complete compliance with every MET traffic rule,
 such as request deferral until Expires.
 

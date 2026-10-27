@@ -87,7 +87,7 @@ static void exercise(const char *p, size_t n)
 	Status config_status=load_config(config_store,loaded);
 	if(!config_status.ok()) {
 		EXPECT(loaded.lat_e4==430747 && loaded.lon_e4==-893841);
-		EXPECT(!loaded.metric && !loaded.cache && loaded.auto_refresh && !strcmp(loaded.name,"Madison, WI"));
+		EXPECT(!loaded.metric && loaded.cache && loaded.auto_refresh && !strcmp(loaded.name,"Madison, WI"));
 	}
 	// Format adapter: bounded output, failure empties it, deterministic prefix.
 	char full[257], small[18];

@@ -94,11 +94,13 @@ keep a private last-good forecast beside this config file, with suffix
 .Pa .cache .
 A matching entry fetched within 24 hours may be shown explicitly as stale when
 a live update fails. The CLI retains the live failure exit status.
-MET Norway response data and Last-Modified metadata are retained for conditional
-requests even when this option is off; off disables restoring disk data after a
-failed live request. Open-Meteo persistence remains opt-in.
+Turning this option off removes the saved forecast and prevents further forecast
+storage. MET Norway requires saving and is skipped with an explanation when off;
+Open-Meteo remains available. Both window apps expose this option as
+.Dq Save forecasts on this computer
+in Options.
 Default
-.Ql off .
+.Ql on .
 .It Ic autorefresh
 .Ql on
 or

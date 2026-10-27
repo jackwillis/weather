@@ -11,11 +11,16 @@ struct CacheStore {
 	void *ctx = nullptr;
 	Status (*load)(CacheStore &,unsigned char *,size_t,size_t *) = nullptr;
 	Status (*save)(CacheStore &,const unsigned char *,size_t) = nullptr;
+	Status (*remove)(CacheStore &) = nullptr;
 };
-// MET response caching supports conditional requests independently of offline fallback.
+// One storage preference applies to every provider.
 inline bool cache_storage_needed(const Config &cfg)
 {
-	return cfg.cache || (cfg.contact[0] && cache_detail::selected(cfg.providers,"met-no"));
+	return cfg.cache;
+}
+inline Status remove_cached_forecast(CacheStore &store)
+{
+    return store.remove ? store.remove(store) : make(Err::Io,"cannot remove saved forecast");
 }
 inline CacheKey cache_key(const Config &cfg)
 {
@@ -37,9 +42,9 @@ inline Status write_cached_forecast(CacheStore &store,const CacheKey &key,const 
 	return store.save(store,record,sizeof record);
 }
 inline Status update_forecast_cache(CacheStore &store,const CacheKey &key,const Forecast &forecast,
-    long long at,bool offline_fallback)
+    long long at,bool enabled)
 {
-	if(!offline_fallback && (!forecast.source || sv(forecast.source)!="met-no")) return okay();
+	if(!enabled) return okay();
 	return write_cached_forecast(store,key,forecast,at);
 }
 
@@ -50,7 +55,7 @@ inline Status fetch_forecast_cached(Net &net,const Provider *const *providers,si
 {
 	ConditionalForecast previous; FetchOpts request=opts;
 	request.conditional=nullptr;
-	if(store && !opts.force_host && net.now) {
+	if(opts.save_forecasts && store && !opts.force_host && net.now) {
 		CachedForecast cached; bool found=false;
 		Status s=read_cached_forecast(*store,CacheKey{query,selection},net.now(net),&cached,&found);
 		if(s.ok() && found) {

@@ -15,6 +15,7 @@ struct ConditionalForecast { Query query; Forecast forecast; };
 struct FetchMetadata { int code=0; char last_modified[64]={}; };
 
 struct FetchOpts {
+	bool save_forecasts = true; // MET Norway requires response caching.
 	// Conditional forecast identity is checked before it can authorize a MET 304.
 	const ConditionalForecast *conditional = nullptr;
 	sv if_modified_since;

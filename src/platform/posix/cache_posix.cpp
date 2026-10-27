@@ -11,7 +11,28 @@
 
 namespace wx {
 namespace {
-const CacheFileOps syscalls{::read,::write,::fsync,::close,::rename};
+const CacheFileOps syscalls{::read,::write,::fsync,::close,::rename,::unlink};
+Status sync_parent(PosixCache &store)
+{
+    Status status;
+	char parent[1024]; std::strcpy(parent,store.path);
+	char *slash=std::strrchr(parent,'/');
+	if(!slash) std::strcpy(parent,".");
+	else if(slash==parent) slash[1]=0;
+	else *slash=0;
+	int directory=open(parent,O_RDONLY|O_DIRECTORY);
+	if(directory<0) return make(Err::Io,"cannot open cache directory",errno);
+	if(store.ops->sync(directory)) status=make(Err::Io,"cannot flush cache directory",errno);
+	if(store.ops->close(directory) && status.ok()) status=make(Err::Io,"cannot close cache directory",errno);
+	return status;
+}
+Status remove(CacheStore &base)
+{
+    auto &store=*static_cast<PosixCache *>(base.ctx);
+    int result=store.ops->remove ? store.ops->remove(store.path) : ::unlink(store.path);
+    if(result) return errno==ENOENT ? okay() : make(Err::Io,"cannot remove saved forecast",errno);
+    return sync_parent(store);
+}
 Status load(CacheStore &base,unsigned char *out,size_t cap,size_t *n)
 {
 	auto &store=*static_cast<PosixCache *>(base.ctx); *n=0;
@@ -55,16 +76,7 @@ Status save(CacheStore &base,const unsigned char *data,size_t n)
 	if(!status.ok()) { unlink(temp); return status; }
 	// Rename already left a complete valid new record. Failure to flush the
 	// parent is still reported; do not claim durable success or roll back.
-	char parent[1024]; std::strcpy(parent,store.path);
-	char *slash=std::strrchr(parent,'/');
-	if(!slash) std::strcpy(parent,".");
-	else if(slash==parent) slash[1]=0;
-	else *slash=0;
-	int directory=open(parent,O_RDONLY|O_DIRECTORY);
-	if(directory<0) return make(Err::Io,"cannot open cache directory",errno);
-	if(store.ops->sync(directory)) status=make(Err::Io,"cannot flush cache directory",errno);
-	if(store.ops->close(directory) && status.ok()) status=make(Err::Io,"cannot close cache directory",errno);
-	return status;
+	return sync_parent(store);
 }
 }
 const CacheFileOps &posix_cache_file_ops() { return syscalls; }
@@ -73,7 +85,7 @@ Status posix_cache_init(PosixCache *store,const char *path,const CacheFileOps *o
 	*store=PosixCache{};
 	if(!path || !*path || std::strlen(path)>=sizeof store->path) return make(Err::Config,"forecast cache path missing or too long");
 	std::strcpy(store->path,path); store->ops=ops?ops:&syscalls;
-	store->base.ctx=store; store->base.load=load; store->base.save=save;
+	store->base.ctx=store; store->base.load=load; store->base.save=save; store->base.remove=remove;
 	return okay();
 }
 }

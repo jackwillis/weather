@@ -92,12 +92,17 @@ int main()
 		long long at=0,now=net.now(net);
 		Os9Cache cache;
 		bool cache_ready=false;
-		if(cache_storage_needed(cfg)) {
+		{
 			wx::Status initialized=os9_cache_init(&cache);
 			if(!initialized.ok()) logf(LogWarn,"%s",initialized.msg);
 			else cache_ready=true;
 		}
-		s=fetch_forecast_cached(net,chosen,nchosen,q,fo,buf,sizeof buf,&f,cache_ready?&cache.base:nullptr,cfg.providers);
+        if(cache_ready && !cfg.cache) {
+            wx::Status removed=remove_cached_forecast(cache.base);
+            if(!removed.ok()) logf(LogWarn,"%s",removed.msg);
+        }
+        fo.save_forecasts=cfg.cache && cache_ready;
+		s=fetch_forecast_cached(net,chosen,nchosen,q,fo,buf,sizeof buf,&f,cache_ready && cfg.cache?&cache.base:nullptr,cfg.providers);
 		now=net.now(net);
 		if(cache_ready) {
 			if(s.ok()) {

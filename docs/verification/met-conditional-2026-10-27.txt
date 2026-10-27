@@ -40,3 +40,33 @@ make REQUIRE_ASAN=1 check-san: ASan+UBSan, 1685 unit/storage, 396036 inputs,
 111 CLI and 4 cache CLI checks; all passed. OS 9 production/diagnostics and
 NetBSD CLI/X11/unit cross-builds passed. groff -mdoc -ww reported no warnings.
 No hardware run or live API request was performed for this follow-up.
+
+Owner-approved product contract, 2026-10-27 (supersedes automatic-MET policy above):
+Saving defaults on for every provider. Both window apps expose the persisted
+"Save forecasts on this computer" Options item. Off deletes the primary saved
+forecast and prevents reads/writes. MET is skipped before any request even with
+contact configured; Open-Meteo remains usable, including fallback after MET.
+Menu deletion/save failures remain visible without claiming the setting changed.
+In-memory data survives the preference change until normal process exit.
+An externally configured off setting prevents reads/writes even if deletion fails.
+
+Red: make build/host/unittest failed with:
+test/conditional_tests.hpp:95:10: error: 'struct wx::FetchOpts' has no member named 'save_forecasts'
+A preliminary restricted-sandbox unit run also reported:
+FAIL test/unittest.cpp:419: ls >= 0
+Rerunning with fixture sockets allowed passed; final results below.
+
+make check: 1701 unit/storage/preferences, 396036 mutation inputs, 111 CLI,
+5 cache CLI, 12 TLS, 39 GUI, 14 anchors, 3 provisioning and 6 flags checks;
+all passed. GUI checks include default-on restore, off deletion, skipped MET,
+off after relaunch, and persistent re-enable. Screenshots inspected: the full
+setting fits the menu and the MET explanation is readable without truncation.
+
+OS 9 production and diagnostics cross-build passed. CacheProbe includes removal
+failure, repeated removal, and re-enable acceptance checks, cross-built only.
+NetBSD CLI/X11/unit cross-build passed; existing sysroot cabs/cabsf compatibility
+linker warnings remain. Policy, whitespace and groff -mdoc -ww checks passed.
+No native hardware run or live HTTP API request. Native acceptance steps are in
+docs/FORECAST-CACHE.md. Nothing merged; parent #15/native gates remain.
+make REQUIRE_ASAN=1 check-san: ASan+UBSan passed 1701 unit/storage/preferences,
+396036 mutation inputs, 111 CLI and 5 cache CLI checks for the approved contract.
