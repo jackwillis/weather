@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Jack Willis
-"""Plain-HTTP fixture server for feature tests: fixture_server.py MODE PORT
+"""Plain-HTTP fixture server for feature tests: fixture_server.py MODE PORT (0 chooses a free port, printed after listen)
 
 Modes: ok metno fallback imperial 500 404 slow chunked trunc garbage hangup badjson, and w:CODE:ISDAY:TEMP (a forecast with that WMO code)
 `ok` honours the temperature_unit/wind_speed_unit query parameters like the real API (converting the imperial fixture);
@@ -77,4 +77,6 @@ class S(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-S(('127.0.0.1', port), H).serve_forever()
+server = S(('127.0.0.1', port), H)
+print(server.server_address[1], flush=True)
+server.serve_forever()
