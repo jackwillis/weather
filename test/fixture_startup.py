@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 """Startup/isolation regression: no production network, ports or credentials."""
 import os
 import pathlib

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 """Wait for a private startup file containing one decimal port/display number."""
 import os
 import pathlib

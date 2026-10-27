@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Source after setting FIXTURE_HERE to this test directory. All state belongs to
 # this invocation; no fixed ports, global PID files, or shared temporary paths.
 fixture_init() {
