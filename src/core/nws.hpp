@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // NWS observations: point -> closest listed station -> latest observation.
 // Three bounded responses share the caller's buffer; only the next path survives.
 #pragma once

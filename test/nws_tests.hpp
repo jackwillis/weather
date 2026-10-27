@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Included after the unit harness and fake network helpers.
 static Status nws_test_tls(Net &n, Io &raw, const char *host, Io *out)
 {
