@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Optional seed-free native place-search acceptance. In-memory stores and lookup.
 #include "ui/os9/window.hpp"
 #include <Events.h>

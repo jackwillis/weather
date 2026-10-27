@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Explicitly linked fixture lookup; this file is absent from production Weather.
 #include "ui/xweather/run.hpp"
 #include <cstdio>

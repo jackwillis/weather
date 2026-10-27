@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 #include "core/geocoding.hpp"
 #include "app/location_search.hpp"
 static Status place_tls(Net &,Io &raw,const char *host,Io *out) { CHECK(!strcmp(host,"geocoding-api.open-meteo.com")); *out=raw; return okay(); }

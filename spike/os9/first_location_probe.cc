@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Explicit, seed-free first-run UI acceptance; stores exist only in memory.
 #include "ui/os9/window.hpp"
 #include <Events.h>

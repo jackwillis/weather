@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 #pragma once
 #include "app/location_search.hpp"
 #include <Dialogs.h>

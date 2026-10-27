@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Explicit place-name lookup. Fixed endpoint, bounded results, owned ASCII labels.
 #pragma once
 #include "json.hpp"

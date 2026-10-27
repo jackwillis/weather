@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // A result is copied into editable fields only after an explicit choice.
 #pragma once
 #include "locform.hpp"

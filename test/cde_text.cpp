@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Xlib font metrics need no server for these bounded text helpers.
 #include "ui/xweather/cde.hpp"
 #include <cstdio>
