@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Serialized Xlib widget regression; do not run beside another GUI suite on :88.
 set -eu
 command -v Xvfb >/dev/null 2>&1 || { echo 'field: Xvfb missing, skipping'; exit 0; }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Real Xlib pixels: long field text and its caret must not escape the widget.
 #include "ui/xweather/cde.hpp"
 #include <cstdio>
