@@ -71,6 +71,9 @@ $(BUILD)/xweather.debug: $(XW_OBJS) $(BEARSSL_LIB)
 $(BUILD)/xweather: $(BUILD)/xweather.debug
 	$(STRIP)
 
+$(BUILD)/cde-text-test: $(OBJ)/test/cde_text.o $(OBJ)/ui/xweather/cde.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
+
 $(BUILD)/xdrive: $(OBJ)/test/xdrive.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(X11_LIBS)
 
@@ -168,6 +171,10 @@ package-netbsd:
 probe-os9:
 	sh tools/probe-os9.sh
 
+# Native compiler acceptance plus negative checks of our private-record guards.
+check-ot-layout:
+	podman run --rm -v $(CURDIR):/src:Z -w /src ghcr.io/autc04/retro68 sh test/ot-layout.sh /Retro68-build/toolchain/bin/powerpc-apple-macos-g++
+
 # Release builds pin RETRO68_IMAGE by digest (ghcr.io/autc04/retro68@sha256:...) and may use CONTAINER=docker.
 CONTAINER    ?= podman
 RETRO68_IMAGE ?= ghcr.io/autc04/retro68
@@ -215,12 +222,18 @@ check-san:
 	build/host-san/robust
 	sh test/feature.sh build/host-san/weather
 	python3 test/cache_cli.py build/host-san/weather
+
+	@if [ -f /usr/include/X11/Xlib.h ]; then \
+	    $(MAKE) TARGET=host-san X11_LIBS=-lX11 build/host-san/cde-text-test && \
+	    build/host-san/cde-text-test; \
+	else echo "check-san: CDE text skipped (no X11 headers)"; fi
 	$(MAKE) TARGET=host-san TEST_HOOKS=0 check-test-hooks
 
 san-note:
 	@echo "check-san: $(SAN_NOTE)"
 
-check-gui: $(BUILD)/xweather $(BUILD)/xdrive
+check-gui: $(BUILD)/xweather $(BUILD)/xdrive $(BUILD)/cde-text-test
+	$(BUILD)/cde-text-test
 	sh test/gui-host.sh
 
 check-gui-maul:
@@ -252,4 +265,4 @@ clean:
 
 -include $(wildcard $(OBJ)/*.d $(OBJ)/*/*.d $(OBJ)/*/*/*.d)
 
-.PHONY: check-test-hooks os9 FORCE san-note check-san anchors check-anchors check-tls all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
+.PHONY: check-test-hooks check-ot-layout os9 FORCE san-note check-san anchors check-anchors check-tls all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean

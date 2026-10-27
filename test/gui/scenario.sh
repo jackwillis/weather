@@ -118,6 +118,26 @@ for round in 1 2; do
 	quit_xw Cache-$round
 done
 
+# ---------------------------------------------------------------- E: interrupted Location button gestures
+printf 'attempts = 1\nautorefresh = off\n' > rcE
+cp rcE rcE.before
+if start_xw rcE $PORT_OK; then
+	./xdrive sleep 1500 key l ctrl sleep 200 key Tab key Tab key End type " abandoned" down 160 243 key Escape up 160 243 sleep 1500
+	check "E: Escape cancels a held OK without saving" "$(cmp -s rcE rcE.before; echo $?)" 0
+	check "E: releasing cancelled OK does not refetch" "$(fetches)" 1
+	./xdrive key l ctrl sleep 200 down 160 243 up 160 243 3 sleep 300
+	check "E: right-button release cannot activate left-button OK" "$(fetches)" 1
+	check "E: wrong-button release does not save" "$(cmp -s rcE rcE.before; echo $?)" 0
+	./xdrive key Escape up 160 243 key l ctrl sleep 200 down 160 243 key Return sleep 1500 up 160 243 sleep 500
+	check "E: Return while holding OK applies exactly once" "$(fetches)" 2
+	./xdrive key l ctrl sleep 200 down 160 243 up 10 10 sleep 300
+	check "E: release outside OK does not apply" "$(fetches)" 2
+	./xdrive click 160 243 sleep 1500
+	check "E: ordinary OK click still applies" "$(fetches)" 3
+	keeplog E
+	quit_xw E
+fi
+
 # ---------------------------------------------------------------- D: the weather pictures
 for g in $GALLERY; do
 	name=${g%%:*}; port=${g##*:}

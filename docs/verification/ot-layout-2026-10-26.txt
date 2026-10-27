@@ -1,0 +1,41 @@
+PR #43 / issue #60 E10: actual PowerPC compiler evidence
+
+The full production OS9 app and diagnostics cross-build pass with pointer32,
+record40 and offsets8/12/16/32 assertions in actual ot_glue.cc. A separate
+make check-ot-layout probe compiles actual source, then compiles private copies
+with pad7 changed to8 (record size) and an extra byte before flag (flag offset).
+Both deliberately broken copies fail with their expected static assertion
+messages. The test rejects unrelated compiler failures as evidence. Only our
+source is copied inside a disposable container temp directory; no SDK content
+is copied to the repository. Rootless Retro68, all compilation on Linux.
+
+Removed the ineffective ordinary InitOpenTransportPriv function-address null
+check. It cannot check whether a required CFM import is missing before program
+load; no weak-import or dynamic-symbol support is introduced. Real initialization
+still checks Gestalt and returns InitOpenTransportPriv's actual error.
+
+These assertions test our representation, not private API stability or any
+additional supported OS/OT version. No legal-clearance claim. No native OS9
+runtime/network verification, owner data, seed provisioning or privileged action.
+Tiger remains parked. Host NetBSD stand-ins in #91 are not native ABI evidence;
+integration must preserve these native assertions while explicitly isolating
+any64bit stand-in test. #91 shutdown fixes remain on that separate branch.
+
+Final verification on this existing audit branch: host492unit/206820mutation/
+99CLI/21serializedGUI; explicit ASan+UBSan492/206820/99. Full OS9 PowerPC
+application/diagnostic cross-build and actual-source layout mutation gate pass.
+Counts reflect this branch's older base, not the independent #91 controller.
+No new parser input path. No hardware runtime claim. Logs retained at
+/tmp/weather-ot-layout-{os9,mutations,check,san}.log.
+
+Synchronized lifecycle-test integration: assertions now select __powerpc__ or
+__POWERPC__, retaining pointer32/record40/all offsets for the native target.
+Non-PPC stand-ins from #91 are lifecycle models, not record ABI evidence.
+The exact same guard/assertion body is in #91. The native mutation gate still
+must reject changed size and offset, catching an inactive architecture guard.
+The #91 G4 lifecycle test also compiles with these PowerPC assertions enabled.
+No production test switch or assertion suppression in the host test is used.
+After guard synchronization, actual Retro68 production compile, both negative
+layout checks and full PowerPC OS9 build pass again. Logs at
+/tmp/weather-ot-layout-synced.log and weather-ot-layout-synced-os9.log.
+No core/host execution path changed; prior full host/san checks above retained.
