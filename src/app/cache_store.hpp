@@ -12,6 +12,11 @@ struct CacheStore {
 	Status (*load)(CacheStore &,unsigned char *,size_t,size_t *) = nullptr;
 	Status (*save)(CacheStore &,const unsigned char *,size_t) = nullptr;
 };
+// MET response caching supports conditional requests independently of offline fallback.
+inline bool cache_storage_needed(const Config &cfg)
+{
+	return cfg.cache || (cfg.contact[0] && cache_detail::selected(cfg.providers,"met-no"));
+}
 inline CacheKey cache_key(const Config &cfg)
 {
 	return CacheKey{Query{cfg.lat_e4,cfg.lon_e4,cfg.metric},cfg.providers};
@@ -31,6 +36,13 @@ inline Status write_cached_forecast(CacheStore &store,const CacheKey &key,const 
 	if(!cache_encode(key,forecast,at,record)) return make(Err::BadData,"forecast cannot be cached");
 	return store.save(store,record,sizeof record);
 }
+inline Status update_forecast_cache(CacheStore &store,const CacheKey &key,const Forecast &forecast,
+    long long at,bool offline_fallback)
+{
+	if(!offline_fallback && (!forecast.source || sv(forecast.source)!="met-no")) return okay();
+	return write_cached_forecast(store,key,forecast,at);
+}
+
 // Load only a matching validated record; callers retain existing save/fallback policy.
 inline Status fetch_forecast_cached(Net &net,const Provider *const *providers,size_t count,
     const Query &query,const FetchOpts &opts,char *buffer,size_t cap,Forecast *out,

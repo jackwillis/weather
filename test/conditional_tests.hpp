@@ -69,4 +69,27 @@ static void test_conditional_requests()
     f.steps[0].response=response;
     CHECK(fetch_forecast(net,om,1,q,opts,buf,sizeof buf,&reused).ok());
     CHECK(!reused.last_modified[0] && strstr(f.request,"If-Modified-Since:")==nullptr);
+    // Automatic MET persistence does not grant offline fallback or persist OM data.
+    strcpy(cfg.providers,"open-meteo,met-no"); strcpy(cfg.contact,"fixture.invalid");
+    CHECK(!cfg.cache && cache_storage_needed(cfg));
+    struct Writes { unsigned count=0; unsigned char record[kForecastCacheBytes]={}; } writes;
+    CacheStore tracked; tracked.ctx=&writes;
+    tracked.save=[](CacheStore &s,const unsigned char *bytes,size_t size) {
+        auto &state=*static_cast<Writes *>(s.ctx);
+        if(size!=sizeof state.record) return make(Err::Io,"wrong fixture length");
+        memcpy(state.record,bytes,size); ++state.count; return okay();
+    };
+    CHECK(update_forecast_cache(tracked,cache_key(cfg),fresh,f.clock,cfg.cache).ok());
+    CHECK(writes.count==1 && cache_decode(writes.record,sizeof writes.record,cache_key(cfg),f.clock,&decoded));
+    CHECK(!strcmp(decoded.forecast.last_modified,modified));
+    Forecast open=fresh; open.source="open-meteo"; open.last_modified[0]=0;
+    CHECK(update_forecast_cache(tracked,cache_key(cfg),open,f.clock,cfg.cache).ok());
+    CHECK(writes.count==1); // Open-Meteo success leaves the automatic MET validator intact.
+    cfg.cache=true;
+    CHECK(update_forecast_cache(tracked,cache_key(cfg),open,f.clock,cfg.cache).ok() && writes.count==2);
+    cfg.cache=false; cfg.contact[0]=0;
+    CHECK(!cache_storage_needed(cfg));
+    strcpy(cfg.contact,"fixture.invalid"); strcpy(cfg.providers,"open-meteo");
+    CHECK(!cache_storage_needed(cfg));
+
 }

@@ -582,7 +582,7 @@ bool app_yield(Net &)
 
 void restore_cache()
 {
-	if(!g.have_cache || g.model.has_forecast()) return;
+	if(!g.cfg.cache || !g.have_cache || g.model.has_forecast()) return;
 	CachedForecast previous; bool found=false;
 	Status loaded=read_cached_forecast(g.cache.base,cache_key(g.cfg),now_s(),&previous,&found);
 	if(loaded.ok() && found) {
@@ -602,7 +602,7 @@ void do_fetch()
 	Forecast f;
 	Status s = fetch_forecast_cached(g.net,g.providers,g.nprov,q,g.fo,buf,sizeof buf,&f,g.have_cache?&g.cache.base:nullptr,g.cfg.providers);
 	if(s.ok() && g.have_cache) {
-		Status saved=write_cached_forecast(g.cache.base,cache_key(g.cfg),f,now_s());
+		Status saved=update_forecast_cache(g.cache.base,cache_key(g.cfg),f,now_s(),g.cfg.cache);
 		if(!saved.ok()) logf(LogWarn,"%s",saved.msg);
 	}
 	g.fetching = false;
@@ -719,7 +719,7 @@ int main(int argc, char **argv)
 	ModelConfig mc;
 	mc.auto_refresh = g.cfg.auto_refresh;
 	g.model = Model(mc, now_s());
-	if(g.cfg.cache && !g.fo.force_host && g.have_store) {
+	if(cache_storage_needed(g.cfg) && !g.fo.force_host && g.have_store) {
 		Buf<1024> path; path.add(g.store.path).add(".cache");
 		Status initialized=path.truncated?make(Err::Config,"cache path too long"):posix_cache_init(&g.cache,path.c_str());
 		g.have_cache=initialized.ok();

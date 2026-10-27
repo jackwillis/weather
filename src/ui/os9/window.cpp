@@ -379,8 +379,8 @@ int run_os9_window(const WindowTestHooks *hooks) {
 	AppendMenu(options, pascal_text("Automatic updates;Metric;Imperial;(-;Location/L")); InsertMenu(options, 0);
 	DrawMenuBar();
 	os9_net_init(&net); net.yield=pump; tls_net_init(&net); draw();
-	if(cfg.cache) {
-		if(test_hooks && test_hooks->cache_store) active_cache=test_hooks->cache_store;
+	if(cache_storage_needed(cfg)) {
+		if(test_hooks) active_cache=test_hooks->cache_store; // null explicitly disables diagnostic persistence
 		else {
 			Status initialized=os9_cache_init(&forecast_cache);
 			if(initialized.ok()) active_cache=&forecast_cache.base;
@@ -392,7 +392,7 @@ int run_os9_window(const WindowTestHooks *hooks) {
 		if(test_hooks && test_hooks->idle) test_hooks->idle();
 		if(actions.quit) break;
 		if(!location.visible() && model.tick(net.now(net))) {
-			if(active_cache && !model.has_forecast()) {
+			if(cfg.cache && active_cache && !model.has_forecast()) {
 				CachedForecast previous; bool found=false;
 				Status loaded=read_cached_forecast(*active_cache,cache_key(cfg),net.now(net),&previous,&found);
 				if(loaded.ok() && found) model.restore_cached(previous.forecast,previous.fetched_at,net.now(net));
@@ -402,7 +402,7 @@ int run_os9_window(const WindowTestHooks *hooks) {
 			Status s=startup;
 			if(s.ok()) s=test_hooks && test_hooks->fetch ? test_hooks->fetch(cfg,net,&f) : os9_window_fetch_live(cfg,net,&f);
 			if(s.ok() && active_cache) {
-				Status saved=write_cached_forecast(*active_cache,cache_key(cfg),f,net.now(net));
+				Status saved=update_forecast_cache(*active_cache,cache_key(cfg),f,net.now(net),cfg.cache);
 				if(!saved.ok()) logf(LogWarn,"%s",saved.msg);
 			}
 			model.finish(net.now(net),s,&f); draw();

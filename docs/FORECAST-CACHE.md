@@ -1,7 +1,10 @@
 # Last-good forecast cache
 
 Set `cache = on` in the config shared by `weather` and `xweather` to enable the
-cache. It is off by default. POSIX storage is a separate `<config path>.cache`
+offline restore. It is off by default. MET Norway response caching remains active
+when MET is configured with contact information, to support conditional requests;
+cache=off never displays that disk record after a failed live request. Open-Meteo
+is persisted only with cache=on. POSIX storage is a separate `<config path>.cache`
 file, created privately with mode 0600. Contact details and TLS seeds are never
 stored in this file. Plain-HTTP `-H` fixture requests bypass persistent caching.
 
@@ -95,9 +98,11 @@ A 200 replaces the forecast and validator. An unsolicited 304 cannot manufacture
 an empty success. Open-Meteo requests stay unconditional. Plain HTTP fixture
 requests bypass disk validators as well as persistence.
 
-Current wiring follows cache=on. The owner decision for MET when cache=off is
-pending: automatic service metadata without offline fallback, or requiring
-cache=on. This PR remains draft until that policy is settled and implemented.
+MET response caching is automatic when the provider and contact are configured.
+The cache=off setting disables offline restoration, not MET revalidation storage.
+In this mode an Open-Meteo success does not overwrite the retained MET validator.
+All frontends use the same storage policy. Diagnostics use only an explicitly
+supplied cache store; a null test store disables persistence.
 This slice does not establish complete compliance with every MET traffic rule,
 such as request deferral until Expires.
 

@@ -22,9 +22,21 @@ passed. Retro68 portable probes pass for PowerPC and m68k (GCC 16.1.0).
 No hardware run or live HTTP service call on this head. Fixture contact strings
 are test-only and never sent to a service. No source data/seed material logged.
 
-Draft / remaining decision: behavior for MET when cache=off must be settled.
-Current implementation supplies validators only when disk cache is enabled.
-Owner question offers automatic MET metadata without offline fallback, or
-requiring cache=on for MET. No assumption made while the question is pending.
-No full MET terms-compliance claim: Expires deferral remains outside this slice.
-Native runtime acceptance remains unverified. Parent #15 remains unmerged.
+Policy follow-up: MET response caching is automatic when MET and contact are
+configured; cache=off still disables disk restoration after a failed request.
+An Open-Meteo success in this mode does not overwrite the retained MET record.
+Diagnostic windows use only supplied cache stores, never production fallback.
+New persistence-policy tests failed compilation without the helper APIs; with
+the implementation they pass (1685 unit checks). Final complete-suite results
+for this follow-up are recorded below and on the PR.
+
+Draft / remaining gates: parent #15 and native runtime acceptance. No full MET
+terms-compliance claim: Expires deferral remains outside this slice.
+
+Final automatic-MET policy verification:
+make check: 1685 unit/storage, 396036 mutation inputs, 111 CLI, 4 cache CLI,
+12 TLS, 31 GUI, 14 anchors, 3 provisioning and 6 flags checks; all passed.
+make REQUIRE_ASAN=1 check-san: ASan+UBSan, 1685 unit/storage, 396036 inputs,
+111 CLI and 4 cache CLI checks; all passed. OS 9 production/diagnostics and
+NetBSD CLI/X11/unit cross-builds passed. groff -mdoc -ww reported no warnings.
+No hardware run or live API request was performed for this follow-up.

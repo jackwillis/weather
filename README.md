@@ -39,7 +39,10 @@ flags override it. The default location is Madison, WI 53703 (Capitol Square 43.
 
 Set `cache = on` to keep a private last-good forecast in `<config path>.cache` on
 POSIX systems. Matching entries up to 24 hours old are labelled stale; CLI fallback
-retains the live failure exit code. Plain-HTTP test requests bypass caching. See
+retains the live failure exit code. MET Norway response data and its validator are cached for
+conditional requests even with cache=off; that mode never restores disk data
+after a failed live request. Open-Meteo persistence remains opt-in.
+Plain-HTTP test requests bypass caching. See
 [cache behavior and format](docs/FORECAST-CACHE.md). OS 9 cache storage and UI wiring are cross-built; native acceptance is pending.
 
 ## Build and test
