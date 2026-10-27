@@ -1,0 +1,15 @@
+Before (diagnostic callback build)
+00051874 b (anonymous namespace)::prefs_store
+00052988 b wx::commit_preferences(wx::SettingsStore&, wx::SettingsStore&, wx::Config const&, wx::Config&, wx::Model&, long long)::after
+00053988 b (anonymous namespace)::saved_descriptor
+00053988 b wx::commit_preferences(wx::SettingsStore&, wx::SettingsStore&, wx::Config const&, wx::Config&, wx::Model&, long long)::before
+00053994 b (anonymous namespace)::expected_save
+000539a8 b (anonymous namespace)::prefs
+000539b8 b (anonymous namespace)::actual
+
+After (single compiled writer)
+00037808 b wx::commit_preferences(wx::SettingsStore&, wx::SettingsStore&, wx::Config const&, wx::Config&, wx::Model&, long long)::after
+00038808 b wx::commit_preferences(wx::SettingsStore&, wx::SettingsStore&, wx::Config const&, wx::Config&, wx::Model&, long long)::before
+00053824 b (anonymous namespace)::prefs_store
+00053948 b (anonymous namespace)::prefs
+00053958 b (anonymous namespace)::actual

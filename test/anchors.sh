@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Tests for tools/check-anchors.sh: it must accept the real tree and reject a tampered one.
 # Run from the repo root, as make does.   usage: sh test/anchors.sh path/to/brssl
 BRSSL=${1:?usage: anchors.sh path/to/brssl}
