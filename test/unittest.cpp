@@ -24,6 +24,7 @@
 #include "platform/os9/dns_resolve.hpp"
 #include "platform/os9/modal_clock.hpp"
 #include <arpa/inet.h>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -609,6 +610,39 @@ static void test_settings_store()
 	struct stat sb;
 	CHECK(stat(path, &sb) == 0 && (sb.st_mode & 0777) == 0600);
 
+	// Replacement must preserve the existing mode even under a restrictive umask.
+	CHECK(chmod(path, 0644) == 0);
+	mode_t previous_mask = umask(0077);
+	Status mode_save = settings_save(st.base, c);
+	umask(previous_mask);
+	CHECK(mode_save.ok());
+	CHECK(stat(path, &sb) == 0 && (sb.st_mode & 0777) == 0644);
+
+	// Near the fixed text limit, successful rewrites remain loadable and repeatable.
+	char large[4096], saved[4096];
+	const char *owned = "latitude = 59.9100\nlongitude = 10.7500\nname = Oslo\nunits = metric\n";
+	size_t owned_n = strlen(owned);
+	memset(large, 'x', 4094);
+	large[0] = '#'; large[4094 - owned_n - 1] = '\n';
+	memcpy(large + 4094 - owned_n, owned, owned_n);
+	large[4094] = 0;
+	f = fopen(path, "wb"); CHECK(f != nullptr);
+	if (f) { CHECK(fwrite(large, 1, 4094, f) == 4094); fclose(f); }
+	CHECK(settings_save(st.base, c).ok());
+	CHECK(slurp(path, saved, sizeof saved) && !strcmp(saved, large));
+	CHECK(settings_save(st.base, c).ok());
+	CHECK(st.base.load(st.base, saved, sizeof saved, &n).ok() && n == 4094);
+
+	// A smaller input can grow past the limit when missing keys are appended.
+	// Refuse clearly, preserving every byte and leaving no temporary files.
+	memset(large, 'x', 4090); large[0] = '#'; large[4090] = 0;
+	f = fopen(path, "wb"); CHECK(f != nullptr);
+	if (f) { CHECK(fwrite(large, 1, 4090, f) == 4090); fclose(f); }
+	Status too_big = settings_save(st.base, c);
+	CHECK(too_big.err == Err::Config && !strcmp(too_big.msg, "settings file too large"));
+	CHECK(slurp(path, saved, sizeof saved) && !strcmp(saved, large));
+	CHECK(count_entries(dir) == 1);
+
 	// a symlinked dotfile stays a symlink and the real file is updated
 	char real[300], link[300];
 	snprintf(real, sizeof real, "%s/real", dir);
@@ -621,6 +655,24 @@ static void test_settings_store()
 	struct stat lsb;
 	CHECK(lstat(link, &lsb) == 0 && S_ISLNK(lsb.st_mode));
 	CHECK(slurp(real, text, sizeof text) && strstr(text, "name = Oslo") != nullptr);
+
+	// Atomic replacement must not bypass the existing file's protection or split links.
+	CHECK(chmod(real, 0444) == 0);
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	CHECK(stat(real, &sb) == 0 && (sb.st_mode & 0777) == 0444);
+	CHECK(chmod(real, 0600) == 0);
+	char alias[300];
+	snprintf(alias, sizeof alias, "%s/alias", dir);
+	CHECK(::link(real, alias) == 0);
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	struct stat asb;
+	CHECK(stat(real, &sb) == 0 && stat(alias, &asb) == 0 && sb.st_ino == asb.st_ino && sb.st_nlink == 2);
+	CHECK(unlink(alias) == 0);
+	CHECK(unlink(real) == 0); // the dotfile is now a dangling symlink
+	CHECK(posix_settings_init(&ls, link, false).ok());
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	CHECK(lstat(link, &lsb) == 0 && S_ISLNK(lsb.st_mode));
+	CHECK(stat(real, &sb) != 0 && errno == ENOENT);
 
 	// a directory we cannot write to: a clean Io error, original untouched
 	if (geteuid() != 0) {

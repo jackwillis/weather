@@ -1,0 +1,34 @@
+Issue #54: POSIX settings replacement safeguards (partial)
+
+Regression tests first reproduced five assertion failures: read-only target
+replacement, hard-link splitting, and replacement of a dangling symlink.
+The fix refuses these saves with specific Io messages before creating a temp
+file. Valid symlink targets retain the existing successful-save regression.
+Non-regular targets and files owned by another effective uid are also refused.
+No privileged ownership changes are attempted.
+
+This is a partial fix. The fixed 4096-byte settings rewrite limit remains;
+files whose edited output exceeds it still fail with "settings file too large".
+ACL preservation, concurrent path replacement races, directory fsync and group preservation are not addressed by this slice.
+Atomic replacement still requires a writable containing directory.
+
+Verified: make check (530 unit, 230242 mutations, 106 CLI, 12 local TLS,
+21 serialized GUI checks); make check-san explicitly enabled ASan and UBSan
+(530 unit, 230242 mutations, 106 CLI). make check-maul passed on the actual
+NetBSD/macppc G4: 530 unit and 86242 mutation inputs, status=0. Cross-compilation
+was on Linux only. No OS 9/Tiger or macOS-host runtime verification.
+Logs: /tmp/weather-settings-{red,check,san,maul}.log.
+
+Follow-up: a restrictive umask changed an existing 0644 file to 0600 during
+replacement. The new regression failed before the fix (544 checks, one failure).
+Existing files now get checked fchmod of their ordinary permission bits on the
+new descriptor before writing; newly created files still use open's umask.
+Boundary coverage: an already complete 4094-byte file saves twice and reloads;
+a 4090-byte comment-only file whose appended keys overflow is refused with the
+specific Config message and its contents and directory entries stay unchanged.
+This retains the bounded memory contract instead of silently raising the limit.
+
+Follow-up verification completed: make check 544 unit /230242 mutations /106
+CLI /12 local TLS /21 GUI; make check-san ASan+UBSan 544/230242/106; actual
+NetBSD/macppc G4 544/86242, status=0. Logs use weather-settings-mode- prefix.
+All builds on Linux; all GUI checks serialized. No native macOS/OS 9 claim.
