@@ -110,6 +110,16 @@ with
 or
 .Dv SIGTERM
 during a fetch cancels it cleanly.
+.Sh DATA SOURCES
+Forecasts come from Open-Meteo (https://open-meteo.com) and, if enabled, the MET Norway Locationforecast API
+(https://api.met.no). Both publish their data under CC BY 4.0; the values are converted to the chosen units and
+summarised.
+Open-Meteo's free tier is for non-commercial use.
+.Nm
+is free software and has no advertising or subscriptions.
+Run
+.Ql weather --credits
+for the full credits.
 .Sh FILES
 .Bl -tag -width "~/.weatherrc"
 .It Pa ~/.weatherrc

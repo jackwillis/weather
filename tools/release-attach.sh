@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Jack Willis
 # Attach the NetBSD package to the DRAFT release the tag workflow created, and add it to SHA512SUMS.
+# The release asset is named weather-X.Y.Z-NetBSD-<os version>-macppc.tgz so users see what it is for; pkg_add reads the
+# package metadata, not the file name, so installing the renamed file works.
 # The package is built on the laptop and maul (`make package-netbsd`; see docs/PROJECT-MANAGEMENT.md); CI cannot build it.
 #   usage: tools/release-attach.sh vX.Y.Z [--dry-run]       (needs gh, authenticated; run from the repository root)
 # Refuses a published release, a package whose name or contents do not match the tag, and anything but a draft.
@@ -19,15 +21,20 @@ tar tzf "$pkg" 2>/dev/null | grep -qx '+CONTENTS' || fail "$pkg has no +CONTENTS
 tar tzf "$pkg" 2>/dev/null | grep -q 'share/doc/weather/LICENSE' || fail "$pkg carries no LICENSE"
 tar tzf "$pkg" 2>/dev/null | grep -qE '\.(seed|import)$' && fail "$pkg contains seed material"
 
+osver=$(tar xzOf "$pkg" +BUILD_INFO 2>/dev/null | sed -n 's/^OS_VERSION=//p' | head -1)
+[ -n "$osver" ] || fail "$pkg has no OS_VERSION in +BUILD_INFO"
+asset=weather-$version-NetBSD-$osver-macppc.tgz
+
 state=$(gh release view "$tag" --json isDraft,isPrerelease --jq '"\(.isDraft) \(.isPrerelease)"') || fail "no release for $tag (push the tag first; the workflow creates the draft)"
 [ "$state" = "true true" ] || fail "release $tag is not a draft pre-release ($state): refusing to modify it"
 
 work=$(mktemp -d) || exit 1
 trap 'rm -rf "$work"' EXIT
 gh release download "$tag" --pattern SHA512SUMS --dir "$work" || fail "release has no SHA512SUMS"
-grep -v "(weather-$version.tgz)" "$work/SHA512SUMS" > "$work/new"
-printf 'SHA512 (%s) = %s\n' "weather-$version.tgz" "$(sha512sum "$pkg" | cut -d' ' -f1)" >> "$work/new"
+cp "$pkg" "$work/$asset"
+grep -v "($asset)" "$work/SHA512SUMS" > "$work/new"
+printf 'SHA512 (%s) = %s\n' "$asset" "$(sha512sum "$work/$asset" | cut -d' ' -f1)" >> "$work/new"
 mv "$work/new" "$work/SHA512SUMS"
 cat "$work/SHA512SUMS"
-run gh release upload "$tag" "$pkg" "$work/SHA512SUMS" --clobber
+run gh release upload "$tag" "$work/$asset" "$work/SHA512SUMS" --clobber
 echo "release-attach: done for $tag (still a draft; Jack publishes)"
