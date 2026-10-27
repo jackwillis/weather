@@ -271,7 +271,8 @@ int main(int argc, char **argv)
 	static char seed[8192];
 	size_t n = 0;
 	char path[256];
-	const char *fixtures[] = {"openmeteo-ok.json", "openmeteo-400.json", "metno-ok.json"};
+	const char *fixtures[] = {"openmeteo-ok.json", "openmeteo-400.json", "metno-ok.json",
+	    "metno-thunder-sleet.json", "metno-thunder-snow.json"};
 	for (const char *fx : fixtures) {
 		snprintf(path, sizeof path, "%s/%s", FIXTURE_DIR, fx);
 		if (!slurp(path, seed, sizeof seed, &n)) { printf("cannot read %s\n", path); return 1; }

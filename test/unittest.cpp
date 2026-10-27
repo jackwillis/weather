@@ -882,6 +882,26 @@ static void test_forms()
 
 static void test_metno()
 {
+	// Independently vendored upstream filename list, rather than iterating our own map.
+	static const char *published[] = {
+#include "met_symbols.inc"
+	};
+	CHECK(sizeof published / sizeof published[0] == 83);
+	for (const char *symbol : published) {
+		MetCode code = met_symbol(symbol);
+		CHECK(code.code >= 0);
+		int day = ends_with(symbol, "_day") ? 1 : ends_with(symbol, "_night") ? 0 : -1;
+		CHECK(code.is_day == day);
+		char input[512];
+		snprintf(input, sizeof input, "{\"properties\":{\"timeseries\":[{\"data\":{\"instant\":{\"details\":{\"air_temperature\":5.0,\"cloud_area_fraction\":0}},\"next_1_hours\":{\"summary\":{\"symbol_code\":\"%s\"}}}}]}}", symbol);
+		Forecast parsed;
+		Status st = metno_parse(input, Query{}, &parsed);
+		CHECK(st.ok() && parsed.code == code.code);
+		if (strstr(symbol, "thunder")) CHECK(parsed.code == 95);
+	}
+	// Keep compatibility with corrected spellings accepted by earlier Weather versions.
+	CHECK(met_symbol("lightsleetshowersandthunder_day").code == 95);
+	CHECK(met_symbol("lightsnowshowersandthunder_night").code == 95);
 	Query q;
 	Forecast f;
 	Status s = metno_parse(fixture(0, "metno-ok.json"), q, &f);

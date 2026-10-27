@@ -22,6 +22,8 @@ constexpr MetSymbol kMetSymbols[] = {
 	{"lightrainandthunder", 95}, {"rainandthunder", 95}, {"heavyrainandthunder", 95},
 	{"lightrainshowersandthunder", 95}, {"rainshowersandthunder", 95}, {"heavyrainshowersandthunder", 95},
 	{"lightsleetandthunder", 95}, {"sleetandthunder", 95}, {"heavysleetandthunder", 95},
+	// Locationforecast 2.0 retains these upstream misspellings for compatibility.
+	{"lightssleetshowersandthunder", 95}, {"lightssnowshowersandthunder", 95},
 	{"lightsleetshowersandthunder", 95}, {"sleetshowersandthunder", 95}, {"heavysleetshowersandthunder", 95},
 	{"lightsnowandthunder", 95}, {"snowandthunder", 95}, {"heavysnowandthunder", 95},
 	{"lightsnowshowersandthunder", 95}, {"snowshowersandthunder", 95}, {"heavysnowshowersandthunder", 95},
