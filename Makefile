@@ -200,6 +200,7 @@ check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(B
 	$(BUILD)/unittest
 	$(BUILD)/robust
 	TEST_HOOKS_ENABLED=$(TEST_HOOKS) sh test/feature.sh $(BUILD)/weather
+	python3 test/fixture_startup.py
 ifeq ($(TEST_HOOKS),0)
 	$(MAKE) TARGET=$(TARGET) check-test-hooks
 endif
