@@ -1,0 +1,1 @@
+- Recognize MET Locationforecast's published light sleet/snow thunder-shower spellings, including day, night and polar-twilight variants, so they display thunderstorms rather than a cloud-cover estimate.

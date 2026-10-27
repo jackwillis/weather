@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Pure OS 9 compatibility helpers. No Toolbox calls or native-size arithmetic.
 #pragma once
 #include "core/text.hpp"
