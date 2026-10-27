@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 #include "core/forecast_cache.hpp"
 #include "app/model.hpp"
 #include "platform/posix/cache_posix.hpp"
@@ -160,10 +162,15 @@ static void test_cache_model()
 	CHECK(model.tick(200));
 	model.finish(201,make(Err::Timeout,"offline"),nullptr);
 	CHECK(model.has_forecast() && model.cached() && model.forecast().temp_t10==650);
-	model.request_refresh(); CHECK(model.tick(202));
-	model.finish(203,okay(),&f);
-	CHECK(!model.cached() && !model.stale(203));
-	CHECK(!model.restore_cached(f,100,203)); // Do not replace current in-memory data.
+	model.request_refresh(); CHECK(!model.tick(202));
+	CHECK(model.cached() && model.stale(202));
+	CHECK(!model.tick(205)); // A rejected manual request is never queued.
+	model.request_refresh(); CHECK(model.tick(205));
+	model.finish(206,okay(),&f);
+	CHECK(!model.cached() && !model.stale(206));
+	CHECK(!model.restore_cached(f,100,206)); // Do not replace current in-memory data.
+	Buf<256> live_rollback; model.status_line(live_rollback,100);
+	CHECK(model.stale(100) && find(live_rollback.view(),"clock changed")!=sv::npos);
 	model.location_changed(); CHECK(!model.has_forecast() && !model.cached());
 	CHECK(!model.restore_cached(f,300,200));
 	CHECK(!model.restore_cached(f,0,86401));

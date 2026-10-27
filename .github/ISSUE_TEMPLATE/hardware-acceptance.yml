@@ -1,0 +1,23 @@
+name: Hardware acceptance
+description: A run on the real Power Mac G4 (NetBSD or Mac OS 9 under Classic/Tiger)
+labels: ["needs-hardware-tiger"]
+body:
+  - type: dropdown
+    id: os
+    attributes:
+      label: Needs which OS booted
+      options: ["NetBSD/macppc", "Mac OS X Tiger (Classic / OS 9)"]
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What to run and observe
+      description: Exact commands or actions, and what counts as pass. Say which parts a person must do (login, boot, display judgement).
+    validations:
+      required: true
+  - type: textarea
+    id: record
+    attributes:
+      label: Result
+      description: Filled in after the run. State what was observed and what was only driven programmatically.

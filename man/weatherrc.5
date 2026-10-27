@@ -19,6 +19,7 @@ Blank lines are ignored and anything from a
 to the end of a line is a comment.
 Spaces around keys and values are ignored.
 If a key appears more than once the last value wins.
+Lines end with LF, CR LF or a lone CR (classic Mac OS); the line number in an error counts all three.
 An unknown key, a bad value or a line without an equals sign is an error that names the line number.
 A missing file is the same as an empty one.
 .Pp

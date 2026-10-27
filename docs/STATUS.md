@@ -1,4 +1,13 @@
-# Status (2026-10-25)
+# Status (2026-10-27)
+
+## Releases
+**0.0.1 (pre-release), published 2026-10-27:** https://github.com/jackwillis/weather/releases/tag/v0.0.1 (tag at 59b50f0). Built by
+the tag workflow (source tarball and Mac OS 9 `.dsk` on a GitHub runner) with the NetBSD package built on the laptop and maul and
+attached by `tools/release-attach.sh`. Checked: tarball byte-identical to a local `make dist`; package installed, run and removed
+on maul (`runlog pkgtest-weather`); the `.dsk` Weather launched in Classic and fetched live over TLS; the OS 9 About box viewed
+on the real screen (page 1 and 3 of 5). Licence GPL-3.0-or-later. Known issues are in `docs/release-notes/0.0.1.md`.
+The tree is back at the unreleased 0.1.0. Still to do for v0.1: #45.
+
 
 ## What works, and how it was checked
 | Piece | State | Evidence |
@@ -48,3 +57,22 @@ NetBSD follow-up regression (2026-10-25, #11 combined with main): actual PowerPC
 run passed 535 unit checks and 80820 robustness inputs. All ten smoke checks
 passed, including live TLS, clock/anchor failures and settings. Host check and
 ASan/UBSan passed as well. No builds ran on maul.
+
+## Location/Preferences in PR #12
+
+Native dialog, save-before-apply settings transactions and checked File Manager
+Preferences storage are implemented and cross-built. Host policy/mutation tests
+and native NetBSD portable-policy runs pass; exact final counts are in the PR
+plan. The isolated PreferencesProbe and WeatherPrefsUITest are prepared but have
+not run. Layout, typing, locked/read-only volume behavior, actual process restart
+and production delivery await Tiger. See OS9-PREFERENCES.md for source precedence
+and explicit failure/durability limits.
+
+## Forecast cache integration in PR #15 (2026-10-27)
+
+The cache branch incorporates current main, preserving the five-second manual
+refresh floor, live-data unknown-age handling and persistent OS 9 Preferences.
+Host unit/storage and mutation checks pass; full combined-suite verification is
+recorded in the PR. Earlier NetBSD hardware results apply to the earlier heads
+only. OS 9 cache storage-fault and window runtime acceptance remain pending;
+see docs/FORECAST-CACHE.md.

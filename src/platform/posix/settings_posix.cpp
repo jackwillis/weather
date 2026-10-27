@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // ~/.weatherrc on Unix. Saves atomically (temp file in the same directory, fsync, rename),
 // keeps the file's mode, and follows a symlinked dotfile instead of replacing the link.
 #include "settings_posix.hpp"
@@ -39,15 +41,36 @@ static Status px_save(SettingsStore &st, const char *text, size_t n)
 	char real[PATH_MAX];
 	if (!realpath(p->path, real)) {            // not there yet: write at the plain path
 		if (errno != ENOENT) return make(Err::Io, "cannot resolve settings path", errno);
+		struct stat unresolved;
+		if (lstat(p->path, &unresolved) == 0)
+			return make(Err::Io, "settings path is a dangling symlink");
+		if (errno != ENOENT) return make(Err::Io, "cannot inspect settings path", errno);
 		snprintf(real, sizeof real, "%s", p->path);
 	}
 	mode_t mode = 0644;
+	bool existing = false;
 	struct stat sb;
-	if (stat(real, &sb) == 0) mode = sb.st_mode & 0777;
+	if (stat(real, &sb) == 0) {
+		if (!S_ISREG(sb.st_mode)) return make(Err::Io, "settings file is not regular");
+		if (sb.st_nlink != 1) return make(Err::Io, "settings file has hard links");
+		if (sb.st_uid != geteuid()) return make(Err::Io, "settings file has a different owner");
+		if (!(sb.st_mode & 0222) || access(real, W_OK) != 0)
+			return make(Err::Io, "settings file is not writable");
+		mode = sb.st_mode & 0777;
+		existing = true;
+	} else if (errno != ENOENT) {
+		return make(Err::Io, "cannot inspect settings file", errno);
+	}
 	char tmp[PATH_MAX + 32];
 	snprintf(tmp, sizeof tmp, "%s.tmp.%ld", real, static_cast<long>(getpid()));
 	int fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL, mode);
 	if (fd < 0) return make(Err::Io, "cannot create temporary settings file", errno);
+	// open applies umask even to an existing file's replacement. Restore its
+	// ordinary permission bits explicitly; new files still respect umask.
+	if (existing && fchmod(fd, mode) != 0) {
+		int e = errno; close(fd); unlink(tmp);
+		return make(Err::Io, "cannot preserve settings permissions", e);
+	}
 	size_t done = 0;
 	while (done < n) {
 		ssize_t w = write(fd, text + done, n - done);

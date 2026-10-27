@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Separate executable: no fixture or marker handling is linked into Weather.
 #include "ui/os9/window.hpp"
 #include "platform/os9/seed_store_os9.hpp"
@@ -16,8 +18,21 @@
 using namespace wx;
 namespace {
 int stage=0, fetches=0, failures=0;
+char isolated_preferences[4096]={};
+SettingsStore isolated_store;
+void init_store() {
+    isolated_store.load=[](SettingsStore &,char *out,size_t cap,size_t *n) {
+        *n=std::strlen(isolated_preferences);
+        if(*n>=cap) return make(Err::Config,"diagnostic settings too large");
+        std::memcpy(out,isolated_preferences,*n); return okay();
+    };
+    isolated_store.save=[](SettingsStore &,const char *text,size_t n) {
+        if(n>=sizeof isolated_preferences) return make(Err::Config,"diagnostic settings too large");
+        std::memcpy(isolated_preferences,text,n); isolated_preferences[n]=0; return okay();
+    };
+}
 bool announced=false, waiting_fetch=true;
-unsigned long started=0;
+unsigned long started=0, last_fetch_ticks=0;
 FILE *logfile=nullptr;
 Config *test_cfg=nullptr;
 #ifdef WEATHER_CACHE_UI_TEST
@@ -106,6 +121,8 @@ void idle() {
 		if(!ready) { check(false,"write ready marker"); os9_window_action(WindowAction::Quit); return; }
 		std::fprintf(ready,"%d\n",stage); std::fclose(ready); announced=true;
 	}
+	// Marker acknowledgements can arrive faster than the production manual refresh floor.
+	if(static_cast<unsigned long>(TickCount()-last_fetch_ticks)<300) return;
 	if(!advance()) return;
 	++stage; announced=false;
 	if(stage==7) os9_window_action(WindowAction::About);
@@ -119,6 +136,7 @@ void idle() {
 	}
 }
 wx::Status fetch(const Config &cfg,Net &net,Forecast *f) {
+	last_fetch_ticks=TickCount();
 	++fetches; waiting_fetch=false;
 #ifdef WEATHER_CACHE_UI_TEST
 	if(stage==0) return make(Err::Timeout,"simulated initial outage");
@@ -183,7 +201,8 @@ wx::Status fetch(const Config &cfg,Net &net,Forecast *f) {
 }
 int main() {
 	logfile=std::fopen("weather-ui-test.log","w"); if(!logfile) return 2;
-	WindowTestHooks hooks{setup,idle,fetch};
+	init_store();
+	WindowTestHooks hooks{setup,idle,fetch,&isolated_store,&isolated_store};
 #ifdef WEATHER_CACHE_UI_TEST
 	hooks.cache_store=&test_cache.base;
 #endif

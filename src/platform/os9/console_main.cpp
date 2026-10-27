@@ -1,7 +1,11 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // "weather" for Mac OS 9, console edition: fetch the forecast and print it. The real OS 9 window UI comes later;
 // this proves the whole stack (Open Transport -> TLS -> HTTP -> JSON -> core) on the real machine.
 #include "core/config.hpp"
 #include "app/config_load.hpp"
+#include "app/preferences.hpp"
+#include "settings_os9.hpp"
 #include "config_os9.hpp"
 #include "cache_os9.hpp"
 #include "app/model.hpp"
@@ -49,9 +53,11 @@ int main()
 {
 	Config cfg;
 	SettingsStore store = os9_config_store();
-	wx::Status loaded = load_config(store, cfg);
+	Os9Settings preferences;
+	wx::Status loaded = os9_settings_init(&preferences);
+	if(loaded.ok()) loaded=load_preferences(preferences.base,store,cfg);
 	if (!loaded.ok()) {
-		fprintf(stderr, "weather.conf line %d: %s\n", loaded.detail, loaded.msg);
+		fprintf(stderr, "settings line %d: %s\n", loaded.detail, loaded.msg);
 		return exit_code(loaded.err);
 	}
 	log_init(cfg.level == LogWarn ? LogInfo : cfg.level, false, "weather");

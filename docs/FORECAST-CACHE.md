@@ -19,6 +19,9 @@ failure into a successful script result. Cancellation does not trigger fallback.
 `xweather` may display cached data while trying to update, with a leading
 `Cached / stale` marker and dimmed temperature. A live success clears that marker.
 Location or unit changes discard the old display and only admit matching entries.
+Cached data preserves the five-second manual refresh floor, error/backoff schedule
+and unknown-age handling after a clock rollback. A successful live fetch clears
+the cached label; rejected manual requests never become queued work.
 
 Writes use an exclusive temporary file in the same directory, complete short
 writes, check file sync/close/rename and flush the parent directory. A failure
@@ -36,7 +39,7 @@ Exactly 160 bytes; integers use big-endian order, never native struct layout:
 |---|---|
 | 0 | Eight bytes `WXFCACH1` |
 | 8 | Signed 32-bit latitude and longitude, degrees times 10000 |
-| 16 | Metric flag (0/1), source ID (1 Open-Meteo, 2 MET Norway), six zero bytes |
+| 16 | Metric flag (0/1), source ID (1 Open-Meteo, 2 MET Norway, 3 NWS), six zero bytes |
 | 24 | Nonnegative signed-range 64-bit Unix fetch time |
 | 32 | Six signed 32-bit fields: temperature tenths, humidity, wind tenths, direction, WMO code, day flag |
 | 56 | 24-byte NUL-terminated, zero-padded printable observation text |
@@ -53,8 +56,9 @@ re-encodes byte-for-byte. Forward extensions must keep rejection behavior safe.
 
 The codec, model policy, POSIX adapter, CLI and X11 implementation are verified.
 OS 9 has a cross-built File Manager adapter plus console/window wiring, but its
-runtime acceptance is pending a Tiger boot. PR #15 is based on #11 and stays draft.
-Provider terms/attribution review remains part of release readiness.
+runtime acceptance is pending a Tiger boot. PR #15 now incorporates main through
+2026-10-27, including persistent Preferences, stale-age handling and the manual
+refresh floor, and stays draft until the remaining acceptance checks pass.
 
 OS 9 stores `Weather Forecast Cache` in Preferences, separate from all TLS files.
 A uniquely named `WXC...` temporary file is created exclusively, written and closed

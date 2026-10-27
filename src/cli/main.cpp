@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // weather: print current conditions. See weather.1 for usage.
 #include "core/config.hpp"
 #include "app/model.hpp"
@@ -10,6 +12,7 @@
 #include "core/providers.hpp"
 #include "tls/tls.hpp"
 #include "core/version.hpp"
+#include "app/credits.hpp"
 #include <cerrno>
 #include <csignal>
 #include <cstdio>
@@ -22,7 +25,7 @@ using namespace wx;
 
 static void usage(FILE *f)
 {
-	fputs("usage: weather [-1dhqsSV] [-c file] [-l lat,lon] [-n name] [-p providers] [-t secs]\n"
+	fputs("usage: weather [-1CdhqsSV] [-c file] [-l lat,lon] [-n name] [-p providers] [-t secs]\n"
 	      "               [-u metric|imperial] [-v]\n"
 	      "  -1  one line of output       -c  config file (default ~/.weatherrc)\n"
 	      "  -d  debug: dump traffic      -l  latitude,longitude in decimal degrees\n"
@@ -31,7 +34,8 @@ static void usage(FILE *f)
 	      "  -q  errors only              -s  log to syslog\n"
 	      "  -S  save location/name/units to the config file and exit\n"
 	      "  -t  network timeout, secs    -u  units\n"
-	      "  -v  more logging (repeat)    -V  print version\n"
+	      "  -v  more logging (repeat)    -V  print version and licence\n"
+	      "  -C  (--credits) licence, data and software credits\n"
 	      "  -H host:port  (testing) plain HTTP to host:port instead of the provider\n"
 	      "sources: open-meteo, met-no (met-no needs 'contact' in the config file)\n", f);
 }
@@ -77,10 +81,11 @@ int main(int argc, char **argv)
 	static const struct option longopts[] = {
 		{"help", no_argument, nullptr, 'h'},
 		{"version", no_argument, nullptr, 'V'},
+		{"credits", no_argument, nullptr, 'C'},
 		{nullptr, 0, nullptr, 0},
 	};
 	int ch;
-	while ((ch = getopt_long(argc, argv, "1c:dhH:l:n:p:qsSt:u:vV", longopts, nullptr)) != -1) {
+	while ((ch = getopt_long(argc, argv, "1c:CdhH:l:n:p:qsSt:u:vV", longopts, nullptr)) != -1) {
 		switch (ch) {
 		case '1': oneline = true; break;
 		case 'c': cfgpath = optarg; break;
@@ -96,7 +101,17 @@ int main(int argc, char **argv)
 		case 's': use_syslog = true; break;
 		case 'S': save = true; break;
 		case 'v': verbose++; break;
-		case 'V': printf("weather %s\n", WEATHER_VERSION); return 0;
+		case 'V':
+			printf("weather %s\n", WEATHER_VERSION);
+			for (const char *line : kCreditsShort) printf("%s\n", line);
+			puts("Run 'weather --credits' for all credits.");
+			return 0;
+		case 'C':
+			for (size_t i = 0; i < kCreditPageCount; i++) {
+				printf("%s%s\n", i ? "\n" : "", kCreditPages[i].title);
+				for (size_t k = 0; k < kCreditPages[i].n; k++) printf("  %s\n", kCreditPages[i].lines[k]);
+			}
+			return 0;
 		default: usage(stderr); return exit_code(Err::Usage);
 		}
 	}

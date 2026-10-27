@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // The app model: everything a UI needs to decide, with no drawing and no OS calls.
 // Phases: Idle -> Fetching -> Ok | Failed. The UI owns the (blocking, yielding) fetch:
 //
@@ -30,13 +32,14 @@ public:
 
 	void start(long long now) { phase_ = Phase::Idle; next_at_ = now; want_ = true; }
 
-	// Manual refresh. Ignored while a fetch is running.
-	void request_refresh() { if (phase_ != Phase::Fetching) want_ = true; }
+	// Manual refresh. Ignored while fetching; tick drops requests within 5 s of a fetch start.
+	void request_refresh() { if (phase_ != Phase::Fetching) manual_ = true; }
 
-	void set_auto_refresh(bool on, long long now)
+	// Pausing automatic updates does not move the pending success/retry deadline.
+	// On resume, tick() immediately fetches if that deadline has passed.
+	void set_auto_refresh(bool on, long long /*now*/)
 	{
 		cfg_.auto_refresh = on;
-		if (on && phase_ != Phase::Fetching) next_at_ = now + cfg_.interval_s;
 	}
 
 	// The location changed: the old forecast describes somewhere else. Forget it and refetch.
@@ -62,9 +65,15 @@ public:
 		if (phase_ == Phase::Fetching) return false;
 		// A clock that jumped backwards must not postpone the next refresh by years.
 		if (next_at_ > now + cfg_.interval_s) next_at_ = now + cfg_.interval_s;
-		bool due = want_ || (cfg_.auto_refresh && now >= next_at_);
+		// Rebase after a backwards clock step so the cooldown stays bounded.
+		if (started_ && now < last_start_) last_start_ = now;
+		bool manual_due = manual_ && (!started_ ||
+			static_cast<unsigned long long>(now) - static_cast<unsigned long long>(last_start_) >= 5);
+		manual_ = false; // ignored requests must not turn into delayed fetches
+		bool due = want_ || manual_due || (cfg_.auto_refresh && now >= next_at_);
 		if (!due) return false;
 		want_ = false;
+		started_ = true; last_start_ = now;
 		prev_ = phase_;
 		phase_ = Phase::Fetching;
 		return true;
@@ -111,7 +120,7 @@ public:
 	int failures() const { return failures_; }
 	long long next_refresh_at() const { return next_at_; }
 
-	// Seconds since the data was fetched; -1 if there is none.
+	// Seconds since fetch, clamped to long; -1 without data, 0 when age is unknown.
 	long age(long long now) const
 	{
 		if(!have_) return -1;
@@ -120,8 +129,8 @@ public:
 		unsigned long long limit=static_cast<unsigned long long>(std::numeric_limits<long>::max());
 		return static_cast<long>(delta>limit?limit:delta);
 	}
-	// Showing data that may no longer be true: the last refresh failed or it is over two intervals old.
-	bool stale(long long now) const { return have_ && (cached_ || phase_ == Phase::Failed || age(now) > 2 * cfg_.interval_s); }
+	// Cached, failed, old, or clock-rollback data must always be shown as stale.
+	bool stale(long long now) const { return have_ && (cached_ || phase_ == Phase::Failed || age_unknown(now) || age(now) > 2 * cfg_.interval_s); }
 	// Seconds until the next automatic refresh; -1 if automatic refresh is off or a fetch is running.
 	long seconds_until_refresh(long long now) const
 	{
@@ -138,13 +147,13 @@ public:
 		case Phase::Idle:
 			o.add("Waiting to load"); break;
 		case Phase::Fetching:
-			o.add("Fetching"); if (have_ && !cached_) { o.add(" (showing data from "); add_age(o, age(now)); o.add(")"); } else o.add("..."); break;
+			o.add("Fetching"); if (have_ && !cached_) { o.add(" (showing data from "); add_data_age(o, now); o.add(")"); } else o.add("..."); break;
 		case Phase::Ok:
 			if (cached_) o.add("Live update pending");
-			else { o.add("Updated "); add_age(o, age(now)); } break;
+			else { o.add("Updated "); if (age_unknown(now)) o.add("at "); add_data_age(o, now); } break;
 		case Phase::Failed:
 			o.add("Update failed: ").add(last_.msg);
-			if (have_ && !cached_) { o.add(". Showing data from "); add_age(o, age(now)); }
+			if (have_ && !cached_) { o.add(". Showing data from "); add_data_age(o, now); }
 			break;
 		}
 		long left = seconds_until_refresh(now);
@@ -163,6 +172,14 @@ public:
 		o.add(". ");
 	}
 
+	// How old the data is, in words; "an unknown time" if the clock was stepped back since it was fetched.
+	template <size_t N>
+	void add_data_age(Buf<N> &o, long long now) const
+	{
+		if (age_unknown(now)) o.add("an unknown time, clock changed");
+		else add_age(o, age(now));
+	}
+
 	template <size_t N>
 	static void add_dur(Buf<N> &o, long secs)
 	{
@@ -177,11 +194,16 @@ public:
 	}
 
 private:
+	// The clock now reads earlier than when the data was fetched, so how old it is cannot be known.
+	bool age_unknown(long long now) const { return have_ && now < at_; }
+
 	ModelConfig cfg_;
 	Phase phase_ = Phase::Idle, prev_ = Phase::Idle;
 	Forecast fc_;
 	bool have_ = false, want_ = true, pending_reset_ = false;
 	bool cached_ = false;
+	bool manual_ = false, started_ = false;
+	long long last_start_ = 0;
 	long long at_ = 0, next_at_ = 0;
 	int failures_ = 0;
 	Status last_;

@@ -1,0 +1,32 @@
+Forecast cache / PR #15 integration, 2026-10-27
+Base: origin/main e3b5a87. Prior cache head: 1fae972.
+
+Merged current main without rewriting the cache branch. Preserved cache state,
+live unknown-age handling, manual refresh cooldown, automatic resume behavior,
+persistent Preferences and isolated diagnostic settings. WeatherCacheUITest now
+links Location and Preferences adapters as required by the merged window.
+
+Regression: the pre-integration cache test failed at model.tick(202), requesting
+a refresh two seconds after a fetch start. Updated it to assert rejection, no
+queued refresh, acceptance at five seconds, then successful live replacement.
+Added a live rollback status/staleness check after cached recovery.
+
+Passed locally:
+- host unit/storage: 1521 checks, 0 failed
+- host robustness: 346152 inputs, 0 failed
+- ASan + UBSan unit/storage: 1521 checks, 0 failed
+- ASan + UBSan robustness: 346152 inputs, 0 failed
+- make lint check-anchors (14 anchor tests), tools/check-policy.sh
+- NetBSD cross-build: CLI, X11, unit and robustness binaries
+- make os9, including enabled diagnostic targets: Weather, WeatherConsole,
+  CacheProbe, WeatherPrefsUITest, WeatherUITest and WeatherCacheUITest
+
+Initial sandbox unit run also reported "FAIL test/unittest.cpp:419: ls >= 0":
+local socket binding was restricted. Re-run outside the sandbox passed.
+NetBSD linker printed existing compatibility cabs()/cabsf() warnings.
+
+Local full make check/check-san and shared fixture/GUI runs were held because a
+Claude process was active and the handoff prohibits overlapping those runs.
+Hosted CI must provide full combined-tree fixture/GUI/32-bit results; see PR.
+No hardware tests or production delivery performed on this integrated head.
+Tiger cache storage-fault/window acceptance remains pending; keep PR draft.

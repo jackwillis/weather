@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // A bounded, canonical cache record. No native structs, pointers or host byte
 // order are persisted. CRC detects corruption; this is not an authenticated file.
 #pragma once

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 """Independent cache record fixture; never contains TLS seed material."""
 from pathlib import Path
 import struct

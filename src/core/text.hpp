@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Fixed-capacity string builder and number helpers. No heap, all constexpr.
 #pragma once
 #include <cstddef>
@@ -118,6 +120,19 @@ constexpr sv trim(sv t)
 	while (b < e && (t[b] == ' ' || t[b] == '\t' || t[b] == '\r' || t[b] == '\n')) b++;
 	while (e > b && (t[e - 1] == ' ' || t[e - 1] == '\t' || t[e - 1] == '\r' || t[e - 1] == '\n')) e--;
 	return t.substr(b, e - b);
+}
+
+// Text files may end lines with LF, CRLF or a lone CR (classic Mac OS). line_break: index of the first break at or after
+// pos, or t.size(). after_break: index just past the break at `at` (CRLF counts as one); t.size() if there is none.
+constexpr size_t line_break(sv t, size_t pos)
+{
+	while (pos < t.size() && t[pos] != '\n' && t[pos] != '\r') pos++;
+	return pos;
+}
+constexpr size_t after_break(sv t, size_t at)
+{
+	if (at >= t.size()) return t.size();
+	return (t[at] == '\r' && at + 1 < t.size() && t[at + 1] == '\n') ? at + 2 : at + 1;
 }
 
 constexpr size_t find(sv h, sv needle, size_t from = 0)

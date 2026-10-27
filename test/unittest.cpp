@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Unit tests: plain C++, no framework. Build-time checks (static_assert) come first:
 // if the core is wrong, this file does not compile.
 #include "core/config.hpp"
@@ -7,9 +9,11 @@
 #include "core/log.hpp"
 #include "core/openmeteo.hpp"
 #include "core/version.hpp"
+#include "app/credits.hpp"
 #include "app/locform.hpp"
 #include "app/model.hpp"
 #include "app/config_load.hpp"
+#include "app/preferences.hpp"
 #include "app/window_actions.hpp"
 #include "app/textedit.hpp"
 #include "core/providers.hpp"
@@ -20,6 +24,7 @@
 #include "platform/os9/dns_resolve.hpp"
 #include "platform/os9/modal_clock.hpp"
 #include <arpa/inet.h>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -82,6 +87,14 @@ static void test_openmeteo()
 	CHECK(s.err == Err::Parse);                 // truncated JSON
 	s = openmeteo_parse(R"({"current":{"temperature_2m":9999,"weather_code":0}})", q, &f);
 	CHECK(s.err == Err::BadData);               // implausible
+	s = openmeteo_parse(R"({"current":{"temperature_2m":20.0,"weather_code":150}})", q, &f);
+	CHECK(s.err == Err::BadData);               // no such WMO code
+	s = openmeteo_parse(R"({"current":{"temperature_2m":20.0,"weather_code":99}})", q, &f);
+	CHECK(s.ok());
+	{ Query mq; mq.metric = true;               // the real (Fahrenheit, mp/h) fixture answers a metric request: refused, not relabelled
+	  Forecast mf;
+	  s = openmeteo_parse(fixture(0, "openmeteo-ok.json"), mq, &mf);
+	  CHECK(s.err == Err::BadData && strstr(s.msg, "units") != nullptr); }
 	s = openmeteo_parse("<html>", q, &f);
 	CHECK(s.err == Err::Parse);
 	s = openmeteo_parse(R"({"latitude":1})", q, &f);
@@ -116,6 +129,17 @@ static void test_config()
 	CHECK(config_parse("", &c).ok());
 	{ Config d; CHECK(d.lat_e4 == 430747 && d.lon_e4 == -893841 && !strcmp(d.name, "Madison, WI")); }
 	CHECK(config_parse("units = metric", &c).ok());         // no trailing newline
+	{ // classic Mac files end lines with CR alone: a CR is a line break, not whitespace inside one line
+		Config d;
+		s = config_parse("# my weather\rlatitude = 59.9100\rlongitude = 10.7500\rname = Oslo\r", &d);
+		CHECK(s.ok() && d.lat_e4 == 599100 && d.lon_e4 == 107500 && !strcmp(d.name, "Oslo"));
+		s = config_parse("units = metric\rbogus = 1\r", &d);
+		CHECK(s.err == Err::Config && s.detail == 2);       // the line number counts CR lines
+		s = config_parse("# a\r\nlatitude = 1.5\rlongitude = 2.5\nname = X", &d);   // CRLF, CR and LF mixed; no final terminator
+		CHECK(s.ok() && d.lat_e4 == 15000 && d.lon_e4 == 25000 && !strcmp(d.name, "X"));
+		s = config_parse("units = metric\r\nbogus = 1\r\n", &d);
+		CHECK(s.err == Err::Config && s.detail == 2);       // CRLF is one break, not two: still line 2
+	}
 }
 
 // ---- scripted fake network
@@ -127,7 +151,7 @@ struct Step {
 struct Fake {
 	Step steps[8];
 	int nsteps = 0, next = 0, connects = 0, closes = 0, nsleeps = 0;
-	long sleeps[8] = {};
+	long sleeps[64] = {};
 	long long clock = 1790000000LL;
 	bool cancel_sleep = false;
 	const char *cur = ""; size_t pos = 0; Err cur_err = Err::Ok;
@@ -169,7 +193,7 @@ static Status fk_connect(Net &n, const char *, const char *, int, Io *out)
 	return okay();
 }
 static void fk_close(Net &n, Io &) { F(n)->closes++; }
-static bool fk_sleep(Net &n, long ms) { Fake *f = F(n); if (f->nsleeps < 8) f->sleeps[f->nsleeps++] = ms; return !f->cancel_sleep; }
+static bool fk_sleep(Net &n, long ms) { Fake *f = F(n); if (f->nsleeps < 64) f->sleeps[f->nsleeps++] = ms; return !f->cancel_sleep; }
 static long long fk_now(Net &n) { return F(n)->clock; }
 
 static Net make_net(Fake *f)
@@ -223,6 +247,22 @@ static void test_fetch()
 		Net n = make_net(&f);
 		Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
 		CHECK(s.ok() && f.connects == 2 && f.nsleeps == 1);
+	}
+	{ // backoff doubles but is capped (default 30 s): a long run of attempts never sleeps for hours or overflows a 32-bit long
+		Fake f; f.steps[0] = {okay(), k500, Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f);
+		FetchOpts many = o; many.attempts = 40; many.backoff_ms = 100;
+		Status s = fetch_retry(n, "h", "80", false, "/", many, buf, sizeof buf, &body);
+		CHECK(s.err == Err::HttpStatus && f.connects == 40 && f.nsleeps == 39);
+		bool in_range = true;
+		for (int i = 0; i < f.nsleeps; i++) if (f.sleeps[i] <= 0 || f.sleeps[i] > 30000) in_range = false;
+		CHECK(in_range);
+		CHECK(f.sleeps[0] == 100 && f.sleeps[8] == 25600 && f.sleeps[9] == 30000 && f.sleeps[38] == 30000);
+		Fake g; g.steps[0] = {okay(), k500, Err::Ok}; g.nsteps = 1;
+		Net gn = make_net(&g);
+		FetchOpts tight = o; tight.attempts = 4; tight.backoff_ms = 5000; tight.max_backoff_ms = 1000;   // a first delay above the cap is capped too
+		fetch_retry(gn, "h", "80", false, "/", tight, buf, sizeof buf, &body);
+		CHECK(g.nsleeps == 3 && g.sleeps[0] == 1000 && g.sleeps[1] == 1000 && g.sleeps[2] == 1000);
 	}
 	{ // chunked response: refused, not retried
 		Fake f; f.steps[0] = {okay(), kChunked, Err::Ok}; f.nsteps = 1;
@@ -480,6 +520,12 @@ static void test_settings_text()
 		CHECK(upd("name = A\r\nunits = metric\r\n", loc + 2, 1, out, sizeof out));
 		CHECK(sv(out) == sv("name = Oslo\r\nunits = metric\r\n"));
 	}
+	{ // CR-only (classic Mac) files: lines are found, edited in place, and new keys use the file's line ending
+		CHECK(upd("# my weather\rlatitude = 1.0\rname = X # home\runits = metric\r", loc, 3, out, sizeof out));
+		CHECK(sv(out) == sv("# my weather\rlatitude = 59.9100\rname = Oslo  # home\runits = metric\rlongitude = 10.7500\r"));
+		Config c;
+		CHECK(config_parse(out, &c).ok() && c.lat_e4 == 599100 && c.lon_e4 == 107500 && !strcmp(c.name, "Oslo") && c.metric);
+	}
 	{ // a commented-out key is not the key
 		CHECK(upd("# latitude = 5\n", loc, 1, out, sizeof out));
 		CHECK(sv(out) == sv("# latitude = 5\nlatitude = 59.9100\n"));
@@ -565,6 +611,39 @@ static void test_settings_store()
 	struct stat sb;
 	CHECK(stat(path, &sb) == 0 && (sb.st_mode & 0777) == 0600);
 
+	// Replacement must preserve the existing mode even under a restrictive umask.
+	CHECK(chmod(path, 0644) == 0);
+	mode_t previous_mask = umask(0077);
+	Status mode_save = settings_save(st.base, c);
+	umask(previous_mask);
+	CHECK(mode_save.ok());
+	CHECK(stat(path, &sb) == 0 && (sb.st_mode & 0777) == 0644);
+
+	// Near the fixed text limit, successful rewrites remain loadable and repeatable.
+	char large[4096], saved[4096];
+	const char *owned = "latitude = 59.9100\nlongitude = 10.7500\nname = Oslo\nunits = metric\n";
+	size_t owned_n = strlen(owned);
+	memset(large, 'x', 4094);
+	large[0] = '#'; large[4094 - owned_n - 1] = '\n';
+	memcpy(large + 4094 - owned_n, owned, owned_n);
+	large[4094] = 0;
+	f = fopen(path, "wb"); CHECK(f != nullptr);
+	if (f) { CHECK(fwrite(large, 1, 4094, f) == 4094); fclose(f); }
+	CHECK(settings_save(st.base, c).ok());
+	CHECK(slurp(path, saved, sizeof saved) && !strcmp(saved, large));
+	CHECK(settings_save(st.base, c).ok());
+	CHECK(st.base.load(st.base, saved, sizeof saved, &n).ok() && n == 4094);
+
+	// A smaller input can grow past the limit when missing keys are appended.
+	// Refuse clearly, preserving every byte and leaving no temporary files.
+	memset(large, 'x', 4090); large[0] = '#'; large[4090] = 0;
+	f = fopen(path, "wb"); CHECK(f != nullptr);
+	if (f) { CHECK(fwrite(large, 1, 4090, f) == 4090); fclose(f); }
+	Status too_big = settings_save(st.base, c);
+	CHECK(too_big.err == Err::Config && !strcmp(too_big.msg, "settings file too large"));
+	CHECK(slurp(path, saved, sizeof saved) && !strcmp(saved, large));
+	CHECK(count_entries(dir) == 1);
+
 	// a symlinked dotfile stays a symlink and the real file is updated
 	char real[300], link[300];
 	snprintf(real, sizeof real, "%s/real", dir);
@@ -577,6 +656,24 @@ static void test_settings_store()
 	struct stat lsb;
 	CHECK(lstat(link, &lsb) == 0 && S_ISLNK(lsb.st_mode));
 	CHECK(slurp(real, text, sizeof text) && strstr(text, "name = Oslo") != nullptr);
+
+	// Atomic replacement must not bypass the existing file's protection or split links.
+	CHECK(chmod(real, 0444) == 0);
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	CHECK(stat(real, &sb) == 0 && (sb.st_mode & 0777) == 0444);
+	CHECK(chmod(real, 0600) == 0);
+	char alias[300];
+	snprintf(alias, sizeof alias, "%s/alias", dir);
+	CHECK(::link(real, alias) == 0);
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	struct stat asb;
+	CHECK(stat(real, &sb) == 0 && stat(alias, &asb) == 0 && sb.st_ino == asb.st_ino && sb.st_nlink == 2);
+	CHECK(unlink(alias) == 0);
+	CHECK(unlink(real) == 0); // the dotfile is now a dangling symlink
+	CHECK(posix_settings_init(&ls, link, false).ok());
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	CHECK(lstat(link, &lsb) == 0 && S_ISLNK(lsb.st_mode));
+	CHECK(stat(real, &sb) != 0 && errno == ENOENT);
 
 	// a directory we cannot write to: a clean Io error, original untouched
 	if (geteuid() != 0) {
@@ -622,6 +719,37 @@ static void test_model()
 		CHECK(!m.tick(6));             // the ignored refresh did not queue another fetch
 		CHECK(m.age(65) == 60 && !m.stale(65));
 		CHECK(!m.tick(904) && m.tick(905));            // 5 + 900
+	}
+	{ // Manual requests inside the five-second floor are dropped, never queued.
+		Model m(mc, 100);
+		Forecast f = some_forecast(548);
+		CHECK(m.tick(100)); m.finish(101, okay(), &f);
+		m.request_refresh(); CHECK(!m.tick(101));
+		m.request_refresh(); CHECK(!m.tick(104));
+		CHECK(!m.tick(105));
+		m.request_refresh(); CHECK(m.tick(105));
+		m.finish(106, fail_dns(), nullptr);
+		m.request_refresh(); CHECK(!m.tick(109));
+		m.request_refresh(); CHECK(m.tick(110));
+		m.finish(116, okay(), &f);
+		m.request_refresh(); CHECK(m.tick(116)); // measured from start, not finish
+	}
+	{ // Automatic refresh and location changes bypass the manual floor.
+		ModelConfig fast = mc; fast.interval_s = 2;
+		Model m(fast, 100);
+		Forecast f = some_forecast(548);
+		CHECK(m.tick(100)); m.finish(100, okay(), &f);
+		m.request_refresh(); CHECK(!m.tick(101));
+		CHECK(m.tick(102)); m.finish(102, okay(), &f);
+		m.location_changed(); CHECK(m.tick(103));
+	}
+	{ // A backwards clock step starts a fresh bounded cooldown.
+		Model m(mc, 1000);
+		Forecast f = some_forecast(548);
+		CHECK(m.tick(1000)); m.finish(1000, okay(), &f);
+		m.request_refresh(); CHECK(!m.tick(100));
+		m.request_refresh(); CHECK(!m.tick(104));
+		m.request_refresh(); CHECK(m.tick(105));
 	}
 	{ // failures back off 60, 120, 240 ... capped at the interval; success resets
 		Model m(mc, 0);
@@ -684,7 +812,42 @@ static void test_model()
 		CHECK(m.tick(100001));
 		m.finish(100002, okay(), &f);
 		m.set_auto_refresh(true, 100003);
-		CHECK(m.seconds_until_refresh(100003) == 900);
+		CHECK(m.seconds_until_refresh(100003) == 899);
+	}
+	{ // resuming automatic updates keeps the original deadline, even when overdue
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		m.set_auto_refresh(false, 1);
+		CHECK(!m.tick(7200));
+		m.set_auto_refresh(true, 7200);
+		CHECK(m.seconds_until_refresh(7200) == 0 && m.next_refresh_at() == 900);
+		CHECK(m.tick(7200) && !m.tick(7200));
+	}
+	{ // toggles and repeated enable calls cannot postpone a pending failure retry
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		m.finish(0, fail_dns(), nullptr);
+		m.set_auto_refresh(false, 5);
+		m.set_auto_refresh(true, 6);
+		m.set_auto_refresh(true, 7);
+		CHECK(m.next_refresh_at() == 60 && !m.tick(59) && m.tick(60));
+		m.finish(60, fail_dns(), nullptr);
+		m.set_auto_refresh(false, 61);
+		CHECK(!m.tick(200));
+		m.set_auto_refresh(true, 200);
+		CHECK(m.tick(200));
+	}
+	{ // toggling during a fetch neither starts another nor changes its completion schedule
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		m.set_auto_refresh(false, 1);
+		m.set_auto_refresh(true, 2);
+		CHECK(!m.tick(3));
+		Forecast f = some_forecast(548);
+		m.finish(4, okay(), &f);
+		CHECK(m.next_refresh_at() == 904 && !m.tick(903) && m.tick(904));
 	}
 	{ // the clock jumped back by years: the next refresh is not postponed that long
 		Model m(mc, 1000000);
@@ -695,6 +858,32 @@ static void test_model()
 		CHECK(m.next_refresh_at() <= 500 + 900);
 		CHECK(m.tick(500 + 900));
 		CHECK(m.age(100) == 0);          // never a negative age
+	}
+	{ // the clock stepped back after a fetch: the age of the data cannot be known. It is stale and must not read "just now"
+		Model m(mc, 1000000);
+		m.tick(1000000);
+		Forecast f = some_forecast(548);
+		m.finish(1000000, okay(), &f);
+		CHECK(!m.stale(1000010));        // normal case unchanged
+		Buf<200> ok; m.status_line(ok, 1000010);
+		CHECK(strstr(ok.c_str(), "Updated just now") != nullptr);
+		CHECK(m.stale(500));
+		Buf<200> b; m.status_line(b, 500);
+		CHECK(strstr(b.c_str(), "just now") == nullptr && strstr(b.c_str(), "Updated at an unknown time, clock changed") != nullptr);
+		CHECK(m.stale(1000000 - 1) && !m.stale(1000000));   // the boundary: now == fetch time is a known age (0)
+		CHECK(!m.tick(500));                                // the UI ticks every second; the refresh time is clamped to the new clock
+		CHECK(m.tick(500 + 900));                           // fetching: the old data is still described honestly
+		Buf<200> fb; m.status_line(fb, 500 + 900);
+		CHECK(strstr(fb.c_str(), "showing data from an unknown time, clock changed") != nullptr);
+		m.finish(500 + 900, make(Err::Timeout, "timed out"), nullptr);
+		Buf<200> xb; m.status_line(xb, 500 + 901);
+		CHECK(strstr(xb.c_str(), "Showing data from an unknown time, clock changed") != nullptr);
+		CHECK(m.stale(500 + 901));
+		m.tick(500 + 900 + 60);
+		Forecast g = some_forecast(550);
+		m.finish(500 + 900 + 61, okay(), &g);                // a fresh fetch under the new clock: known age again
+		Buf<200> nb; m.status_line(nb, 500 + 900 + 62);
+		CHECK(!m.stale(500 + 900 + 62) && strstr(nb.c_str(), "Updated just now") != nullptr);
 	}
 	{ // location changes while a fetch runs: its answer is dropped and a new fetch is queued
 		Model m(mc, 0);
@@ -715,6 +904,28 @@ static void test_model()
 		m.finish(0, okay(), &f);
 		m.location_changed();
 		CHECK(!m.has_forecast() && m.tick(1));
+	}
+	{ // a cancelled manual retry preserves the failed forecast and retry count
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		CHECK(m.tick(900));
+		m.finish(900, fail_dns(), nullptr);
+		m.request_refresh();
+		CHECK(!m.tick(901));             // within the 5 s manual floor
+		m.request_refresh();
+		CHECK(m.tick(905));
+		m.finish(906, make(Err::Cancelled, "cancelled"), nullptr);
+		CHECK(m.phase() == Phase::Failed && m.has_forecast() && m.failures() == 1);
+		CHECK(m.last_error().err == Err::Dns && m.next_refresh_at() == 1806);
+		m.location_changed();
+		CHECK(!m.has_forecast() && m.failures() == 0 && m.phase() == Phase::Idle);
+		CHECK(m.tick(903));
+		m.location_changed();
+		m.finish(904, fail_dns(), nullptr); // discard failure about the previous location too
+		CHECK(m.phase() == Phase::Idle && !m.has_forecast() && m.failures() == 0);
+		CHECK(m.tick(904));
 	}
 	{ // status text
 		Model m(mc, 0);
@@ -812,6 +1023,26 @@ static void test_forms()
 
 static void test_metno()
 {
+	// Independently vendored upstream filename list, rather than iterating our own map.
+	static const char *published[] = {
+#include "met_symbols.inc"
+	};
+	CHECK(sizeof published / sizeof published[0] == 83);
+	for (const char *symbol : published) {
+		MetCode code = met_symbol(symbol);
+		CHECK(code.code >= 0);
+		int day = ends_with(symbol, "_day") ? 1 : ends_with(symbol, "_night") ? 0 : -1;
+		CHECK(code.is_day == day);
+		char input[512];
+		snprintf(input, sizeof input, "{\"properties\":{\"timeseries\":[{\"data\":{\"instant\":{\"details\":{\"air_temperature\":5.0,\"cloud_area_fraction\":0}},\"next_1_hours\":{\"summary\":{\"symbol_code\":\"%s\"}}}}]}}", symbol);
+		Forecast parsed;
+		Status st = metno_parse(input, Query{}, &parsed);
+		CHECK(st.ok() && parsed.code == code.code);
+		if (strstr(symbol, "thunder")) CHECK(parsed.code == 95);
+	}
+	// Keep compatibility with corrected spellings accepted by earlier Weather versions.
+	CHECK(met_symbol("lightsleetshowersandthunder_day").code == 95);
+	CHECK(met_symbol("lightsnowshowersandthunder_night").code == 95);
 	Query q;
 	Forecast f;
 	Status s = metno_parse(fixture(0, "metno-ok.json"), q, &f);
@@ -856,7 +1087,7 @@ static void test_metno()
 		Net n = make_net(&fk);
 		Status r = fetch_forecast(n, only, 1, lq, o, buf, sizeof buf, &out);
 		CHECK(r.ok() && out.temp_t10 == 545);
-		CHECK(strstr(fk.request, "User-Agent: weather/0.1.0 (contact: tester@example.org)\r\n") != nullptr);
+		CHECK(strstr(fk.request, "User-Agent: weather/" WEATHER_VERSION " (contact: tester@example.org)\r\n") != nullptr);
 		CHECK(strstr(fk.request, "Host: fake\r\n") != nullptr);
 	}
 	{ // Open-Meteo fails, MET Norway answers
@@ -1037,16 +1268,43 @@ static void test_window_actions()
 	actions.apply(WindowAction::ToggleAuto, cfg, model, 5);
 	CHECK(!cfg.auto_refresh && model.seconds_until_refresh(5) == -1);
 	actions.apply(WindowAction::Refresh, cfg, model, 6);
-	CHECK(model.tick(6)); // Manual refresh still works with automatic refresh off.
-	actions.apply(WindowAction::Quit, cfg, model, 6);
-	CHECK(actions.quit);
-	model.finish(7, make(Err::Cancelled, "quit"), nullptr);
+	CHECK(!model.tick(6)); // The manual floor also applies with automatic refresh off.
 	actions.apply(WindowAction::Refresh, cfg, model, 8);
-	CHECK(!model.tick(8)); // Quit is terminal for command dispatch.
+	CHECK(model.tick(8)); // Five seconds since the units-change fetch began.
+	actions.apply(WindowAction::Quit, cfg, model, 8);
+	CHECK(actions.quit);
+	model.finish(9, make(Err::Cancelled, "quit"), nullptr);
+	actions.apply(WindowAction::Refresh, cfg, model, 10);
+	CHECK(!model.tick(10)); // Quit is terminal for command dispatch.
 	CHECK(window_seed_failure(make(Err::Tls,"no source of random numbers"),"locked"));
 	CHECK(!window_seed_failure(make(Err::Dns,"cannot resolve"),"locked"));
 	CHECK(!window_seed_failure(make(Err::Tls,"handshake failed"),"locked"));
 	CHECK(!window_seed_failure(make(Err::Tls,"no source of random numbers"),""));
+}
+
+#include "preferences_tests.hpp"
+
+static bool credits_mention(const char *what)
+{
+	for (const CreditPage &p : kCreditPages)
+		for (size_t i = 0; i < p.n; i++) if (strstr(p.lines[i], what)) return true;
+	return false;
+}
+static void test_credits()
+{
+	// Everything THIRD_PARTY.md names, both data sources and the licence must be credited in full.
+	for (const char *what : {"Open-Meteo", "MET Norway", "CC BY 4.0", "BearSSL", "Retro68", "Multiversal", "General", "NO WARRANTY",
+	                         "Jack Willis", "THIRD_PARTY.md", "github.com/jackwillis/weather"})
+		CHECK(credits_mention(what));
+	for (const char *what : {"Jack Willis", "GPL-3.0-or-later", "Open-Meteo", "MET Norway"}) {
+		bool found = false;
+		for (const char *line : kCreditsShort) if (strstr(line, what)) found = true;
+		CHECK(found);
+	}
+	for (const CreditPage &p : kCreditPages) {
+		CHECK(p.n >= 1 && p.n <= 9);                    // a page must fit both About boxes without scrolling
+		for (size_t i = 0; i < p.n; i++) CHECK(strlen(p.lines[i]) <= 46);
+	}
 }
 
 int main()
@@ -1061,8 +1319,10 @@ int main()
 	test_settings_text();
 	test_settings_store();
 	test_model();
+	test_credits();
 	test_window_actions();
 	test_config_load();
+	test_preferences();
 	test_modal_clock();
 	test_forms();
 	test_metno();

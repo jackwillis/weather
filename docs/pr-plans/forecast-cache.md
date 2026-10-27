@@ -1,6 +1,6 @@
 # Last-good forecast cache
 
-Status: draft implementation based on #11. Portable/POSIX milestones are verified;
+Status: draft implementation incorporating main through 2026-10-27. Portable/POSIX milestones are verified;
 OS 9 storage and window/console integration are cross-built, with native runtime
 acceptance pending a Tiger boot.
 
@@ -39,7 +39,7 @@ Verification:
 
 See docs/FORECAST-CACHE.md for the record and policy. Remaining before ready:
 Native OS 9 storage-fault and cache-window acceptance when Jack boots Tiger.
-The window integration follows #11; this PR is stacked on that branch. Keep draft.
+The window integration now incorporates main, including #11 and #12. Keep draft.
 
 Scope: add a bounded, versioned on-disk forecast cache through a platform storage
 seam. Serve matching last-good data when providers fail, visibly marked stale.
@@ -97,3 +97,6 @@ unit cases failed before the codec change; the sandbox also blocked an unrelated
 local socket test, which passed in the network-enabled regression run. The full
 host check preceded the added NWS mutation seed; the sanitizer and NetBSD runs
 include that seed.
+
+2026-10-27 main integration: see ../verification/cache-main-integration-2026-10-27.txt
+for current host/sanitizer/cross-build results and tests held for fixture isolation.

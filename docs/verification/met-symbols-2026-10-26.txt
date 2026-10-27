@@ -1,0 +1,31 @@
+Issue #50 partial: published MET symbol coverage
+
+Source inspected: MET Locationforecast documentation, retrieved 2026-10-26:
+https://api.met.no/weatherapi/locationforecast/2.0/documentation
+It documents extra-s spellings of the two light sleet/snow thunder-shower names.
+The old weathericon/2.0/legends URL returned404; no legend content was invented.
+Instead, used MET's documented icon-filename equivalence and pinned weathericons
+repository tree 89e3173756248b4696b9b10677b66c4ef435db53 (83 weather/svg filenames).
+Confirmed the pinned recursive tree matches the fetched current tree and is
+not truncated. Vendored name-only snapshot, no icon bytes or implementation.
+
+Red: independent published-name test failed18 assertions out of805. Six suffix
+variants were unrecognized and parsed as a cloud-cover guess rather than95.
+Fix adds the two actual published base spellings; corrected aliases accepted
+by earlier Weather versions remain. Test all83 names through symbol lookup and
+full JSON parser, check day/night/polar-twilight flags and thunderstorm95 for
+thunder names with zero cloud. Both corrected aliases are checked separately.
+Two new full JSON inputs receive deterministic mutation coverage.
+
+Sleet display labeling and unknown/missing-symbol cloud fallback are unchanged
+and explicitly remain open under #50. This does not claim fallback can infer
+precipitation. Native OS9/Tiger runtime remains unverified while parked.
+
+Verified: make check 805 unit /277866 mutation inputs /106 CLI /12 local TLS /
+21 serialized GUI; make check-san explicitly ASan+UBSan, 805/277866/106; full
+OS9 cross-build rebuilt console_main.cpp (which includes the provider mapping).
+All compilation on Linux. Evidence /tmp/weather-met-symbol-{check,san,os9}.log.
+
+Actual NetBSD/macppc G4: 805 unit /97866 mutation inputs, status=0.
+Linux cross-built binaries only; no native compilation or privileged changes.
+Log /tmp/weather-met-symbol-maul.log. No live MET forecast request was needed.

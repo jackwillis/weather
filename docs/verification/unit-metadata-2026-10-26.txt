@@ -1,0 +1,16 @@
+Strict Open-Meteo unit metadata follow-up to merged PR #32
+
+Red: new compile-time regression failed on main f4ba116:
+  static assertion failed: malformed explicit unit metadata must be refused
+The earlier isolated parser reproducer returned Ok with temperature_2m unit 123.
+
+Green: make check and make check-san (ASan + UBSan):
+  517 runtime unit checks; 230242 mutation inputs; 106 CLI checks, zero failures.
+  make check also passed lint, anchors, TLS (12), provisioning (2), flags (6),
+  and GUI (21). New compile-time cases cover numeric/null/bool/object/array
+  metadata, unknown/empty labels, accepted aliases, and missing keys.
+  Mutation acceptance invariant independently checks present unit label types.
+
+Actual NetBSD/macppc G4: 517 unit checks; 86242 mutation inputs, zero failures.
+All compilation was on Linux. Retro68 PowerPC and m68k compile probes passed.
+No native OS 9 runtime test or hardware UI test was performed for this fix.

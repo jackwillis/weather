@@ -12,6 +12,7 @@ target_compile_options(bearssl PRIVATE -Os)
 set(WEATHER_VERSION_STR "0.1.0")
 set(WEATHER_COMMON
   ${ROOT}/src/platform/os9/cache_os9.cpp
+  ${ROOT}/src/app/preferences.cpp
   ${ROOT}/src/core/fetch.cpp
   ${ROOT}/src/platform/os9/config_os9.cpp
   ${ROOT}/src/tls/tls.cpp
@@ -21,8 +22,11 @@ set(WEATHER_COMMON
   ${ROOT}/src/platform/os9/log_os9.cpp
   ${ROOT}/src/platform/posix/nocxx.cpp
   ${ROOT}/os9/weather.r)
-add_application(Weather ${WEATHER_COMMON} ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/main.cpp)
-add_application(WeatherConsole CONSOLE ${WEATHER_COMMON} ${ROOT}/src/platform/os9/console_main.cpp)
+add_application(Weather ${WEATHER_COMMON} ${ROOT}/src/ui/os9/window.cpp
+  ${ROOT}/src/ui/os9/location.cpp
+  ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/src/ui/os9/main.cpp)
+add_application(WeatherConsole CONSOLE ${WEATHER_COMMON} ${ROOT}/src/platform/os9/console_main.cpp
+  ${ROOT}/src/platform/os9/settings_os9.cpp)
 target_include_directories(WeatherConsole PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
 target_compile_definitions(WeatherConsole PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
 target_compile_options(WeatherConsole PRIVATE -O2 -fno-exceptions -fno-rtti)
@@ -48,14 +52,30 @@ if(WEATHER_BUILD_DIAGNOSTICS)
     ${ROOT}/src/platform/posix/nocxx.cpp)
   target_include_directories(CacheProbe PRIVATE ${ROOT}/src)
   target_compile_options(CacheProbe PRIVATE -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
+  add_application(PreferencesProbe CONSOLE
+    ${ROOT}/spike/os9/preferences_probe.cc
+    ${ROOT}/src/platform/os9/settings_os9.cpp
+    ${ROOT}/src/platform/posix/nocxx.cpp)
+  target_include_directories(PreferencesProbe PRIVATE ${ROOT}/src)
+  target_compile_options(PreferencesProbe PRIVATE -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
+  add_application(WeatherPrefsUITest CONSOLE ${WEATHER_COMMON}
+    ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/location.cpp
+    ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/spike/os9/preferences_ui_probe.cc)
+  target_include_directories(WeatherPrefsUITest PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+  target_compile_definitions(WeatherPrefsUITest PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
+  target_compile_options(WeatherPrefsUITest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
+  target_link_libraries(WeatherPrefsUITest bearssl OpenTransportLib OpenTptInternetLib)
   add_application(WeatherUITest CONSOLE ${WEATHER_COMMON}
-    ${ROOT}/src/ui/os9/window.cpp ${ROOT}/spike/os9/window_probe.cc)
+    ${ROOT}/src/ui/os9/window.cpp
+  ${ROOT}/src/ui/os9/location.cpp
+  ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/spike/os9/window_probe.cc)
   target_include_directories(WeatherUITest PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
   target_compile_definitions(WeatherUITest PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
   target_compile_options(WeatherUITest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
   target_link_libraries(WeatherUITest bearssl OpenTransportLib OpenTptInternetLib)
   add_application(WeatherCacheUITest CONSOLE ${WEATHER_COMMON}
-    ${ROOT}/src/ui/os9/window.cpp ${ROOT}/spike/os9/window_probe.cc)
+    ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/location.cpp
+    ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/spike/os9/window_probe.cc)
   target_include_directories(WeatherCacheUITest PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
   target_compile_definitions(WeatherCacheUITest PRIVATE WEATHER_CACHE_UI_TEST=1 WEATHER_VERSION="${WEATHER_VERSION_STR}")
   target_compile_options(WeatherCacheUITest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
