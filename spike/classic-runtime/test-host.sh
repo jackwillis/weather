@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Compile two C translation units and test a provisional ABI without touching Weather builds.
 set -eu
 CC=${CC:-cc}
