@@ -860,10 +860,12 @@ static void test_model()
 		CHECK(m.tick(900));
 		m.finish(900, fail_dns(), nullptr);
 		m.request_refresh();
-		CHECK(m.tick(901));
-		m.finish(902, make(Err::Cancelled, "cancelled"), nullptr);
+		CHECK(!m.tick(901));             // within the 5 s manual floor
+		m.request_refresh();
+		CHECK(m.tick(905));
+		m.finish(906, make(Err::Cancelled, "cancelled"), nullptr);
 		CHECK(m.phase() == Phase::Failed && m.has_forecast() && m.failures() == 1);
-		CHECK(m.last_error().err == Err::Dns && m.next_refresh_at() == 1802);
+		CHECK(m.last_error().err == Err::Dns && m.next_refresh_at() == 1806);
 		m.location_changed();
 		CHECK(!m.has_forecast() && m.failures() == 0 && m.phase() == Phase::Idle);
 		CHECK(m.tick(903));
