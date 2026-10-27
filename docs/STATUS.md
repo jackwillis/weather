@@ -67,3 +67,12 @@ plan. The isolated PreferencesProbe and WeatherPrefsUITest are prepared but have
 not run. Layout, typing, locked/read-only volume behavior, actual process restart
 and production delivery await Tiger. See OS9-PREFERENCES.md for source precedence
 and explicit failure/durability limits.
+
+## TLS policy in issue #66 (2026-10-27)
+
+The TLS policy branch restricts negotiation to TLS 1.2 and six ECDHE AEAD suites.
+All four provider/geocoding services passed certificate-verified handshakes with
+Weather's production client. Production omits the environment clock/trust hooks;
+explicit test builds retain them in separate output paths. Host fixture tests
+reject CBC-only and TLS-1.1-only peers. Native execution is not claimed; see
+TLS-POLICY.md and verification/tls-policy-2026-10-27.txt.

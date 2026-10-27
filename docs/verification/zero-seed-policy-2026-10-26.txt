@@ -1,0 +1,46 @@
+Zero-filled seed record refusal: #59 E8 subset, extending existing #86
+
+The shared decoder now rejects a valid record of 72 bytes whose 32 seed bytes are all
+zero, after the existing checksum calculation and temporary-state wipe, without
+modifying caller output. SeedPool and SeedInstall both use this decoder. The
+pool test proves supplemental input cannot promote this refused record: no TLS
+bytes released, no rotation, lock released and later requests remain failed.
+A single nonzero byte in any of the 32 positions passes; this is a specific zero
+placeholder check, not an attempt to estimate entropy from byte distribution.
+
+The provisioning helper rejects a zero-filled or wrong-length OS random result
+before creating its exclusive mode 0600 import file. Tests use mocked unusable bytes;
+no production import/seed is created or transferred. Existing format/checksum,
+unique-output, permissions and no-overwrite checks remain.
+
+Red against 19ba781: 604 unit checks,5 failed (decoder admitted zero, changed its
+output, and pool released bytes/rotated/remained usable). Provisioning: 3 groups,
+4 subcase failures because unusable random-source values were admitted. Logs:
+/tmp/weather-zero-red.log and /tmp/weather-zero-provision-red.log.
+Focused green: all 604 unit checks and3 provisioning groups pass.
+
+Mutation coverage adds a correctly checksummed zero record to the corpus and
+asserts every accepted record contains at least one nonzero seed byte, alongside
+existing exact re-encoding invariants. Generator construction/rotation is
+unchanged; successor/extra regressions from the earlier #86 commit remain.
+
+Limit: canonical nonzero diagnostic fixture admission still remains under #59.
+No claim to detect arbitrary predictable/public seeds, prove RNG provenance or
+recover secrecy after state exposure. No OS9 import/install/runtime acceptance
+claim; shared SeedInstall decoder use is source inspection plus cross-build.
+Tiger remains parked; no installed seed/Preferences/OS9 volume is accessed.
+
+Green final verification
+make check: 604 unit checks, 251684 mutation inputs, 106 CLI checks, 12 local
+real-TLS checks, 3 provisioning groups, 21 serialized GUI checks and other
+lint/anchors/flag checks pass. make check-san explicitly enabled ASan with UBSan:
+604 unit checks, 251684 mutation inputs and 106 CLI checks pass. Logs:
+/tmp/weather-zero-check.log and /tmp/weather-zero-san.log.
+Actual NetBSD/macppc G4: 604 unit checks and 89684 mutation inputs pass, status0.
+/tmp/weather-zero-maul.log. All compilation was on Linux, not maul.
+Retro68 portable core probes pass for PowerPC and m68k. Additional direct seed
+header compile probes pass on both targets (the ordinary portable probe does
+not include this header). Full OS 9 build passes, including rebuilt SeedInstall.
+/tmp/weather-zero-portable.log, /tmp/weather-zero-header-probe.log and
+/tmp/weather-zero-native-build.log. Compile-only evidence; no native import,
+Preferences store operation or TLS handshake on OS 9 was attempted.

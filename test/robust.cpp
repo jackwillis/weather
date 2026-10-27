@@ -92,13 +92,32 @@ static void exercise(const char *p, size_t n)
 	EXPECT(!strcmp(decimal, expected));
 	unsigned char seed_out[32], encoded[kSeedRecordSize];
 	if (seed_decode(reinterpret_cast<const unsigned char *>(p), n, seed_out)) {
+		unsigned nonzero = 0;
+		for (unsigned char c : seed_out) nonzero |= c;
+		EXPECT(nonzero != 0);
 		seed_encode(seed_out, encoded);
 		EXPECT(n == kSeedRecordSize && std::memcmp(p, encoded, n) == 0);
 	}
 
 	// HTTP
 	HttpResponse h = http_parse(in);
-	if (h.st.ok()) { EXPECT(inside(in, h.body)); EXPECT(h.code >= 0 && h.code <= 999); }
+    if (h.st.ok()) {
+        EXPECT(inside(in,h.body) && h.code>=0 && h.code<=999);
+        size_t at=find(in,"\r\n")+2, end=find(in,"\r\n\r\n");
+        while(at<end+2) {
+            size_t next=find(in,"\r\n",at); sv line=in.substr(at,next-at);
+            size_t colon=find(line,":");
+            if(colon!=sv::npos) {
+                sv name=line.substr(0,colon),value=trim(line.substr(colon+1));
+                EXPECT(!eq_nocase(name,"transfer-encoding"));
+                if(eq_nocase(name,"content-length")) {
+                    EXPECT(!value.empty());
+                    for(char c:value) EXPECT(c>='0' && c<='9');
+                }
+            }
+            at=next+2;
+        }
+    }
 
 	// JSON navigation
 	static const char *keys[] = {"current", "temperature_2m", "error", "a", ""};
@@ -295,6 +314,9 @@ int main(int argc, char **argv)
 	mutate_all(formats, sizeof formats - 1, iterations, rng);
 	unsigned char synthetic_seed[32], record[kSeedRecordSize];
 	for (size_t i = 0; i < sizeof synthetic_seed; ++i) synthetic_seed[i] = static_cast<unsigned char>(i + 1);
+	seed_encode(synthetic_seed, record);
+	mutate_all(reinterpret_cast<const char *>(record), sizeof record, iterations, rng);
+	memset(synthetic_seed, 0, sizeof synthetic_seed);
 	seed_encode(synthetic_seed, record);
 	mutate_all(reinterpret_cast<const char *>(record), sizeof record, iterations, rng);
 

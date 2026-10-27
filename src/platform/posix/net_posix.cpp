@@ -159,11 +159,13 @@ static bool posix_sleep(Net &net, long ms)
 	}
 }
 
-// Test hook: WEATHER_NOW=<unix seconds> replaces the clock, to prove that
+// Test builds only: WEATHER_NOW=<unix seconds> replaces the clock, to prove that
 // certificate checking really uses this seam (e.g. year 2100 => "expired").
 static long long posix_now(Net &)
 {
+	#ifdef WEATHER_TEST_HOOKS
 	if (const char *fake = getenv("WEATHER_NOW")) return atoll(fake);
+	#endif
 	return static_cast<long long>(time(nullptr));
 }
 
