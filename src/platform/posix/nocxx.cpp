@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Keeps libstdc++.so out of the binary. <string_view> bounds checks reference
 // this function; with -fno-exceptions it can only mean a bug in our own code
 // (an out-of-range substr), so say so loudly and stop.

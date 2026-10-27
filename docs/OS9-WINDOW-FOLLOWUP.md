@@ -1,8 +1,10 @@
 # OS 9 window: decisions and follow-up work (2026-10-25)
 
-Status: **planned, not implemented.** Nothing here describes behavior on `main`. It records what the owner decided after
-review of the native window PR (#11) so the next implementer does not have to rediscover it, and it lists the documentation
-that must change together with the code. Other PRs: #10 (CI) and #13 (OS 9 helpers) were approved in review and are not covered here.
+Status: **implemented on PR #11; follow-up hardware acceptance pending Tiger.** Main has the CI/helper merges; the window branch incorporates them and resolves its CMake/mutation-test conflicts. Host regression, sanitizer and Retro68 build checks pass. Both deadline clocks share a host-tested paused-ticks clock; menu/drag/close tracking is credited, SIZE allows background work, and suspend/resume events are decoded. Smaller status/About/inactive-click/redraw findings are addressed.
+
+Production size is explained: Weather.pef/APPL is about 274 KB and includes the window/fetch/TLS symbols. WeatherConsole is about 1.88 MB and additionally links RetroConsole (confirmed in the linker command). The reduced native binary is not missing BearSSL. Production delivery is still pending: maul is booted into NetBSD; only Jack controls the reboot.
+
+The enhanced WeatherUITest adds programmatic Finder activation, background pump progress and a real TLS fetch in the background, plus simulated-pause accounting and File/Quit dispatch. This new scenario has not run in Classic yet. A simulated pause is not proof of actual held mouse/menu tracking. Earlier window hardware evidence is retained with its original scope.
 
 ## Decisions (owner, 2026-10-25)
 

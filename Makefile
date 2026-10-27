@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # GNU make required (BSD hosts: gmake). One fragment per target in mk/.
 #
 #   make                      build for this machine           -> build/host/
@@ -37,7 +39,7 @@ CLI_SRCS     = src/cli/main.cpp
 XW_SRCS      = src/ui/xweather/main.cpp src/ui/xweather/cde.cpp
 WEATHER_OBJS = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(CLI_SRCS))
 XW_OBJS      = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(XW_SRCS))
-TEST_OBJS    = $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o \
+TEST_OBJS    = $(OBJ)/app/preferences.o $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o \
                $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/settings_posix.o
 
 all: $(BUILD)/weather $(XWEATHER_TARGETS)
@@ -59,8 +61,8 @@ $(BUILD)/xweather: $(BUILD)/xweather.debug
 $(BUILD)/xdrive: $(OBJ)/test/xdrive.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(X11_LIBS)
 
-$(BUILD)/robust: $(OBJ)/test/robust.o $(BEARSSL_LIB)
-	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(BEARSSL_LIB)
+$(BUILD)/robust: $(OBJ)/test/robust.o $(OBJ)/app/preferences.o $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(OBJ)/app/preferences.o $(BEARSSL_LIB)
 
 $(BUILD)/unittest: $(TEST_OBJS) $(BEARSSL_LIB)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(TEST_OBJS) $(BEARSSL_LIB)
@@ -94,6 +96,11 @@ anchors:
 	$(MAKE) TARGET=host build/host/bearssl/brssl
 	sh tools/gen-anchors.sh build/host/bearssl/brssl > src/tls/anchors.h.new && mv src/tls/anchors.h.new src/tls/anchors.h
 
+# Certificate verification, offline: the real tls.cpp against a local TLS server with generated certificates (needs openssl, python3).
+check-tls: $(BEARSSL_LIB) $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/log_posix.o
+	$(MAKE) TARGET=host build/host/bearssl/brssl
+	sh test/tls_local.sh "$(CXX)" $(BUILD) build/host/bearssl/brssl "$(EXTRA_CXXFLAGS)" "$(EXTRA_LDFLAGS)"
+
 check-anchors:
 	$(MAKE) TARGET=host build/host/bearssl/brssl
 	sh tools/check-anchors.sh build/host/bearssl/brssl
@@ -104,15 +111,17 @@ PREFIX  ?= /usr/local
 BINDIR  ?= $(PREFIX)/bin
 MANDIR  ?= $(PREFIX)/share/man
 EXDIR   ?= $(PREFIX)/share/examples/weather
+DOCDIR  ?= $(PREFIX)/share/doc/weather
 INSTALL ?= install
 DISTNAME = weather-$(VERSION)
 
 install: all
-	$(INSTALL) -d -m 755 $(DESTDIR)$(BINDIR) $(DESTDIR)$(MANDIR)/man1 $(DESTDIR)$(MANDIR)/man5 $(DESTDIR)$(EXDIR)
+	$(INSTALL) -d -m 755 $(DESTDIR)$(BINDIR) $(DESTDIR)$(MANDIR)/man1 $(DESTDIR)$(MANDIR)/man5 $(DESTDIR)$(EXDIR) $(DESTDIR)$(DOCDIR)
 	$(INSTALL) -m 755 $(BUILD)/weather $(DESTDIR)$(BINDIR)/weather
 	$(INSTALL) -m 644 man/weather.1 $(DESTDIR)$(MANDIR)/man1/weather.1
 	$(INSTALL) -m 644 man/weatherrc.5 $(DESTDIR)$(MANDIR)/man5/weatherrc.5
 	$(INSTALL) -m 644 share/weatherrc.example $(DESTDIR)$(EXDIR)/weatherrc
+	$(INSTALL) -m 644 LICENSE THIRD_PARTY.md $(DESTDIR)$(DOCDIR)/
 	@if [ -n "$(XWEATHER_TARGETS)" ]; then \
 	    echo "$(INSTALL) -m 755 $(BUILD)/xweather $(DESTDIR)$(BINDIR)/xweather"; \
 	    $(INSTALL) -m 755 $(BUILD)/xweather $(DESTDIR)$(BINDIR)/xweather && \
@@ -146,11 +155,14 @@ probe-os9:
 check-ot-layout:
 	podman run --rm -v $(CURDIR):/src:Z -w /src ghcr.io/autc04/retro68 sh test/ot-layout.sh /Retro68-build/toolchain/bin/powerpc-apple-macos-g++
 
+# Release builds pin RETRO68_IMAGE by digest (ghcr.io/autc04/retro68@sha256:...) and may use CONTAINER=docker.
+CONTAINER    ?= podman
+RETRO68_IMAGE ?= ghcr.io/autc04/retro68
 # Mac OS 9 build (PowerPC PEF app "Weather") with Retro68 in a container. Output: build/os9/Weather.{APPL,bin,dsk}.
 # Deliver to the Mac with tools/deliver-os9.sh (see README). Needs no Apple files.
 os9:
 	mkdir -p build/os9
-	podman run --rm -v $(CURDIR):/src:Z -w /src/build/os9 ghcr.io/autc04/retro68 sh -c \
+	$(CONTAINER) run --rm -v $(CURDIR):/src:Z -w /src/build/os9 $(RETRO68_IMAGE) sh -c \
 	  'cmake /src/os9 -DCMAKE_TOOLCHAIN_FILE=/Retro68-build/toolchain/powerpc-apple-macos/cmake/retroppc.toolchain.cmake >/dev/null && make'
 
 # Prove the tarball is complete and reproducible: unpack it elsewhere, build, run the tests, rebuild the tarball.
@@ -164,7 +176,7 @@ distcheck: dist
 
 # ---- tests
 check: $(CHECK_TARGET)
-check-native: lint check-anchors $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather
+check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather
 	$(BUILD)/unittest
 	$(BUILD)/robust
 	sh test/feature.sh $(BUILD)/weather
@@ -213,3 +225,4 @@ clean:
 -include $(wildcard $(OBJ)/*.d $(OBJ)/*/*.d $(OBJ)/*/*/*.d)
 
 .PHONY: check-ot-layout os9 FORCE san-note check-san anchors check-anchors all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
+.PHONY: os9 FORCE san-note check-san anchors check-anchors check-tls all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean

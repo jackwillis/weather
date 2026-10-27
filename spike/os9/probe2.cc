@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // OS 9 probe 2: can we reach the network through Open Transport from a Retro68 PPC app?
 // Retro68's free headers have no Open Transport, so the small subset we need is declared by hand below
 // (signatures written from memory of OpenTransport.h: GUESSES until this probe proves them).

@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Objects must rebuild when the compiler command changes, and only then (the .flags rule in the Makefile).
 # Builds one object into a scratch dir with the make that invoked us.  usage: sh test/flags.sh MAKE
 MAKE_CMD=${1:?usage: flags.sh make-command}

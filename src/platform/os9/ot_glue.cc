@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Our own replacement for Apple's static glue (OpenTransportAppPPC.o / OpenTptInetPPC.o), so the OS 9 build needs no Apple binary.
 // Written from the behaviour of that glue as observed by disassembling it and from Apple TN1173 ("Open Transport Asset Tracking"):
 //  - the application owns a small zeroed "client record"; every asset-creating call passes its address as an extra last argument;
