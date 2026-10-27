@@ -7,7 +7,7 @@ One listening socket per NAME on an ephemeral port of 127.0.0.1, each presenting
 When every socket is listening it writes 'NAME PORT' lines to PORTS_FILE. Each time a complete HTTP request arrives over
 a finished handshake it appends NAME to REQUESTS_FILE and answers 200 {} : so a name that never appears there was
 refused by the client before any request bytes were sent. Not shipped; it only runs on the build machine."""
-import os, socket, ssl, sys, threading
+import os, socket, ssl, sys, threading, warnings
 
 ports_file, requests_file = sys.argv[1], sys.argv[2]
 lock = threading.Lock()
@@ -53,6 +53,12 @@ for spec in sys.argv[3:]:
     name, chain, key = spec.split(':')
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(chain, key)
+    if name in ("legacy", "cbc"):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            version = ssl.TLSVersion.TLSv1_1 if name == "legacy" else ssl.TLSVersion.TLSv1_2
+            ctx.minimum_version = ctx.maximum_version = version
+        ctx.set_ciphers("ECDHE-ECDSA-AES128-SHA:@SECLEVEL=0")
     s = socket.socket()
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(('127.0.0.1', 0))
