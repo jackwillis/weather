@@ -30,3 +30,20 @@ Claude process was active and the handoff prohibits overlapping those runs.
 Hosted CI must provide full combined-tree fixture/GUI/32-bit results; see PR.
 No hardware tests or production delivery performed on this integrated head.
 Tiger cache storage-fault/window acceptance remains pending; keep PR draft.
+
+Evening integration: main 3cb287f (#80 isolated fixtures, #81 HTTP framing).
+The earlier model/window integration was already present. New conflicts were
+Makefile and the three GUI harness/scenario files. Kept both cache CLI and
+fixture-startup checks, ephemeral fixtures, main's allocated Xvfb display, and
+cache fixture generation/delivery to the validated private maul run directory.
+Existing tests cover cached/live rollback age, stale labels and the 5 s floor.
+No new product behavior; #146 carries Jack's default-on saving decision.
+Hardware status: gateway reachable; maul NetBSD failed "Name or service not
+known"; OS X failed "No route to host". No hardware tests or delivery performed.
+Exact owner hardware steps are in docs/FORECAST-CACHE.md.
+Evening results: make check passed 1525 unit/storage, 346152 mutation inputs,
+111 CLI, 4 cache CLI, 20 TLS, 31 GUI, 3 fixture-startup, 14 anchors,
+3 provisioning and 6 flags checks. ASan+UBSan check-san passed the same unit,
+mutation, CLI and cache CLI suites. OS 9 production/diagnostics and NetBSD
+CLI/X11/unit cross-builds passed; existing cabs/cabsf linker warnings remain.
+Policy/whitespace checks passed. No failed tests in the evening integration run.

@@ -70,3 +70,28 @@ No native hardware run or live HTTP API request. Native acceptance steps are in
 docs/FORECAST-CACHE.md. Nothing merged; parent #15/native gates remain.
 make REQUIRE_ASAN=1 check-san: ASan+UBSan passed 1701 unit/storage/preferences,
 396036 mutation inputs, 111 CLI and 5 cache CLI checks for the approved contract.
+
+Evening parent integration, 2026-10-27:
+Updated #15 is b44b76f, incorporating main 3cb287f (#80/#81). #146 merges that
+parent without rewriting history. HTTP conflicts retain #81's strict unsigned
+Content-Length parsing/overflow checks, duplicate-length agreement and rejection
+of every transfer coding, plus #146's bounded Last-Modified and body-free 304
+revalidation. Both HTTP mutation invariants are retained. Documentation keeps
+both native preference acceptance and exact parent hardware commands.
+
+Red reproduction against the pre-integration #146 HTTP header:
+FAIL: malformed 304 length accepted
+Input: HTTP/1.0 304 Not Modified followed by Content-Length: -1 and no body.
+The combined implementation reports:
+PASS: malformed 304 length rejected
+Three unit regressions cover negative length, conflicting lengths and unsupported
+transfer coding on 304. A valid 304 with a representation Content-Length still
+revalidates the matching saved forecast. No product policy change: saving stays
+on by default; off removes saved data, disables MET and retains Open-Meteo.
+Evening integration results: make check passed 1708 unit/storage/preferences,
+396036 mutation inputs, 111 CLI, 5 cache CLI, 20 TLS, 39 GUI, 3 fixture-startup,
+14 anchors, 3 provisioning and 6 flags checks. ASan+UBSan check-san passed
+1708 unit/storage/preferences, 396036 mutation inputs, 111 CLI and 5 cache CLI.
+OS 9 production/diagnostic and NetBSD CLI/X11/unit cross-builds passed; existing
+sysroot cabs/cabsf linker warnings remain. Policy and whitespace checks passed.
+No failing tests remain. No hardware run, delivery or live HTTP API request.

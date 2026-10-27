@@ -10,6 +10,9 @@ static void test_conditional_requests()
     h=http_parse("HTTP/1.0 304 Not Modified\r\nContent-Length: 999\r\n\r\n");
     CHECK(h.st.ok() && h.code==304 && h.body.empty());
     CHECK(!http_parse("HTTP/1.0 304 Not Modified\r\n\r\nx").st.ok());
+    CHECK(!http_parse("HTTP/1.0 304 Not Modified\r\nContent-Length: -1\r\n\r\n").st.ok());
+    CHECK(!http_parse("HTTP/1.0 304 Not Modified\r\nContent-Length: 1\r\nContent-Length: 2\r\n\r\n").st.ok());
+    CHECK(!http_parse("HTTP/1.0 304 Not Modified\r\nTransfer-Encoding: identity\r\n\r\n").st.ok());
     Buf<512> request;
     CHECK(http_request(request,"api.met.no","/","fixture",modified));
     CHECK(find(request.view(),"If-Modified-Since: Tue, 27 Oct 2026 12:00:00 GMT\r\n")!=sv::npos);

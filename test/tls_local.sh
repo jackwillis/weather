@@ -80,7 +80,8 @@ fi
 python3 -B test/tls_server.py "$T/ports" "$T/requests" \
 	"good:$T/good.pem:$T/good.key" "wronghost:$T/wronghost.pem:$T/wronghost.key" \
 	"expired:$T/good.pem:$T/good.key" "notyet:$T/good.pem:$T/good.key" \
-	"untrusted:$T/untrusted.pem:$T/untrusted.key" "nonca:$T/viainter_chain.pem:$T/viainter.key" &
+	"untrusted:$T/untrusted.pem:$T/untrusted.key" "nonca:$T/viainter_chain.pem:$T/viainter.key" \
+    "abrupt:$T/good.pem:$T/good.key" "abruptcut:$T/good.pem:$T/good.key" "cleanclose:$T/good.pem:$T/good.key" &
 SRV=$!
 i=0; while [ ! -s "$T/ports" ] && [ $i -lt 20 ] && kill -0 $SRV 2>/dev/null; do sleep 1; i=$((i+1)); done
 [ -s "$T/ports" ] || { bad "the test server did not start"; echo "tls tests: $pass passed, $fail failed"; exit 1; }
@@ -89,7 +90,8 @@ NOW=$(date +%s)
 # check NAME CLOCK WANT_ERR WANT_DETAIL WANT_REQUESTS_SEEN_BY_SERVER
 check() {
 	port=$(sed -n "s/^$1 //p" "$T/ports")
-	OUT=$("$T/harness" localhost "$port" "$2" 2>&1)
+	if [ -n "$6" ]; then OUT=$("$T/harness" localhost "$port" "$2" --attempts "$6" 2>&1)
+	else OUT=$("$T/harness" localhost "$port" "$2" 2>&1); fi
 	want="RESULT err=$3 detail=$4"
 	if [ "$OUT" = "$want" ]; then ok; else bad "$1: got '$OUT', wanted '$want'"; fi
 	seen=$(grep -c "^$1\$" "$T/requests")
@@ -102,6 +104,11 @@ check expired   $((NOW + 60 * 86400))     cert EXPIRED         0    # clock 60 d
 check notyet    1750000000                cert EXPIRED         0    # clock in mid-2025, before the leaf existed
 check untrusted "$NOW"                    cert NOT_TRUSTED     0    # signed by a root we do not trust
 check nonca     "$NOW"                    cert NOT_CA          0    # leaf signed by an intermediate that is not a CA
+
+check cleanclose "$NOW" ok 0 1
+check abrupt "$NOW" truncated 0 1
+check abruptcut "$NOW" truncated 0 1
+check abrupt "$NOW" truncated 0 4 3  # retry the abrupt close three times
 
 echo "tls tests: $pass passed, $fail failed"
 [ "$fail" = 0 ]
