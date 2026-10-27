@@ -90,8 +90,22 @@ static Status tls_open(Net &net, Io &raw, const char *host, Io *out)
 	TlsState *t = &g_tls;
 	t->raw = &raw;
 	t->raw_eof = false;
-	size_t nta = getenv("WEATHER_NO_TA") ? 0 : TAs_NUM;
+	size_t nta = TAs_NUM;
+	#ifdef WEATHER_TEST_HOOKS
+	if (getenv("WEATHER_NO_TA")) nta = 0;
+	#endif
 	br_ssl_client_init_full(&t->sc, &t->xc, TAs, nta);
+	// Owner policy (#66): TLS 1.2, ephemeral key exchange and authenticated encryption.
+	static const uint16_t suites[] = {
+		BR_TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+		BR_TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+		BR_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		BR_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		BR_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		BR_TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+	};
+	br_ssl_engine_set_versions(&t->sc.eng, BR_TLS12, BR_TLS12);
+	br_ssl_engine_set_suites(&t->sc.eng, suites, sizeof suites / sizeof suites[0]);
 	br_ssl_engine_set_buffer(&t->sc.eng, t->iobuf, sizeof t->iobuf, 1);
 
 	// Certificate validity is judged against the platform clock, not whatever BearSSL guesses.

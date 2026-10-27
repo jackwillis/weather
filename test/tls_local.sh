@@ -81,7 +81,8 @@ python3 -B test/tls_server.py "$T/ports" "$T/requests" \
 	"good:$T/good.pem:$T/good.key" "wronghost:$T/wronghost.pem:$T/wronghost.key" \
 	"expired:$T/good.pem:$T/good.key" "notyet:$T/good.pem:$T/good.key" \
 	"untrusted:$T/untrusted.pem:$T/untrusted.key" "nonca:$T/viainter_chain.pem:$T/viainter.key" \
-    "abrupt:$T/good.pem:$T/good.key" "abruptcut:$T/good.pem:$T/good.key" "cleanclose:$T/good.pem:$T/good.key" &
+    "abrupt:$T/good.pem:$T/good.key" "abruptcut:$T/good.pem:$T/good.key" "cleanclose:$T/good.pem:$T/good.key" \
+    "legacy:$T/good.pem:$T/good.key" "cbc:$T/good.pem:$T/good.key" &
 SRV=$!
 i=0; while [ ! -s "$T/ports" ] && [ $i -lt 20 ] && kill -0 $SRV 2>/dev/null; do sleep 1; i=$((i+1)); done
 [ -s "$T/ports" ] || { bad "the test server did not start"; echo "tls tests: $pass passed, $fail failed"; exit 1; }
@@ -109,6 +110,15 @@ check cleanclose "$NOW" ok 0 1
 check abrupt "$NOW" truncated 0 1
 check abruptcut "$NOW" truncated 0 1
 check abrupt "$NOW" truncated 0 4 3  # retry the abrupt close three times
+
+# Real peers offering only retired protocol/cipher choices must be refused.
+for name in legacy cbc; do
+    port=$(awk -v n="$name" '$1==n {print $2}' "$T/ports")
+    OUT=$("$T/harness" localhost "$port" "$NOW" 2>&1)
+    case "$OUT" in "RESULT err=tls "*) ok;; *) bad "$name accepted: $OUT";; esac
+    seen=$(grep -c "^$name\$" "$T/requests")
+    [ "$seen" = 0 ] && ok || bad "$name received a request"
+done
 
 echo "tls tests: $pass passed, $fail failed"
 [ "$fail" = 0 ]
