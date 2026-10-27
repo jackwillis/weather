@@ -229,6 +229,7 @@ case "$SOUT" in *weather:*) bad "log text on stdout";; *) ok;; esac
 
 if [ -n "$ONLINE" ]; then
 	expect "online live fetch" 0 -1
+	if [ "${TEST_HOOKS_ENABLED:-0}" = 1 ]; then
 	# the TLS layer must judge certificates by the platform clock (seam), not its own idea of time
 	WEATHER_NOW=4102444800 "$BIN" -1 >/dev/null 2>"$CFG.err"; got=$?
 	if [ "$got" = 76 ] && grep -q "expired or not yet valid" "$CFG.err"; then ok; else bad "year-2100 clock: exit $got $(cat $CFG.err)"; fi
@@ -238,6 +239,7 @@ if [ -n "$ONLINE" ]; then
 	if [ "$got" = 71 ]; then ok; else bad "1970 clock: exit $got (wanted 71, clock)"; fi
 	WEATHER_NO_TA=1 "$BIN" -1 >/dev/null 2>"$CFG.err"; got=$?
 	if [ "$got" = 76 ] && grep -q "cert" "$CFG.err"; then ok; else bad "no-anchor run: exit $got $(cat $CFG.err)"; fi
+	fi
 	rm -f "$CFG.err"
 fi
 

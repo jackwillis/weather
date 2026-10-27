@@ -80,7 +80,8 @@ fi
 python3 -B test/tls_server.py "$T/ports" "$T/requests" \
 	"good:$T/good.pem:$T/good.key" "wronghost:$T/wronghost.pem:$T/wronghost.key" \
 	"expired:$T/good.pem:$T/good.key" "notyet:$T/good.pem:$T/good.key" \
-	"untrusted:$T/untrusted.pem:$T/untrusted.key" "nonca:$T/viainter_chain.pem:$T/viainter.key" &
+	"untrusted:$T/untrusted.pem:$T/untrusted.key" "nonca:$T/viainter_chain.pem:$T/viainter.key" \
+    "legacy:$T/good.pem:$T/good.key" "cbc:$T/good.pem:$T/good.key" &
 SRV=$!
 i=0; while [ ! -s "$T/ports" ] && [ $i -lt 20 ] && kill -0 $SRV 2>/dev/null; do sleep 1; i=$((i+1)); done
 [ -s "$T/ports" ] || { bad "the test server did not start"; echo "tls tests: $pass passed, $fail failed"; exit 1; }
@@ -102,6 +103,15 @@ check expired   $((NOW + 60 * 86400))     cert EXPIRED         0    # clock 60 d
 check notyet    1750000000                cert EXPIRED         0    # clock in mid-2025, before the leaf existed
 check untrusted "$NOW"                    cert NOT_TRUSTED     0    # signed by a root we do not trust
 check nonca     "$NOW"                    cert NOT_CA          0    # leaf signed by an intermediate that is not a CA
+
+# Real peers offering only retired protocol/cipher choices must be refused.
+for name in legacy cbc; do
+    port=$(awk -v n="$name" '$1==n {print $2}' "$T/ports")
+    OUT=$("$T/harness" localhost "$port" "$NOW" 2>&1)
+    case "$OUT" in "RESULT err=tls "*) ok;; *) bad "$name accepted: $OUT";; esac
+    seen=$(grep -c "^$name\$" "$T/requests")
+    [ "$seen" = 0 ] && ok || bad "$name received a request"
+done
 
 echo "tls tests: $pass passed, $fail failed"
 [ "$fail" = 0 ]

@@ -482,7 +482,11 @@ static void test_posix_net()
 		unsetenv("WEATHER_NOW");
 		CHECK(n.now(n) > kMinSaneTime);
 		setenv("WEATHER_NOW", "4102444800", 1);
+		#ifdef WEATHER_TEST_HOOKS
 		CHECK(n.now(n) == 4102444800LL);
+#else
+		CHECK(n.now(n) != 4102444800LL && n.now(n) > kMinSaneTime);
+#endif
 		unsetenv("WEATHER_NOW");
 	}
 	CHECK(unix_to_br_time(1790000000LL).days == 719528 + 1790000000LL / 86400);
