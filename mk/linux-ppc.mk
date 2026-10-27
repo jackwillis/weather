@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Supplemental big-endian Linux execution under QEMU; not NetBSD acceptance.
 CXX = powerpc-linux-gnu-g++
 STRIP = powerpc-linux-gnu-strip -o $@ $<
