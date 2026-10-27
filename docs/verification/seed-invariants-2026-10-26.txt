@@ -1,0 +1,45 @@
+Seed-pool invariants: #59 T12 and exposure documentation
+
+At initial commit19ba781, production generator/record code was unchanged.
+Added18 runtime assertions using
+only the existing synthetic in-memory fixture:
+- Persisted successor seed differs from the first32 bytes released to TLS.
+- Different supplemental inputs before first use change both saved successor
+  and released output; identical inputs/call sequence reproduce them.
+- Supplemental input on a later request changes the output without rotating the
+  on-disk successor again. Initial equal streams provide the control.
+
+Deliberate-regression verification (temporary edits restored, never committed):
+1. Ignoring both supplemental update calls: 535 checks,3 failed, precisely the
+   first-output/successor/later-output difference assertions. Existing tests
+   passed. /tmp/weather-seed-extra-red.log.
+2. Generating successor from a copied DRBG without advancing the live state:
+   535 checks,2 failed, the existing known-answer test and the new direct
+   successor-vs-released-bytes assertion. /tmp/weather-seed-successor-red.log.
+An initial malformed mutant accidentally suppressed first-call generation and
+was corrected before recording these two results. No claim that production
+failed either property: the tests close coverage gaps in already working code.
+
+Exposure guidance in docs/OS9-SEEDS.md explains why seed compromise plus
+predictable supplemental inputs defeats stream secrecy, and why differing
+outputs do not measure entropy. The BearSSL primary documentation describes
+seed/call-sequence dependence. No new cryptographic construction or randomness
+source was introduced. Known weak-record admission E8 remains open under #59.
+No production seed read, generation, transfer, import, installation or OS9
+volume access occurred. Pool tests use existing public synthetic records; the
+unchanged provisioning test still creates/removes its own temporary test files.
+
+Green final verification
+make check: 535 unit checks, 230242 mutation inputs, 106 CLI checks, 12 local
+real-TLS checks, 21 serialized GUI checks, lint/anchors/provisioning/flags pass.
+make check-san: AddressSanitizer explicitly enabled with UBSan; 535 unit checks,
+230242 mutation inputs and106 CLI checks pass. Logs:
+/tmp/weather-seed-invariants-check.log and /tmp/weather-seed-invariants-san.log.
+Actual NetBSD/macppc G4: 535 unit checks and86242 mutation inputs pass, status0.
+Cross-compilation happened only on Linux. /tmp/weather-seed-invariants-maul.log.
+At that initial milestone, seed_pool.hpp was unchanged from main after deliberate
+regressions were restored. No native OS9 or macOS-host run was needed/claimed
+for this tests/docs-only slice; record admission/native acceptance remain open.
+
+Later #86 update rejects zero-filled records; see zero-seed-policy-2026-10-26.txt
+for the new production decoder guard and verification. Generator unchanged.
