@@ -54,6 +54,8 @@ static Status map_engine_error(int e, const Io &raw)
 		return make(Err::CertUntrusted, "certificate rejected", e);
 	if (e == BR_ERR_IO && raw.err != Err::Ok)
 		return make(raw.err, "network error during TLS", raw.detail);
+	if (e == BR_ERR_IO && g_tls.raw_eof)
+		return make(Err::Truncated,"TLS connection closed without close_notify");
 	if (e == BR_ERR_IO) return make(Err::Io, "connection closed during TLS", 0);
 	return make(Err::Tls, "TLS failure", e);
 }
@@ -64,9 +66,9 @@ static long tls_read(Io &io, void *buf, size_t len)
 	int n = br_sslio_read(&t->ioc, buf, len);
 	if (n > 0) return n;
 	int e = br_ssl_engine_last_error(&t->sc.eng);
-	// Peer ended the stream (with or without close_notify): report EOF. The HTTP
-	// layer detects a short body through Content-Length.
-	if (e == BR_ERR_OK || (e == BR_ERR_IO && t->raw_eof && t->raw->err == Err::Ok)) return 0;
+	// Only an authenticated TLS closure is a clean EOF. An abrupt transport
+	// close must remain retryable even for an HTTP close-delimited body.
+	if (e == BR_ERR_OK) return 0;
 	Status s = map_engine_error(e, *t->raw);
 	io.err = s.err; io.detail = s.detail; io.msg = s.msg;
 	return -1;

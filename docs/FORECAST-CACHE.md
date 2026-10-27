@@ -77,3 +77,34 @@ building/delivering the diagnostic app, use
 Production startup never reads diagnostic marker files or fixture overrides.
 Initialized platform adapters carry context pointers; keep them at stable addresses
 and do not copy them after initialization.
+
+## Remaining hardware checks for Jack
+
+These are pending on the current integrated branch. Build on Linux only. With
+Tiger/Classic running and the owner logged in at the Mac console, configure the
+Retro68 build with `WEATHER_BUILD_DIAGNOSTICS=ON` (README), then build with
+`make os9`. Quit existing Weather apps normally. From the laptop:
+
+```sh
+maulctl push osx tools/deliver-os9.sh deliver-os9.sh
+maulctl push osx build/os9/CacheProbe.dsk CacheProbe.dsk
+maulctl osx 'sh /tmp/deliver-os9.sh /tmp/CacheProbe.dsk CacheProbe'
+maulctl osx 'open /Volumes/MacOS9Lives/weather-dev/CacheProbe'
+```
+
+Wait for `cache-probe.log` to end with `finished: 0 failures`, then read it with
+`maulctl osx 'cat /Volumes/MacOS9Lives/weather-dev/cache-probe.log'`. Retain any
+failure output. Next deliver and run the isolated window diagnostic:
+
+```sh
+maulctl push osx build/os9/WeatherCacheUITest.dsk WeatherCacheUITest.dsk
+maulctl osx 'sh /tmp/deliver-os9.sh /tmp/WeatherCacheUITest.dsk WeatherCacheUITest'
+python3 tools/check-os9-window.py /tmp/weather-cache-shots --app WeatherCacheUITest
+```
+
+Inspect the saved screenshots for the stale label, original fetch age and live
+recovery. Never remove a TLS seed or live lock, or answer a system dialog as part
+of this run. A read-only volume and physical power-loss durability remain
+unverified. After Jack boots maul into NetBSD, run `make check-maul smoke-maul`
+and `make check-gui-maul` from the laptop, serially; these run cross-built binaries
+on maul and need no privileged install. Keep the logs as current-head evidence.

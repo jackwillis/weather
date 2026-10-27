@@ -122,7 +122,23 @@ static void exercise(const char *p, size_t n)
 
 	// HTTP
 	HttpResponse h = http_parse(in);
-	if (h.st.ok()) { EXPECT(inside(in, h.body)); EXPECT(h.code >= 0 && h.code <= 999); }
+    if (h.st.ok()) {
+        EXPECT(inside(in,h.body) && h.code>=0 && h.code<=999);
+        size_t at=find(in,"\r\n")+2, end=find(in,"\r\n\r\n");
+        while(at<end+2) {
+            size_t next=find(in,"\r\n",at); sv line=in.substr(at,next-at);
+            size_t colon=find(line,":");
+            if(colon!=sv::npos) {
+                sv name=line.substr(0,colon),value=trim(line.substr(colon+1));
+                EXPECT(!eq_nocase(name,"transfer-encoding"));
+                if(eq_nocase(name,"content-length")) {
+                    EXPECT(!value.empty());
+                    for(char c:value) EXPECT(c>='0' && c<='9');
+                }
+            }
+            at=next+2;
+        }
+    }
 
 	// JSON navigation
 	static const char *keys[] = {"current", "temperature_2m", "error", "a", ""};

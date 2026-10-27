@@ -264,6 +264,15 @@ static void test_fetch()
 		fetch_retry(gn, "h", "80", false, "/", tight, buf, sizeof buf, &body);
 		CHECK(g.nsleeps == 3 && g.sleeps[0] == 1000 && g.sleeps[1] == 1000 && g.sleeps[2] == 1000);
 	}
+	{ // The complete response can fill the buffer, but the next byte must not fit.
+		Fake f; f.steps[0]={okay(),kGood,Err::Ok}; f.nsteps=1;
+		Net n=make_net(&f); size_t size=std::strlen(kGood);
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,size,&body).ok());
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,size-1,&body).err==Err::BadData);
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,0,&body).err==Err::BadData);
+		f.steps[0].read_err=Err::Timeout;
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,size,&body).err==Err::Timeout);
+	}
 	{ // chunked response: refused, not retried
 		Fake f; f.steps[0] = {okay(), kChunked, Err::Ok}; f.nsteps = 1;
 		Net n = make_net(&f);

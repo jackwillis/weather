@@ -62,7 +62,13 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 
 	size_t got = 0;
 	while (s.ok()) {
-		if (got == cap) { s = make(Err::BadData, "response too large"); break; }
+		if (got == cap) {
+			// One bounded probe distinguishes an exact fit from an oversized response.
+			char extra; long r=io->read(*io,&extra,1);
+			if(r<0) s=io_fail(*io,"reading response failed");
+			else if(r>0) s=make(Err::BadData,"response too large");
+			break;
+		}
 		long r = io->read(*io, buf + got, cap - got);
 		if (r < 0) { s = io_fail(*io, "reading response failed"); break; }
 		if (r == 0) break;
