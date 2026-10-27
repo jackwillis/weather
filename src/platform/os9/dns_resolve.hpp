@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // OS-independent controller; Backend owns fixed-lifetime OT buffers and callbacks.
 #pragma once
 #include <cstdint>

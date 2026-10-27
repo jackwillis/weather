@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Feature tests: run the real binary against a misbehaving local server and
 # check what a user or script would see (output text, exit status).
 # usage: sh test/feature.sh path/to/weather        ONLINE=1 also tests the real server
@@ -104,7 +106,7 @@ contains "met-no output" "54.5F Partly cloudy, wind 7.8mph S, humidity 77% (met-
 expect "met-no metric" 0 -c "$CFG.met" -1 -u metric -p met-no -H 127.0.0.1:$P_MET
 contains "met-no metric output" "12.5C Partly cloudy, wind 12.6km/h S"
 expect "contact is sent in the User-Agent" 0 -c "$CFG.met" -d -1 -p met-no -H 127.0.0.1:$P_MET
-contains "user agent" "User-Agent: weather/0.1.0 (contact: tester@example.org)"
+contains "user agent" "User-Agent: weather/$("$BIN" -V | sed -n "1s/^weather //p") (contact: tester@example.org)"
 if printf '%s\n' "$OUT" | python3 "$HERE/debug_dump.py"; then ok; else bad "complete debug response"; fi
 expect "met-no is skipped without contact, next source used" 0 -c "$CFG" -1 -p met-no,open-meteo -H 127.0.0.1:$P_OK
 contains "fell back to open-meteo" "(open-meteo "
@@ -120,6 +122,11 @@ rm -f "$CFG.met"
 # usage and config errors
 expect "version" 0 -V
 contains "version text" "weather 0."
+contains "version shows licence" "GPL-3.0-or-later"
+expect "credits" 0 --credits
+contains "credits name Open-Meteo" "Open-Meteo.com (CC BY 4.0)"
+contains "credits name MET Norway" "MET Norway Locationforecast"
+contains "credits name BearSSL" "BearSSL"
 expect "help" 0 -h
 expect "bad option" 64 -Z
 expect "stray argument" 64 foo

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Host build with checks that abort on bugs, for `make check-san`.
 # Always: UBSan in trap mode (needs no runtime library), libstdc++ assertions, fortified libc calls.
 # Plus AddressSanitizer when its runtime is installed (Fedora: sudo dnf install libasan libubsan).
