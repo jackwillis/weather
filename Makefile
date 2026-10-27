@@ -224,5 +224,4 @@ clean:
 
 -include $(wildcard $(OBJ)/*.d $(OBJ)/*/*.d $(OBJ)/*/*/*.d)
 
-.PHONY: check-ot-layout os9 FORCE san-note check-san anchors check-anchors all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
-.PHONY: os9 FORCE san-note check-san anchors check-anchors check-tls all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
+.PHONY: check-ot-layout os9 FORCE san-note check-san anchors check-anchors check-tls all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
