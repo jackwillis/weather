@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Read-only release assembler tests, including native NetBSD sh/awk.
 set -eu
 TOOL=${1:-$(dirname "$0")/../tools/changelog.sh}

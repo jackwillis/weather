@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Assemble a deterministic release section on stdout. Never edits source files.
 # usage: sh tools/changelog.sh VERSION [fragment-directory]
 set -eu
