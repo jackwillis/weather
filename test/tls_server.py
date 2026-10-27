@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 """TLS fixture server for test/tls_local.sh:  tls_server.py PORTS_FILE REQUESTS_FILE NAME:CHAIN.pem:KEY.pem ...
 
 One listening socket per NAME on an ephemeral port of 127.0.0.1, each presenting its own certificate chain.

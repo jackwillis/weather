@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // HTTP/1.0 client side: build the request, parse the response. No chunked
 // encoding is needed because we send HTTP/1.0 with Connection: close.
 #pragma once

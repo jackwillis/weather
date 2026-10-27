@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 #include "cde.hpp"
 #include "app/weather_art.hpp"
 #include <cstdio>
@@ -92,6 +94,23 @@ void fill(Theme &t, Drawable w, Rect r, unsigned long color)
 {
 	XSetForeground(t.dpy, t.gc, color);
 	XFillRectangle(t.dpy, w, t.gc, r.x, r.y, static_cast<unsigned>(r.w), static_cast<unsigned>(r.h));
+}
+
+void bitmap1(Theme &t, Drawable w, int x, int y, const unsigned char *bits, int bw, int bh, int rowbytes, unsigned long color)
+{
+	XSetForeground(t.dpy, t.gc, color);
+	for (int row = 0; row < bh; row++) {
+		const unsigned char *r = bits + static_cast<size_t>(row) * static_cast<size_t>(rowbytes);
+		int run = -1;
+		for (int col = 0; col <= bw; col++) {
+			bool ink = col < bw && (r[col >> 3] & (0x80 >> (col & 7)));
+			if (ink && run < 0) run = col;
+			if (!ink && run >= 0) {
+				XFillRectangle(t.dpy, w, t.gc, x + run, y + row, static_cast<unsigned>(col - run), 1);
+				run = -1;
+			}
+		}
+	}
 }
 
 void shadow(Theme &t, Drawable w, Rect r, int thick, bool out)

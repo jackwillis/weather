@@ -1,0 +1,19 @@
+# Path rules for the pinned actions/labeler v7 changed-files schema.
+area/core:
+  - changed-files:
+      - any-glob-to-any-file: ['src/core/**', 'src/app/**']
+area/os9:
+  - changed-files:
+      - any-glob-to-any-file: ['src/platform/os9/**', 'src/ui/os9/**', 'os9/**', 'spike/os9/**', 'docs/OS9-*']
+area/netbsd:
+  - changed-files:
+      - any-glob-to-any-file: ['src/ui/xweather/**', 'src/cli/**', 'mk/netbsd-*', 'tools/mkpkg-*', 'tools/ctwm-*', 'tools/xinitrc-*']
+area/tls:
+  - changed-files:
+      - any-glob-to-any-file: ['src/tls/**', 'test/tls_*', 'tools/*anchors*']
+area/ci:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**', 'Makefile', 'mk/**', 'test/flags.sh', 'test/anchors.sh']
+area/docs:
+  - changed-files:
+      - any-glob-to-any-file: ['docs/**', 'README.md', 'AGENTS.md', 'TODO.md', 'CHANGELOG.md', 'man/**']
