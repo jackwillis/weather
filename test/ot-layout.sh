@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 # Run inside Retro68: compile actual glue, then prove its layout guards reject mutations.
 # Only our source is copied. No SDK content is generated or retained.
 set -eu
