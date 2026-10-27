@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Exercise actual glue, including libc's real LIFO atexit path. No Apple files.
 #include "platform/os9/ot_min.h"
 #include <cstdio>

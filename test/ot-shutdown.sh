@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
 set -eu
 binary=${1:?usage: ot-shutdown.sh BINARY}
 expected=$(printf 'endpoint closed\ntransport closed')

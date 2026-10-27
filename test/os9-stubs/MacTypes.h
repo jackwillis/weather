@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Test-owned host stand-ins; no SDK content. Not an ABI/layout verification.
 #pragma once
 #include <cstdint>
