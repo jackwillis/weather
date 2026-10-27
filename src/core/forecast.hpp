@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // The one internal forecast shape every provider fills in, plus formatting.
 #pragma once
+#include "status.hpp"
 #include "text.hpp"
 
 namespace wx {
@@ -49,6 +52,18 @@ constexpr const char *compass(long deg)
 constexpr bool plausible_temp_t10(long t10, bool metric)
 {
 	return metric ? (t10 >= -900 && t10 <= 600) : (t10 >= -1300 && t10 <= 1400);
+}
+
+// What a provider may claim. A value outside these limits means the answer is broken: refuse it, so the next source is
+// tried, instead of displaying it. (Temperature is checked by plausible_temp_t10.)
+constexpr Status check_fields(const Forecast &f, bool metric)
+{
+	if (f.humidity != kUnset && (f.humidity < 0 || f.humidity > 100)) return make(Err::BadData, "humidity out of range");
+	if (f.wind_t10 != kUnset && (f.wind_t10 < 0 || f.wind_t10 > (metric ? 5000 : 3000))) return make(Err::BadData, "wind speed out of range");
+	if (f.wind_dir != kUnset && (f.wind_dir < 0 || f.wind_dir > 360)) return make(Err::BadData, "wind direction out of range");
+	if (f.is_day != kUnset && f.is_day != 0 && f.is_day != 1) return make(Err::BadData, "is_day is not 0 or 1");
+	if (f.code < 0 || f.code > 99) return make(Err::BadData, "weather code out of range");
+	return okay();
 }
 
 // Compact single line for scripts and status bars.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // ~/.weatherrc on Unix. Saves atomically (temp file in the same directory, fsync, rename),
 // keeps the file's mode, and follows a symlinked dotfile instead of replacing the link.
 #include "settings_posix.hpp"

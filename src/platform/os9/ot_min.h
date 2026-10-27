@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Minimal hand-written declarations for the slice of Open Transport the weather app needs.
 // Retro68's free headers have none, and Apple's headers are not redistributable, so these are our own declarations
 // of the documented public API. Layouts and signatures were checked against Apple's OpenTransport.h and

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // BearSSL wants certificate-check time as (days since 0000-01-01, seconds into the day).
 // The Unix epoch (1970-01-01) is day 719528 on that scale.
 #pragma once

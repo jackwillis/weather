@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // A data source: where to ask, what to ask, how to read the answer.
 #pragma once
 #include "forecast.hpp"

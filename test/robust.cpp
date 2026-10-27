@@ -1,9 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Jack Willis
 // Parser robustness: deterministic mutation testing. Every parser sees truncated, byte-flipped,
 // byte-deleted and randomly edited versions of real inputs, plus hostile shapes (deep nesting,
 // huge numbers, embedded NULs). The point is "never crashes, never reads out of range, and if it
 // says OK the answer is sane"; build it with -fsanitize=address,undefined (make check-san) and the
 // sanitizers do the watching. usage: robust [random-iterations] (default 20000)
 #include "app/textedit.hpp"
+#include "app/config_load.hpp"
+#include "app/preferences.hpp"
 #include "core/config.hpp"
 #include "core/http.hpp"
 #include "core/json.hpp"
@@ -36,11 +40,35 @@ static bool inside(sv outer, sv inner)
 	return inner.data() >= outer.data() && inner.data() + inner.size() <= outer.data() + outer.size();
 }
 
+// Independent statement of what an accepted forecast may contain (literal bounds on purpose, not the parser's own predicates).
+static bool sane(const Forecast &f, bool metric)
+{
+	bool t = metric ? (f.temp_t10 >= -900 && f.temp_t10 <= 600) : (f.temp_t10 >= -1300 && f.temp_t10 <= 1400);
+	bool h = f.humidity == kUnset || (f.humidity >= 0 && f.humidity <= 100);
+	bool w = f.wind_t10 == kUnset || (f.wind_t10 >= 0 && f.wind_t10 <= (metric ? 5000 : 3000));
+	bool d = f.wind_dir == kUnset || (f.wind_dir >= 0 && f.wind_dir <= 360);
+	bool day = f.is_day == kUnset || f.is_day == 0 || f.is_day == 1;
+	return t && h && w && d && day && f.code >= 0 && f.code <= 99 && f.metric == metric;
+}
+
 static void exercise(const char *p, size_t n)
 {
 	g_runs++;
 	g_cur_len = n;
 	sv in(p, n);
+	SettingsStore config_store; config_store.ctx=&in;
+	config_store.load=[](SettingsStore &store,char *out,size_t cap,size_t *size) {
+		sv value=*static_cast<sv *>(store.ctx);
+		*size=value.size();
+		if(value.size()<cap) memcpy(out,value.data(),value.size());
+		return okay();
+	};
+	Config loaded;
+	Status config_status=load_config(config_store,loaded);
+	if(!config_status.ok()) {
+		EXPECT(loaded.lat_e4==430747 && loaded.lon_e4==-893841);
+		EXPECT(!loaded.metric && loaded.auto_refresh && !strcmp(loaded.name,"Madison, WI"));
+	}
 	// Format adapter: bounded output, failure empties it, deterministic prefix.
 	char full[257], small[18];
 	memset(small, 0x5a, sizeof small);
@@ -91,18 +119,33 @@ static void exercise(const char *p, size_t n)
 	Status s = openmeteo_parse(in, q, &f);
 	if (s.ok()) {
 		EXPECT(plausible_temp_t10(f.temp_t10, false));
+		EXPECT(sane(f, false));
 		EXPECT(f.code != kUnset && std::strlen(f.time) < sizeof f.time);
 		Buf<300> one; format_oneline(one, f);                         // formatting any accepted forecast must be safe
 		Buf<400> full; format_full(full, f, "Madison, WI");
 	}
-	(void)openmeteo_parse(in, Query{0, 0, true}, &f);
+	// A successful parse must never ignore explicitly ill-typed unit metadata.
+	if (s.ok()) {
+		JsonLookup units = json_get(in, "current_units");
+		if (units.r == JsonFind::Found) {
+			for (sv key : {sv("temperature_2m"), sv("wind_speed_10m")}) {
+				JsonLookup label = json_get(units.value, key);
+				EXPECT(label.r != JsonFind::Malformed);
+				if (label.r == JsonFind::Found) { sv text; EXPECT(json_str(label.value, &text)); }
+			}
+		}
+	}
+	Forecast mq;                                                  // the same bytes asked for metric: accepted only if sane as metric
+	if (openmeteo_parse(in, Query{0, 0, true}, &mq).ok()) EXPECT(sane(mq, true));
 	Forecast mf;                                                  // MET Norway: same rules
 	Status ms = metno_parse(in, q, &mf);
 	if (ms.ok()) {
 		EXPECT(plausible_temp_t10(mf.temp_t10, false) && mf.code != kUnset && std::strlen(mf.time) < sizeof mf.time);
+		EXPECT(sane(mf, false));
 		Buf<300> one; format_oneline(one, mf);
 	}
-	(void)metno_parse(in, Query{0, 0, true}, &mf);
+	Forecast mm;
+	if (metno_parse(in, Query{0, 0, true}, &mm).ok()) EXPECT(sane(mm, true));
 
     // NWS: parser/URL failures preserve outputs; accepted values remain bounded.
     Forecast nf; nf.source = "unchanged"; nf.temp_t10 = 123;
@@ -131,6 +174,35 @@ static void exercise(const char *p, size_t n)
 	for (int d = 0; d <= 4; d++) { Num x = parse_fixed(in.substr(0, 40), d); if (x.ok) EXPECT(x.v > -2000000000L && x.v < 2000000000L); }
 	for (int d = 5; d <= 9; d++) (void)parse_fixed(in.substr(0, 40), d);
 	(void)json_num(in.substr(0, 40), 1);
+
+    // Preferences precedence and transaction policy share the same hostile text.
+    struct TextSource { sv text; bool saved=false; size_t result_size=0; char result[4096]={}; } source{in}, legacy_source{"latitude=1\n"};
+    auto read_text=[](SettingsStore &store,char *out,size_t cap,size_t *count) {
+        auto &src=*static_cast<TextSource *>(store.ctx); *count=0;
+        if(src.text.size()>=cap) return make(Err::Config,"mutation text too large");
+        memcpy(out,src.text.data(),src.text.size()); *count=src.text.size(); return okay();
+    };
+    SettingsStore prefs, legacy_store;
+    prefs.ctx=&source; prefs.load=read_text;
+    legacy_store.ctx=&legacy_source; legacy_store.load=read_text;
+    prefs.save=[](SettingsStore &store,const char *text,size_t count) {
+        auto &src=*static_cast<TextSource *>(store.ctx);
+        if(count>=sizeof src.result) return make(Err::Config,"mutation save too large");
+        memcpy(src.result,text,count); src.result[count]=0; src.result_size=count; src.saved=true; return okay();
+    };
+    Config loaded_prefs; loaded_prefs.lat_e4=123;
+    Status loaded_status=load_preferences(prefs,legacy_store,loaded_prefs);
+    if(!loaded_status.ok()) EXPECT(loaded_prefs.lat_e4==123);
+    else EXPECT(loaded_prefs.lat_e4>=-900000 && loaded_prefs.lat_e4<=900000);
+    Config current, candidate=current; candidate.lat_e4=10000; candidate.metric=true;
+    Model preference_model;
+    Status committed=commit_preferences(prefs,legacy_store,candidate,current,preference_model,0);
+    if(committed.ok()) {
+        EXPECT(source.saved && current.lat_e4==10000 && current.metric);
+        Config saved_config;
+        EXPECT(config_parse(sv(source.result,source.result_size),&saved_config).ok());
+        EXPECT(saved_config.lat_e4==10000 && saved_config.metric);
+    } else EXPECT(!source.saved && current.lat_e4==430747 && !current.metric);
 
 	// config file and settings editor
 	Config c;
@@ -223,7 +295,7 @@ int main(int argc, char **argv)
 	static char seed[8192];
 	size_t n = 0;
 	char path[256];
-	const char *fixtures[] = {"openmeteo-ok.json", "openmeteo-400.json", "metno-ok.json", "nws-points.json", "nws-stations.json", "nws-observation.json"};
+	const char *fixtures[] = {"openmeteo-ok.json", "openmeteo-400.json", "metno-ok.json", "metno-thunder-sleet.json", "metno-thunder-snow.json", "nws-points.json", "nws-stations.json", "nws-observation.json"};
 	for (const char *fx : fixtures) {
 		snprintf(path, sizeof path, "%s/%s", FIXTURE_DIR, fx);
 		if (!slurp(path, seed, sizeof seed, &n)) { printf("cannot read %s\n", path); return 1; }
@@ -239,6 +311,9 @@ int main(int argc, char **argv)
 	static const char cfg[] = "# my weather\nlatitude = 43.0747  # home\nlongitude=-89.3841\nname = Madison, WI\nunits = metric\n"
 	    "timeout = 15\nattempts = 3\nproviders = open-meteo\nlog = info\nautorefresh = off\n";
 	mutate_all(cfg, sizeof cfg - 1, iterations, rng);
+	static char crcfg[sizeof cfg];                                          // the same file with classic Mac line endings
+	for (size_t i = 0; i < sizeof cfg - 1; i++) crcfg[i] = cfg[i] == '\n' ? '\r' : cfg[i];
+	mutate_all(crcfg, sizeof cfg - 1, iterations, rng);
 	static const char formats[] = "%zu %%zu %08zu %.*zu %lld %s %ld %.2f %%";
 	mutate_all(formats, sizeof formats - 1, iterations, rng);
 	unsigned char synthetic_seed[32], record[kSeedRecordSize];
