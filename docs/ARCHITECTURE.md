@@ -178,3 +178,18 @@ private exclusive temporaries and checked flush/exchange/rename, with no physica
 power-loss guarantee. Diagnostics explicitly supply isolated stores and are separate
 executables. Cancel never clears an unresolved startup configuration error.
 See OS9-PREFERENCES.md for migration and native verification gaps.
+
+## Platform idioms and the pre-1.0 policy (decided 2026-10-28, #180)
+
+Each platform's configuration, environment and file locations follow that platform's own idioms, as if the program had been designed only for it. The portable core owns one `Config` structure and knows nothing about files, flags, dialogs or the environment; each platform supplies a store (read and write) and a surface that edits it.
+
+| Platform | Settings live in | Changed by | Environment |
+|---|---|---|---|
+| NetBSD and other BSDs | dotfile in `$HOME` | editing the text file; flags override | honor the system defaults (certificate variables, #158) |
+| Linux (not supported yet) | `$XDG_CONFIG_HOME/<app>/config`, default `~/.config/<app>/config` | same text format and flags | XDG variables, system certificate store |
+| macOS (not supported yet) | GUI app: `~/Library/Preferences`; CLI: dotfile | native Preferences window for the GUI app | system certificates |
+| Mac OS 9 | one app-owned Preferences file in `System Folder:Preferences` | the Preferences window and menus only, never text editing | none; the app supplies what the OS lacks (TLS seed, #120) |
+
+A setting may exist on only some platforms where a platform has no idiom for it; the core never depends on a platform-only setting. Linux and macOS are recorded here so the design does not close them off; nothing is implemented for them until they are supported.
+
+**Pre-1.0 policy:** no migrations and no compatibility shims. Settings formats, file names, command names and paths may change between 0.x releases without a migration path. Remove old code paths instead of keeping them (for example the OS 9 `weather.conf` fallback and the text-editing instructions in OS9-PREFERENCES.md, which #181 removes). This policy ends at 1.0.
