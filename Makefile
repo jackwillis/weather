@@ -174,6 +174,10 @@ package-netbsd:
 probe-os9:
 	sh tools/probe-os9.sh
 
+# Native compiler acceptance plus negative checks of our private-record guards.
+check-ot-layout:
+	podman run --rm -v $(CURDIR):/src:Z -w /src ghcr.io/autc04/retro68 sh test/ot-layout.sh /Retro68-build/toolchain/bin/powerpc-apple-macos-g++
+
 # Release builds pin RETRO68_IMAGE by digest (ghcr.io/autc04/retro68@sha256:...) and may use CONTAINER=docker.
 CONTAINER    ?= podman
 RETRO68_IMAGE ?= ghcr.io/autc04/retro68
@@ -262,4 +266,4 @@ clean:
 
 -include $(wildcard $(OBJ)/*.d $(OBJ)/*/*.d $(OBJ)/*/*/*.d)
 
-.PHONY: check-test-hooks os9 FORCE san-note check-san anchors check-anchors check-tls all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
+.PHONY: check-test-hooks check-ot-layout os9 FORCE san-note check-san anchors check-anchors check-tls all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
