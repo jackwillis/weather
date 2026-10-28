@@ -176,7 +176,7 @@ void draw_contents()
 	}
 	else model.status_line(status,net.now(net));
 	wrapped(16,210,status.c_str(),3,308);
-	text(16,287,cfg.auto_refresh?"Automatic updates on":"Automatic updates off",9,205);
+	text(16,287,cfg.auto_refresh?"Automatic updates are on":"Automatic updates off",9,205);
 	Rect r=box(236,270,88,24); color({0,0,0}); FrameRoundRect(&r,8,8); text(248,287,"Refresh",12,70);
 	if(actions.about) draw_about(c);
 }
