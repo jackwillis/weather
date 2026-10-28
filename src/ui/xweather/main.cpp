@@ -420,8 +420,8 @@ void field_click(int field, int x)
 	const char *s = t16 ? t16->s : g.form.name.s;
 	size_t n = t16 ? t16->n : g.form.name.n;
 	int rel = x - (d_field(field).x + 6);
-	size_t pos = 0;
-	while (pos < n && cde::text_width(g.th.normal, sv(s, pos + 1)) - cde::text_width(g.th.normal, sv(s + pos, 1)) / 2 < rel) pos++;
+	size_t cursor = t16 ? t16->cur : g.form.name.cur;
+	size_t pos = cde::field_position(g.th.normal, sv(s, n), cursor, d_field(field).w - 12, rel);
 	if (t16) t16->set_cursor(pos); else g.form.name.set_cursor(pos);
 }
 

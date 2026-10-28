@@ -12,6 +12,7 @@
 #include "app/credits.hpp"
 #include "app/locform.hpp"
 #include "app/model.hpp"
+#include "app/weather_art.hpp"
 #include "app/config_load.hpp"
 #include "app/preferences.hpp"
 #include "app/window_actions.hpp"
@@ -742,8 +743,69 @@ static Forecast some_forecast(long t10)
 	return f;
 }
 
+// Record conservative primitive extents, including round line caps.
+struct ArtBounds {
+	ArtRect area;
+	bool valid = true;
+	int calls = 0;
+	void box(int x0, int y0, int x1, int y1) {
+		calls++;
+		if (x0 < area.x || y0 < area.y || x1 > area.x + area.w || y1 > area.y + area.h) valid = false;
+	}
+	void rect(int x, int y, int w, int h, Rgb) { box(x, y, x + w, y + h); }
+	void disc(int x, int y, int r, Rgb) { box(x - r, y - r, x + r, y + r); }
+	void line(int x, int y, int xx, int yy, int width, Rgb) {
+		int pad = (width + 1) / 2;
+		box((x < xx ? x : xx) - pad, (y < yy ? y : yy) - pad,
+		    (x > xx ? x : xx) + pad, (y > yy ? y : yy) + pad);
+	}
+	void poly(const ArtPt *p, int n, Rgb) { for (int i = 0; i < n; i++) box(p[i].x, p[i].y, p[i].x, p[i].y); }
+};
+static void test_art_bounds()
+{
+	const ArtRect areas[] = {{0, 0, 60, 60}, {9, 11, 60, 90}, {-9, -11, 90, 60},
+	    {0, 0, 100, 100}, {8, 12, 160, 120}, {0, 0, 16, 16},
+	    {0, 0, 5, 5}, {0, 0, 4, 4}, {0, 0, 1, 1}};
+	for (ArtRect area : areas) {
+		int failures = 0;
+		for (long code = -1; code <= 99; code++) for (int night = 0; night < 2; night++) {
+			ArtBounds canvas{area};
+			art::picture(canvas, area, code, night != 0);
+			if (!canvas.valid || canvas.calls == 0) failures++;
+		}
+		if (failures) printf("art bounds: %dx%d at %d,%d: %d of 202 scenes failed\n", area.w, area.h, area.x, area.y, failures);
+		CHECK(failures == 0);
+	}
+	const ArtRect empty[] = {{0, 0, 0, 60}, {0, 0, 60, 0}, {0, 0, -1, 60}};
+	for (ArtRect area : empty) {
+		ArtBounds canvas{area}; art::picture(canvas, area, 0, false);
+		CHECK(canvas.calls == 0);
+	}
+}
+
 static void test_model()
 {
+	{ // Rounding at the minute/hour boundary must not produce "60 min".
+		struct DurationCase { long seconds; const char *text; };
+		const DurationCase cases[] = {
+			{0, "0 s"}, {59, "59 s"}, {60, "1 min"}, {89, "1 min"},
+			{90, "2 min"}, {3540, "59 min"}, {3569, "59 min"},
+			{3570, "1 h"}, {3599, "1 h"}, {3600, "1 h"},
+			{3659, "1 h"}, {3660, "1 h 1 min"}, {7199, "1 h 59 min"}, {7200, "2 h"}
+		};
+		for (const DurationCase &c : cases) {
+			Buf<64> text;
+			Model::add_dur(text, c.seconds);
+			CHECK(text.view() == sv(c.text));
+		}
+		ModelConfig hourly; hourly.interval_s = 3600;
+		Model model(hourly, 0);
+		CHECK(model.tick(0));
+		Forecast forecast = some_forecast(100);
+		model.finish(0, okay(), &forecast);
+		Buf<128> status; model.status_line(status, 30);
+		CHECK(status.view() == sv("Updated 30 s ago. Next update in 1 h"));
+	}
 	ModelConfig mc;                    // 15 min interval, 60 s backoff base
 	{ // first tick fetches; no second fetch while one is running; refresh during a fetch is ignored
 		Model m(mc, 0);
@@ -1358,6 +1420,7 @@ int main()
 	test_settings_text();
 	test_settings_store();
 	test_model();
+	test_art_bounds();
 	test_credits();
 	test_window_actions();
 	test_config_load();

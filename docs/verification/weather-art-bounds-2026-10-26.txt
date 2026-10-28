@@ -1,0 +1,41 @@
+Issue #56 F7 partial: shared weather-art bounds
+
+The fixed offsets overflowed small drawing areas: a conservative primitive
+recorder found76/202 code(-1..99)/day combinations outside60x60, with207 primitive
+extent violations. Round line caps are included in the recorder's bounds.
+Regression red:545 unit checks,10 failures, including portrait/landscape60-pixel
+areas,16/5/4/1-pixel squares, and empty/negative-dimension no-draw expectations.
+100x100 and160x120 baseline scenes already fit.
+
+Keep geometry unchanged when both dimensions are at least100. For smaller
+areas, paint the full sky, then scale the complete100x100 scene proportionally
+into a centered square with a two-pixel margin for minimum-width strokes.
+The smaller side bounds the scale, keeping circles circular in rectangular
+areas. Below five pixels only the sky is drawn; empty areas draw nothing.
+Polygon temporary arrays keep their deduced compile-time size, without heap
+allocation or a fixed polygon capacity. No forecast, parser, timing or native
+canvas API change. The default X11 icon interior is118x118 and retains its path.
+
+Test all202 code/day combinations at nine sizes, including nonzero and negative
+origins. Empty/negative areas are separate cases. Native compiler probes
+explicitly instantiate picture with all four canvas methods in Retro68 PowerPC
+and m68k; both passed (compile-only, no Toolbox headers or runtime claims).
+
+Visual QA: before/after SVG canvas grids covering unknown, clear, partly cloudy,
+overcast, fog, rain/heavy rain, snow/showers and thunder/hail, day and night,
+were rendered toPNG and inspected. The small scenes fit the marked60x60 boxes
+and retain recognizable symbols. SVG output is a geometry/appearance preview,
+not proof of native X11/QuickDraw raster behavior. ArtCanvas pens can differ.
+Files: /tmp/weather-art-{before,after}.svg and.png;
+/tmp/weather-art-comparison.png. Native OS9 runtime remains parked/unverified.
+
+Remaining #56: long Location input rendering; fit_text bounds separately in#84.
+The duration boundary portion of this PR was previously verified independently.
+
+Verified: make check545 unit /230242 mutation inputs /106 CLI /12 local TLS /
+21 serialized GUI checks. Explicit ASan+UBSan545/230242/106. Retro68 PowerPC and
+m68k changed-art instantiation compile probes pass. Logs /tmp/weather-art-
+{check,san,native}.log. No new parser input path or mutation corpus change.
+
+Actual NetBSD/macppc G4:545 unit /86242 mutation inputs, status=0, Linux
+cross-built binaries. Log /tmp/weather-art-maul.log. No maul compilation.

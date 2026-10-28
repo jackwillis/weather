@@ -122,6 +122,23 @@ if start_xw rcE $PORT_OK; then
 	quit_xw E
 fi
 
+# ---------------------------------------------------------------- F: scroll and edit a full-length Location name
+printf 'attempts = 1\nautorefresh = off\nname = ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstu\n' > rcF
+if start_xw rcF $PORT_OK; then
+	./xdrive sleep 1500 key l ctrl sleep 300 key Tab key Tab key End sleep 300 snap snap/F01-name-tail.$EXT
+	# The left edge now represents a scrolled character, not the start of the name.
+	./xdrive click 160 152 key Delete type 0 sleep 200 snap snap/F02-name-click.$EXT
+	./xdrive key Home key Delete type Z key End key BackSpace type Y sleep 200 snap snap/F03-name-edited.$EXT
+	./xdrive key Return sleep 2000
+	saved=$(sed -n 's/^name = //p' rcF)
+	check "F: full-length name survives editing" "${#saved}" 47
+	case "$saved" in Z*Y) check "F: Home and End edit visible endpoints" yes yes;; *) check "F: Home and End edit visible endpoints" no yes;; esac
+	case "$saved" in *0*) check "F: click uses scrolled text position" yes yes;; *) check "F: click uses scrolled text position" no yes;; esac
+	check "F: applying long name refetches once" "$(fetches)" 2
+	keeplog F
+	quit_xw F
+fi
+
 # ---------------------------------------------------------------- D: the weather pictures
 for g in $GALLERY; do
 	name=${g%%:*}; port=${g##*:}
