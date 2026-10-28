@@ -37,13 +37,13 @@ Read through a summarising fetch tool, so the wording below is paraphrased; re-r
 
 ## Attribution used by Weather
 The README credits both sources and licences. Every forecast already names its source and timestamp in the output
-(`(open-meteo 2026-10-24T05:00)`). Showing the credit inside the X11 and Mac OS 9 About boxes is not done yet.
+(`(open-meteo 2026-10-24T05:00)`). Shared credits already appear in X11 (Help > About > Credits) and OS 9 About; see `src/app/credits.hpp`. The NWS provider is still in an unmerged PR, so its separate public-domain attribution is not yet included. Check shipped packages as well as current source.
 
 ## NWS (api.weather.gov)
-Not in scope for 0.0.1 (PR #16 unmerged). Its terms must be read before v0.1 (#45).
+Not in scope for 0.0.1 (PR #16 unmerged). NWS weather data is U.S. public-domain government information. Credit National Weather Service (NOAA), avoid implying endorsement, and verify final terms when integrating #16 (#73, #105).
 
 ## Open items
-- [ ] About boxes (xweather, Mac OS 9) show the credit and licence link. OS 9 needs a hardware layout check.
+- [ ] Verify the existing About/Credits pages in shipped X11 and OS 9 builds, including licence wording and native layout. NWS must be added when its provider ships, clearly distinguished as U.S. public-domain government data rather than CC BY 4.0.
 - [ ] `man/weather.1` mentions the CC BY 4.0 credit.
 - [x] Conditional requests (`If-Modified-Since`) for MET Norway: #146. Expiry implementation: #152; native verification remains open.
 - [ ] Jack accepts this summary (the issue is labelled `needs-owner`).
