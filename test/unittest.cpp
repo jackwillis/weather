@@ -120,6 +120,20 @@ static void test_config()
 	CHECK(s.err == Err::Config && s.detail == 2);           // line number reported
 	s = config_parse("latitude = 91\n", &c);
 	CHECK(s.err == Err::Config && s.detail == 1);
+	{ // The limits themselves: inclusive at 90 and 180, refused just past them, and each axis has its own limit.
+		Config e;
+		CHECK(config_parse("latitude = 90\nlongitude = 180\n", &e).ok() && e.lat_e4 == 900000 && e.lon_e4 == 1800000);
+		e = Config();
+		CHECK(config_parse("latitude = -90\nlongitude = -180\n", &e).ok() && e.lat_e4 == -900000 && e.lon_e4 == -1800000);
+		CHECK(config_parse("latitude = 90.0001\n", &e).err == Err::Config);
+		CHECK(config_parse("latitude = -90.0001\n", &e).err == Err::Config);
+		CHECK(config_parse("longitude = 180.0001\n", &e).err == Err::Config);
+		CHECK(config_parse("longitude = -180.0001\n", &e).err == Err::Config);
+		e = Config();
+		CHECK(config_parse("longitude = 91\n", &e).ok() && e.lon_e4 == 910000);   // past the latitude limit, inside the longitude one
+		CHECK(config_parse("longitude = -122.3321\n", &e).ok() && e.lon_e4 == -1223321);   // Seattle: west of -90
+		CHECK(config_parse("longitude = 151.2093\n", &e).ok() && e.lon_e4 == 1512093);     // Sydney: east of 90
+	}
 	s = config_parse("no equals sign\n", &c);
 	CHECK(s.err == Err::Config);
 	s = config_parse("name = Oslo, Norway\n", &c);
@@ -1597,6 +1611,7 @@ int main()
 	test_window_actions();
 	test_config_load();
 	test_preferences();
+	test_preference_effects();
 	test_modal_clock();
 	test_forms();
 	test_metno();

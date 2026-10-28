@@ -123,3 +123,17 @@ Initial make check could not open the TLS fixture socket in the filesystem
 sandbox: PermissionError: [Errno 1] Operation not permitted;
 FAIL: the test server did not start; tls tests: 0 passed, 1 failed.
 Reran with local networking permitted; final results follow below.
+
+Then incorporated main ef25f333e7d0e2b0ac35da3d362852120e0c33c1
+(Claude merged #154) and reran the combined host/sanitizer suites:
+1876 unit checks in each production/test-hook mode, 426598 mutation inputs,
+129 CLI checks in each mode, 34 connection-budget checks, 4 actual-glue
+shutdown cases, 28 local TLS checks, 95 CDE text and 19 field checks,
+55 serialized GUI checks; all passed. ASan explicitly enabled. Repository
+policy and diff whitespace checks relative to main passed. Full native OS 9
+application/diagnostic cross-build and OT layout negative checks passed before
+this tests-only main update; production/native sources are unchanged by #154.
+Existing net_os9 enum/non-enum warning remains in the cross-build log.
+No native execution for the refresh; no maul calls were made.
+Logs: /tmp/weather-pr91-{refresh,combined}-{check,san,os9,layout}.log
+(only applicable combinations exist).
