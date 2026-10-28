@@ -1,0 +1,3 @@
+- Persist MET Norway Last-Modified values and use matching If-Modified-Since requests. Valid 304 responses revalidate the matching forecast; unsolicited or mismatched 304 responses remain errors.
+- Save forecasts by default, with a persisted Options setting on OS 9 and X11. Turning saving off removes saved forecasts and disables MET Norway with an explanation; Open-Meteo remains available without persistence.
+- Preserve the last attempted provider failure when MET is skipped because forecast saving is off.

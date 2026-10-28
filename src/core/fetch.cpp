@@ -37,6 +37,7 @@ static Status io_fail(const Io &io, const char *what)
 Status fetch_once(Net &net, const char *host, const char *port, bool tls, const char *path,
     const FetchOpts &o, char *buf, size_t cap, sv *body)
 {
+	if(o.metadata) *o.metadata=FetchMetadata{};
 	if (tls && net.now && net.now(net) < kMinSaneTime)
 		return make(Err::Clock, "system clock is before 2025; set the date (needed to check certificates)");
 
@@ -58,7 +59,7 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 	agent.add("weather/" WEATHER_VERSION);
 	if (o.contact && o.contact[0]) agent.add(" (contact: ").add(o.contact).add(")");
 	Buf<640> req;
-	if (!http_request(req, host, path, agent.view())) {
+	if (!http_request(req, host, path, agent.view(),o.if_modified_since)) {
 		s = make(Err::BadData, "request too long");
 	} else {
 		dump_text("request", req.s, req.n);
@@ -87,6 +88,11 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 	dump_text("response", buf, got);
 	HttpResponse h = http_parse(sv(buf, got));
 	if (!h.st.ok()) return h.st;
+	if(o.metadata) {
+		o.metadata->code=h.code;
+		for(size_t i=0;i<h.last_modified.size();i++) o.metadata->last_modified[i]=h.last_modified[i];
+	}
+	if(h.code==304 && !o.if_modified_since.empty() && o.metadata) { *body={}; return okay(); }
 	if (h.code != 200) return make(Err::HttpStatus, "server returned an error status", h.code);
 	*body = h.body;
 	return okay();
@@ -116,6 +122,11 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 	bool attempted = false;
 	for (size_t i = 0; i < n; i++) {
 		const Provider &p = *providers[i];
+		if (!o.save_forecasts && sv(p.name)=="met-no") {
+			Status skipped=make(Err::Config,"MET Norway requires forecast saving");
+			if (!attempted) last=skipped;
+			logf(LogWarn,"%s",skipped.msg); continue;
+		}
 		char path[320];
 		if (!p.path(q, path, sizeof path)) {
 			if (!attempted) last = make(Err::BadData, "request path too long");
@@ -131,11 +142,30 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 		const char *port = o.force_port ? o.force_port : p.port;
 		bool tls = o.force_host == nullptr;
 		logf(LogInfo, "trying %s (%s:%s)", p.name, host, port);
+		FetchOpts request=o; FetchMetadata metadata;
+		request.metadata=&metadata; request.if_modified_since={};
+		const ConditionalForecast *previous=o.conditional;
+		bool matching=sv(p.name)=="met-no" && previous && previous->query.lat_e4==q.lat_e4 &&
+		    previous->query.lon_e4==q.lon_e4 && previous->query.metric==q.metric &&
+		    previous->forecast.metric==q.metric && previous->forecast.source && sv(previous->forecast.source)=="met-no" &&
+		    check_fields(previous->forecast,q.metric).ok() &&
+		    plausible_temp_t10(previous->forecast.temp_t10,q.metric);
+		if(matching) {
+			size_t length=0;
+			while(length<sizeof previous->forecast.last_modified && previous->forecast.last_modified[length]) ++length;
+			sv value(previous->forecast.last_modified,length);
+			if(!value.empty() && http_validator(value)) request.if_modified_since=value;
+		}
 		sv body;
-		Status s = fetch_retry(net, host, port, tls, path, o, buf, cap, &body);
+		Status s = fetch_retry(net, host, port, tls, path, request, buf, cap, &body);
 		if (s.ok()) {
 			Forecast f;
-			s = p.parse(body, q, &f);
+			if(metadata.code==304) {
+				// fetch_once only accepts 304 after a nonempty matching validator.
+				f=previous->forecast;
+			} else s = p.parse(body, q, &f);
+			if(s.ok() && sv(p.name)=="met-no" && metadata.last_modified[0])
+				std::memcpy(f.last_modified,metadata.last_modified,sizeof f.last_modified);
 			if (!s.ok())
 				logf(LogWarn, "%s: unusable response: %s: %s", p.name, err_name(s.err), s.msg);
 			else { *out = f; return okay(); }

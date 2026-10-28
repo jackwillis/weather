@@ -47,13 +47,13 @@ PLATFORM     = posix
 CORE_SRCS    = src/core/fetch.cpp
 TLS_SRCS     = src/tls/tls.cpp
 PLAT_SRCS    = src/platform/$(PLATFORM)/net_posix.cpp src/platform/$(PLATFORM)/log_posix.cpp \
-               src/platform/$(PLATFORM)/settings_posix.cpp src/platform/$(PLATFORM)/nocxx.cpp
+               src/platform/$(PLATFORM)/settings_posix.cpp src/platform/$(PLATFORM)/cache_posix.cpp src/platform/$(PLATFORM)/nocxx.cpp
 CLI_SRCS     = src/cli/main.cpp
 XW_SRCS      = src/ui/xweather/main.cpp src/ui/xweather/cde.cpp
 WEATHER_OBJS = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(CLI_SRCS))
 XW_OBJS      = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(XW_SRCS))
 TEST_OBJS    = $(OBJ)/app/preferences.o $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o \
-               $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/settings_posix.o
+               $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/settings_posix.o $(OBJ)/platform/$(PLATFORM)/cache_posix.o
 
 all: $(BUILD)/weather $(XWEATHER_TARGETS)
 ppc:
@@ -210,6 +210,7 @@ check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(B
 	$(BUILD)/unittest
 	$(BUILD)/robust
 	TEST_HOOKS_ENABLED=$(TEST_HOOKS) sh test/feature.sh $(BUILD)/weather
+	python3 test/cache_cli.py $(BUILD)/weather
 	python3 test/fixture_startup.py
 ifeq ($(TEST_HOOKS),0)
 	$(MAKE) TARGET=$(TARGET) check-test-hooks
@@ -223,6 +224,8 @@ check-san:
 	build/host-san/unittest
 	build/host-san/robust
 	sh test/feature.sh build/host-san/weather
+	python3 test/cache_cli.py build/host-san/weather
+
 	@if [ -f /usr/include/X11/Xlib.h ]; then \
 	    $(MAKE) TARGET=host-san X11_LIBS=-lX11 build/host-san/cde-text-test build/host-san/cde-field-test && \
 	    build/host-san/cde-text-test && sh test/field-host.sh build/host-san/cde-field-test; \

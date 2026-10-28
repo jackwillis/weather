@@ -102,6 +102,43 @@ if start_xw rcC $PORT_500; then
 	quit_xw C
 fi
 
+# ---------------------------------------------------------------- Cache: real file restoration, no service contact
+printf 'providers = met-no\nattempts = 1\n' > rcCache
+for round in 1 2; do
+	./xweather -v -c rcCache > xw.log 2>&1 & XW=$!
+	./xdrive wait Weather 20000 || { echo "FAIL cached window did not appear"; cat xw.log; cp xw.log snap/Cache-startup-failure.log; fail=$((fail+1)); break; }
+	./xdrive sleep 1500 snap snap/Cache-$round.$EXT
+	check "Cache $round: stale forecast restored, including restart" "$(grep -c 'restored cached forecast (stale)' xw.log)" 1
+	check "Cache $round: missing contact skips service" "$(grep -c 'met-no skipped' xw.log)" 1
+	if [ $round = 2 ]; then
+		./xdrive click 80 13 sleep 300 click 100 84 sleep 1500 snap snap/Cache-new-units.$EXT
+		check "Cache: changing units does not restore mismatched old record" "$(grep -c 'restored cached forecast (stale)' xw.log)" 1
+	fi
+    if [ "$round" = 2 ]; then
+        ./xdrive click 80 13 sleep 300 snap snap/Cache-saving-menu.$EXT click 100 106 sleep 500
+        check "Cache: saving off persists" "$(grep -c 'cache = off' rcCache)" 1
+        check "Cache: saving off removes forecast" "$(test -e rcCache.cache && echo exists || echo absent)" absent
+        ./xdrive sleep 5000 key F5 sleep 1500
+        check "Cache: disabled MET is explained" "$(grep -c 'MET Norway requires forecast saving' xw.log)" 1
+    fi
+	keeplog Cache-$round
+	quit_xw Cache-$round
+done
+
+# Saving-off survives relaunch; turning it back on is persistent too.
+./xweather -v -c rcCache > xw.log 2>&1 & XW=$!
+if ./xdrive wait Weather 20000; then
+    ./xdrive sleep 1500 snap snap/Cache-saving-off-restart.$EXT
+    check "Cache: off restart does not restore" "$(grep -c 'restored cached forecast' xw.log)" 0
+    check "Cache: off restart skips MET" "$(grep -c 'MET Norway requires forecast saving' xw.log)" 1
+    ./xdrive click 80 13 sleep 300 click 100 106 sleep 500
+    check "Cache: re-enable persists" "$(grep -c 'cache = on' rcCache)" 1
+    keeplog Cache-off-restart
+    quit_xw Cache-off-restart
+else
+    echo "FAIL saving-off restart did not appear"; fail=$((fail+1))
+fi
+
 # ---------------------------------------------------------------- E: interrupted Location button gestures
 printf 'attempts = 1\nautorefresh = off\n' > rcE
 cp rcE rcE.before
