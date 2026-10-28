@@ -79,6 +79,14 @@ Current validation and limits are recorded on PR #41. Blocking POSIX getaddrinfo
 and native OS 9 TCP/stream budget enforcement remain outstanding. No new native
 OS 9 runtime acceptance is claimed.
 
+## OS 9 entropy research (#120 / #121, 2026-10-27)
+
+A diagnostic-only EntropyProbe and a bounded offline analyzer are prepared.
+They collect timings from owned resources without reading seeds or logging key
+contents. The analyzer always credits zero bits; no hardware measurements,
+source credit, seed collector or threshold is claimed. Production provisioning
+is unchanged. See OS9-ENTROPY-MEASUREMENT.md for the owner runbook and review gate.
+
 ## Forecast cache integration in PR #15 (2026-10-27)
 
 The cache branch incorporates current main, preserving the five-second manual
