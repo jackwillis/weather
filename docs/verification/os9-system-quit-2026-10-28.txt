@@ -39,3 +39,37 @@ Final diagnostic-only follow-up: idle mode uses presence of a diagnostic-owned
 weather-ui.quit-idle marker, not parsed text. Both affected UI diagnostic apps
 rebuilt successfully after this simplification; Python syntax and whitespace pass.
 Production and the host-tested handler code are unchanged by that follow-up.
+
+Hardware attempt, 2026-10-28 (Tiger/Classic, NOT native OS 9)
+----------------------------------------------------------------
+Source 1a23dc68; Mac OS X 10.4.11 build 8S165, claude console login.
+Delivered only WeatherUITest; data-fork MD5 840b875341b96e24dc68095e02979005
+matches local APPL. Production Weather was not replaced. Classic started normally.
+
+Original run passed config/load/delete bounds, simulated modal-clock exclusions,
+offscreen allocation, unit change, stale retention, bounded background pumping,
+refresh non-reentrancy, redraw and native suspend/resume assertions through stage 10.
+The last assertion was:
+ok stage=11 production live fetch starts in background
+
+Driver exited 1 with:
+RuntimeError: UI stage 11 did not become ready; see saved log
+No stage-12 cancellation or stage-13 system-quit/lock result was reached.
+The app was subsequently absent from Finder's process list; no crash dialog or
+crash report has been confirmed, and owner interaction has not yet been ruled out.
+Do not call this a passed lifecycle run or a proven TLS root cause.
+
+A normal re-open started a new diagnostic, replacing the remote log. The original
+log had already been saved locally by the driver. That new run reported:
+FAIL stage=0 remove diagnostic config
+FAIL stage=0 missing native config uses existing defaults
+It later displayed stage 0. A normal quit request via Tiger osascript failed with:
+64:65: syntax error: No user interaction allowed. (-1713)
+The owner was asked to quit the diagnostic with Command-Q and report any dialog.
+No force kill, lock deletion, provisioning, reboot or privileged change attempted.
+
+Original driver log: /tmp/weather-hardware-fetch-driver.log
+Original assertions/screenshots: /tmp/weather-hardware-2026-10-28/fetch/
+Additional observations: /tmp/weather-live-stall-remote.txt and
+/tmp/weather-live-reopen-remote.txt. The appended weather.log tail was historical
+and cannot establish a new DNS/TLS error for this attempt.
