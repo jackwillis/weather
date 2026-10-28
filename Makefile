@@ -222,6 +222,7 @@ ifeq ($(TEST_HOOKS),0)
 endif
 	python3 test/seed_provision.py
 	python3 test/entropy_analysis.py
+	sh test/changelog.sh
 	sh test/flags.sh "$(MAKE)"
 # Everything again under AddressSanitizer + UBSan: unit tests, parser robustness, the CLI's feature tests.
 check-san:
