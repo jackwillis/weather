@@ -68,6 +68,17 @@ not run. Layout, typing, locked/read-only volume behavior, actual process restar
 and production delivery await Tiger. See OS9-PREFERENCES.md for source precedence
 and explicit failure/durability limits.
 
+## Fetch deadlines in PR #41 (2026-10-27)
+
+The deadline branch now incorporates main's OS 9 window/Preferences changes.
+Net exposes monotonic milliseconds separately from UTC certificate time; OS 9
+uses the shared modal-credit active clock. Host tests cover paused menus, UTC
+steps, missing/regressing clocks and attempt/caller budgets. Exact stream expiry
+and a clock regression above the attempt start have explicit red/green tests.
+Current validation and limits are recorded on PR #41. Blocking POSIX getaddrinfo
+and native OS 9 TCP/stream budget enforcement remain outstanding. No new native
+OS 9 runtime acceptance is claimed.
+
 ## Forecast cache integration in PR #15 (2026-10-27)
 
 The cache branch incorporates current main, preserving the five-second manual

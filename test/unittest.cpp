@@ -154,6 +154,14 @@ struct Fake {
 	int nsteps = 0, next = 0, connects = 0, closes = 0, nsleeps = 0;
 	long sleeps[64] = {};
 	long long clock = 1790000000LL;
+	os9::ModalClock active_clock;
+	uint32_t ticks = 0xfffffff0U;
+	bool use_active = false, pause_reads = false;
+	long long monotonic = 0;
+	long long seen_budget_limit = -1;
+	long mono_read_ms = 0;
+	long read_secs = 0;      // the clock advances this much on every read (a slow trickle)
+	int reads = 0;
 	bool cancel_sleep = false;
 	const char *cur = ""; size_t pos = 0; Err cur_err = Err::Ok;
 	char request[512] = {};
@@ -163,6 +171,9 @@ static Fake *F(Net &n) { return static_cast<Fake *>(n.ctx); }
 static long fk_read(Io &io, void *buf, size_t len)
 {
 	Fake *f = static_cast<Fake *>(io.ctx);
+	f->reads++; f->clock += f->read_secs; f->monotonic += f->mono_read_ms;
+	uint32_t before = f->ticks; f->ticks += 120;
+	if (f->pause_reads) f->active_clock.credit(before, f->ticks);
 	size_t left = strlen(f->cur) - f->pos;
 	if (left == 0) {
 		if (f->cur_err != Err::Ok) { io.err = f->cur_err; io.detail = 1; return -1; }
@@ -184,6 +195,7 @@ static long fk_write(Io &io, const void *buf, size_t len)
 static Status fk_connect(Net &n, const char *, const char *, int, Io *out)
 {
 	Fake *f = F(n);
+	f->seen_budget_limit = n.budget ? n.budget->limit_ms : -1;
 	f->connects++;
 	Step &s = f->steps[f->next < f->nsteps ? f->next : f->nsteps - 1];
 	f->next++;
@@ -197,10 +209,12 @@ static void fk_close(Net &n, Io &) { F(n)->closes++; }
 static bool fk_sleep(Net &n, long ms) { Fake *f = F(n); if (f->nsleeps < 64) f->sleeps[f->nsleeps++] = ms; return !f->cancel_sleep; }
 static long long fk_now(Net &n) { return F(n)->clock; }
 
+static long long fk_monotonic(Net &n) { Fake *f = F(n); return f->use_active ? f->active_clock.milliseconds(f->ticks) : f->monotonic; }
+
 static Net make_net(Fake *f)
 {
 	Net n;
-	n.ctx = f; n.connect = fk_connect; n.close = fk_close; n.sleep_ms = fk_sleep; n.now = fk_now;
+	n.ctx = f; n.connect = fk_connect; n.close = fk_close; n.sleep_ms = fk_sleep; n.now = fk_now; n.monotonic_ms = fk_monotonic;
 	return n;
 }
 
@@ -248,6 +262,90 @@ static void test_fetch()
 		Net n = make_net(&f);
 		Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
 		CHECK(s.ok() && f.connects == 2 && f.nsleeps == 1);
+	}
+	{ // a server that trickles its answer: every read is quick, but the whole attempt must not outlast 3 x the timeout
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1; f.mono_read_ms = 1000;     // one second per read, timeout_s = 1
+		Net n = make_net(&f);
+		Status s = fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
+		CHECK(s.err == Err::Timeout && f.closes == 1 && f.reads == 3);                     // reads at 0, 1 and 2 s; reaching the 3 s deadline refuses the next
+		Fake g; g.steps[0] = {okay(), kGood, Err::Ok}; g.nsteps = 1;                      // the same answer at full speed is fine
+		Net gn = make_net(&g);
+		CHECK(fetch_once(gn, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+		Fake r; r.steps[0] = {okay(), kGood, Err::Ok}; r.nsteps = 1; r.mono_read_ms = 1000;
+		Net rn = make_net(&r);
+		Status rs = fetch_retry(rn, "h", "80", false, "/", o, buf, sizeof buf, &body);    // a timeout is retried, each attempt bounded
+		CHECK(rs.err == Err::Timeout && r.connects == 3 && r.closes == 3);
+		Fake e; e.steps[0] = {okay(), kGood, Err::Ok}; e.nsteps = 1; e.mono_read_ms = 1000;
+		Net en = make_net(&e);
+		Fake t; t.steps[0] = {okay(), kGood, Err::Ok}; t.nsteps = 1; t.mono_read_ms = 1000;
+		Net tn = make_net(&t);
+		FetchOpts tight = o; tight.deadline_s = 2;                                            // a deadline below 3 x timeout wins
+		CHECK(fetch_once(tn, "h", "80", false, "/", tight, buf, sizeof buf, &body).err == Err::Timeout && t.reads == 2);
+		FetchOpts roomy = o; roomy.deadline_s = 100;                                         // an explicit deadline replaces 3 x timeout
+		CHECK(fetch_once(en, "h", "80", false, "/", roomy, buf, sizeof buf, &body).ok());
+		Fake b; b.steps[0] = {okay(), kGood, Err::Ok}; b.nsteps = 1; b.read_secs = -100;     // the clock steps back mid-fetch: never a false timeout
+		Net bn = make_net(&b);
+		CHECK(fetch_once(bn, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+	}
+	{ // The attempt budget reaches backend waits, and restores caller state.
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f); FetchOpts explicit_limit = o; explicit_limit.deadline_s = 1;
+		CHECK(fetch_once(n, "h", "80", false, "/", explicit_limit, buf, sizeof buf, &body).ok());
+		CHECK(f.seen_budget_limit == 1000 && n.budget == nullptr && n.ctx == &f);
+		f.monotonic = 200;
+		const TimeBudget outer{0, 500}; n.budget = &outer;
+		CHECK(fetch_once(n, "h", "80", false, "/", explicit_limit, buf, sizeof buf, &body).ok());
+		CHECK(f.seen_budget_limit == 300 && n.budget == &outer);
+		f.steps[0].connect_result = make(Err::Dns, "failed");
+		CHECK(fetch_once(n, "h", "80", false, "/", explicit_limit, buf, sizeof buf, &body).err == Err::Dns);
+		CHECK(n.budget == &outer);
+		CHECK((TimeBudget{0, 0}.remaining(0) == 0));
+		CHECK((TimeBudget{100, 10}.remaining(99) == -1));
+		CHECK((TimeBudget{9223372036854775000LL, 500}.remaining(9223372036854775100LL) == 400));
+	}
+	{ // UTC corrections and paused active time cannot change the attempt deadline.
+		for (long step : {-100L, 100L}) {
+			Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+			f.read_secs = step; // an arbitrarily long menu hold also advances UTC only
+			Net n = make_net(&f);
+			CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+			f.mono_read_ms = 1000;
+			CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Timeout);
+		}
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f); n.monotonic_ms = nullptr;
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Clock && f.connects == 0);
+		n.monotonic_ms = fk_monotonic; f.monotonic = -1;
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Clock && f.connects == 0);
+		f.monotonic = 9223372036854775000LL; f.mono_read_ms = -1000;
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Clock && f.closes == 1);
+	}
+	{ // Regression above the attempt start is still an invalid monotonic clock.
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f);
+		n.monotonic_ms = [](Net &net) -> long long {
+			int reads = F(net)->reads;
+			return reads == 0 ? 1000 : reads == 1 ? 2000 : 1500;
+		};
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Clock);
+		CHECK(f.closes == 1 && n.budget == nullptr);
+	}
+	{ // The actual OS9 active clock crosses TickCount wrap, credits menu holds, and resumes deadlines.
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+		f.use_active = true; f.pause_reads = true;
+		Net n = make_net(&f);
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+		f.pause_reads = false;
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Timeout);
+	}
+	{ // TLS handshake raw I/O is subject to the same deadline and preserves the error.
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1; f.mono_read_ms = 1000;
+		Net n = make_net(&f);
+		n.tls_open = [](Net &, Io &raw, const char *, Io *) -> Status {
+			char b[1]; while (raw.read(raw, b, sizeof b) > 0) {}
+			return raw.err == Err::Ok ? make(Err::Tls, "test handshake unexpectedly reached EOF") : make(raw.err, raw.msg);
+		};
+		CHECK(fetch_once(n, "h", "443", true, "/", o, buf, sizeof buf, &body).err == Err::Timeout && f.closes == 1);
 	}
 	{ // backoff doubles but is capped (default 30 s): a long run of attempts never sleeps for hours or overflows a 32-bit long
 		Fake f; f.steps[0] = {okay(), k500, Err::Ok}; f.nsteps = 1;
@@ -460,10 +558,12 @@ static void test_posix_net()
 	char buf[64];
 	{ // yield can cancel a blocked read quickly
 		Net n; posix_net_init(&n);
-		n.yield = count_yield; g_yields = 0; g_cancel_at = 3;
+		n.yield = count_yield; g_yields = 0; g_cancel_at = 0;
 		Io io;
 		Status s = n.connect(n, "127.0.0.1", portstr, 10, &io);
 		CHECK(s.ok());
+		if (!s.ok()) { close(ls); return; }
+		g_yields = 0; g_cancel_at = 3; // count only the blocked read, not connection setup
 		long long t0 = now_ms();
 		long r = io.read(io, buf, sizeof buf);
 		long long took = now_ms() - t0;
@@ -489,6 +589,24 @@ static void test_posix_net()
 		long r = io.read(io, buf, sizeof buf);
 		CHECK(r < 0 && io.err == Err::Timeout && g_yields >= 10);
 		n.close(n, io);
+	}
+	{ // A shorter whole-attempt budget reaches the real silent socket wait.
+		int silent_port = 0;
+		int silent = listen_local(&silent_port);
+		CHECK(silent >= 0);
+		if (silent >= 0) {
+			char service[16], response[4096];
+			snprintf(service, sizeof service, "%d", silent_port);
+			Net n; posix_net_init(&n);
+			FetchOpts opts; opts.timeout_s = 10; opts.deadline_s = 1;
+			sv body;
+			long long began = now_ms();
+			Status status = fetch_once(n, "127.0.0.1", service, false, "/", opts, response, sizeof response, &body);
+			long long elapsed = now_ms() - began;
+			CHECK(status.err == Err::Timeout && elapsed >= 900 && elapsed < 3000);
+			CHECK(n.budget == nullptr);
+			close(silent);
+		}
 	}
 	{ // sleep: completes, or stops when yield cancels
 		Net n; posix_net_init(&n);
@@ -1241,8 +1359,43 @@ struct DnsFake {
 	int close() { ++closes; return close_error; }
 };
 
+static Net dns_budget_net(DnsFake &f)
+{
+	Net n; n.ctx = &f;
+	n.monotonic_ms = [](Net &net) -> long long { return static_cast<DnsFake *>(net.ctx)->clock * 1000LL / 60; };
+	return n;
+}
 static void test_os9_dns()
 {
+	{ // A shorter attempt deadline stops a pending query and closes its provider.
+	  DnsFake f; f.query_delay = 100; DnsResolver<DnsFake> r(f);
+	  Net n = dns_budget_net(f); const TimeBudget b{0, 100}; n.budget = &b;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Timeout);
+	  CHECK(f.clock == 6 && f.closes == 1); }
+	{ // Expired async open retains callback storage, then drains under a fresh budget.
+	  DnsFake f; f.open_delay = 100; DnsResolver<DnsFake> r(f);
+	  Net n = dns_budget_net(f); const TimeBudget b{0, 100}; n.budget = &b;
+	  CHECK(r.resolve("first", 60, &n).err == Err::Timeout);
+	  CHECK(f.clock == 6 && f.closes == 0 && f.opens == 1);
+	  f.open_delay = 6; const TimeBudget fresh{100, 1000}; n.budget = &fresh;
+	  CHECK(r.resolve("second", 60, &n).ok());
+	  CHECK(f.opens == 2 && f.queries == 1 && f.closes == 2); }
+	{ // Fail closed before open when budget clock is absent or regressed.
+	  DnsFake f; DnsResolver<DnsFake> r(f); Net n;
+	  const TimeBudget b{100, 100}; n.budget = &b;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Clock && f.opens == 0);
+	  n.monotonic_ms = [](Net &) -> long long { return 99; };
+	  CHECK(r.resolve("h", 60, &n).err == Err::Clock && f.opens == 0); }
+	{ // Cancellation precedes a simultaneous expired outer budget.
+	  DnsFake f; f.cancel_at = 1; DnsResolver<DnsFake> r(f);
+	  Net n = dns_budget_net(f); const TimeBudget b{0, 0}; n.budget = &b;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Cancelled && f.opens == 0);
+	  f.cancel_at = 0;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Timeout && f.opens == 0); }
+	{ // The outer budget wins over completion at the exact same instant.
+	  DnsFake f; f.query_delay = 6; DnsResolver<DnsFake> r(f);
+	  Net n = dns_budget_net(f); const TimeBudget b{0, 100}; n.budget = &b;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Timeout && f.closes == 1); }
 	{ DnsFake f; DnsResolver<DnsFake> r(f);
 	  CHECK(r.resolve("h", 60).ok()); CHECK(f.opens == 1 && f.queries == 1 && f.closes == 1); }
 	{ DnsFake f; f.open_delay = 6; f.query_delay = 9; DnsResolver<DnsFake> r(f);

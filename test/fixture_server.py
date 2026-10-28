@@ -63,6 +63,16 @@ class H(socketserver.StreamRequestHandler):
             w(b'HTTP/1.0 404 Not Found\r\n\r\n{}')
         elif mode == 'slow':
             time.sleep(30)
+        elif mode == 'dribble':     # a valid start, then one byte every half second, for as long as the client listens
+            try:
+                w(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n{"padding":"')
+                self.wfile.flush()
+                while True:
+                    w(b'x')
+                    self.wfile.flush()
+                    time.sleep(0.5)
+            except (BrokenPipeError, ConnectionResetError):
+                pass            # the client gave up: that is what the test wants
         elif mode == 'chunked':
             w(b'HTTP/1.0 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n')
         elif mode == 'trunc':

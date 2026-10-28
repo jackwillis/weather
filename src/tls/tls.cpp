@@ -53,7 +53,7 @@ static Status map_engine_error(int e, const Io &raw)
 	if (e >= BR_ERR_X509_OK && e <= BR_ERR_X509_WEAK_PUBLIC_KEY)
 		return make(Err::CertUntrusted, "certificate rejected", e);
 	if (e == BR_ERR_IO && raw.err != Err::Ok)
-		return make(raw.err, "network error during TLS", raw.detail);
+		return make(raw.err, raw.msg ? raw.msg : "network error during TLS", raw.detail);
 	if (e == BR_ERR_IO && g_tls.raw_eof)
 		return make(Err::Truncated,"TLS connection closed without close_notify");
 	if (e == BR_ERR_IO) return make(Err::Io, "connection closed during TLS", 0);

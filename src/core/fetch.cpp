@@ -34,6 +34,60 @@ static Status io_fail(const Io &io, const char *what)
 	return make(e, io.msg ? io.msg : what, io.detail);
 }
 
+// The attempt's stream as the rest of fetch_once and the TLS layer see it: every read and write first checks the attempt's
+// deadline. A check only between reads would miss the TLS handshake and each TLS record, which are single blocking calls
+// (many raw reads, each within the timeout) underneath. Lives on the stack; no heap.
+namespace {
+struct BudgetScope {
+	Net &net;
+	const TimeBudget *previous;
+	TimeBudget current;
+	BudgetScope(Net &n, long long start, long long limit) : net(n), previous(n.budget), current{start, limit} { net.budget = &current; }
+	~BudgetScope() { net.budget = previous; }
+	BudgetScope(const BudgetScope &) = delete;
+	BudgetScope &operator=(const BudgetScope &) = delete;
+};
+struct DeadlineIo {
+	Io io;                       // io.ctx points back at this struct
+	Io *inner;
+	Net *net;
+	long long start, limit, last;
+};
+long dl_late(DeadlineIo *d)
+{
+	d->io.err = Err::Timeout; d->io.detail = 0; d->io.msg = "answer not complete within the time limit";
+	return -1;
+}
+bool dl_expired(DeadlineIo *d)
+{
+	long long current = d->net->monotonic_ms(*d->net);
+	if (current < d->last) {
+		d->io.err = Err::Clock; d->io.msg = "monotonic clock unavailable or moved backwards";
+		return true;
+	}
+	d->last = current;
+	// Both values are nonnegative and ordered, so subtraction cannot overflow.
+	if (current - d->start >= d->limit) { dl_late(d); return true; }
+	return false;
+}
+long dl_read(Io &io, void *buf, size_t len)
+{
+	DeadlineIo *d = static_cast<DeadlineIo *>(io.ctx);
+	if (dl_expired(d)) return -1;
+	long r = d->inner->read(*d->inner, buf, len);
+	if (r < 0) { io.err = d->inner->err; io.detail = d->inner->detail; io.msg = d->inner->msg; }
+	return r;
+}
+long dl_write(Io &io, const void *buf, size_t len)
+{
+	DeadlineIo *d = static_cast<DeadlineIo *>(io.ctx);
+	if (dl_expired(d)) return -1;
+	long r = d->inner->write(*d->inner, buf, len);
+	if (r < 0) { io.err = d->inner->err; io.detail = d->inner->detail; io.msg = d->inner->msg; }
+	return r;
+}
+} // namespace
+
 Status fetch_once(Net &net, const char *host, const char *port, bool tls, const char *path,
     const FetchOpts &o, char *buf, size_t cap, sv *body)
 {
@@ -41,16 +95,35 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 	if (tls && net.now && net.now(net) < kMinSaneTime)
 		return make(Err::Clock, "system clock is before 2025; set the date (needed to check certificates)");
 
+	// The timeout bounds each wait; this bounds the attempt, so a server that trickles one byte at a time cannot hold it for
+	// hours. UTC is reserved for certificate dates; active milliseconds respect modal UI pauses.
+	if (!net.monotonic_ms) return make(Err::Clock, "no monotonic clock for fetch deadline");
+	const long long start = net.monotonic_ms(net);
+	if (start < 0) return make(Err::Clock, "monotonic clock unavailable");
+	if (o.timeout_s <= 0 || o.deadline_s < 0) return make(Err::Config, "invalid fetch timeout");
+	long long limit = o.deadline_s > 0 ? 1000LL * o.deadline_s : 3000LL * o.timeout_s;
+
+	if (net.budget) {
+		long long remaining = net.budget->remaining(start);
+		if (remaining < 0) return make(Err::Clock, "monotonic clock unavailable or moved backwards");
+		if (remaining == 0) return make(Err::Timeout, "answer not complete within the time limit");
+		if (remaining < limit) limit = remaining;
+	}
+	BudgetScope budget_scope(net, start, limit);
+
 	Io raw;
 	logf(LogDebug, "connecting to %s:%s%s", host, port, tls ? " (tls)" : "");
 	Status s = net.connect(net, host, port, o.timeout_s, &raw);
 	if (!s.ok()) return s;
 
+	DeadlineIo dio;
+	dio.io.ctx = &dio; dio.io.read = dl_read; dio.io.write = dl_write;
+	dio.inner = &raw; dio.net = &net; dio.start = start; dio.limit = limit; dio.last = start;
 	Io tio;
-	Io *io = &raw;
+	Io *io = &dio.io;
 	if (tls) {
 		if (!net.tls_open) { net.close(net, raw); return make(Err::Tls, "no TLS support built in"); }
-		s = net.tls_open(net, raw, host, &tio);
+		s = net.tls_open(net, dio.io, host, &tio);
 		if (!s.ok()) { net.close(net, raw); return s; }
 		io = &tio;
 	}

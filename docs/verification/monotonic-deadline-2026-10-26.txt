@@ -1,0 +1,28 @@
+PR #41 / issue #71: monotonic fetch deadline follow-up
+
+Red: new tests initially fail compilation without Net::monotonic_ms. With the
+new seam present but the original UTC fetch implementation linked separately,
+533 checks run and 10 fail. Logs /tmp/weather-deadline-behavior-red.log.
+An initial fake TLS stub incorrectly returned Ok at EOF, causing the old-code
+run to crash; the stub was corrected to fail safely, then the red run repeated.
+
+Green: make check and make check-san (explicit ASan + UBSan):
+  533 unit checks / 230242 mutation inputs / 109 CLI checks, zero failures.
+  Host check also passes 16 real TLS checks (including slow handshake relay),
+  21 GUI checks, lint, anchors, provisioning and flags checks.
+Actual NetBSD/macppc G4: 533 unit / 86242 mutation inputs, zero failures.
+Linux Retro68 PowerPC and m68k portable probes and OS 9 application build pass.
+All compilation was on Linux; no compilation or privileged changes on maul.
+
+Tests cover forward/backward UTC corrections without moving active deadlines,
+missing/unavailable/regressing monotonic clocks, ordered subtraction near signed
+64-bit maximum, OS9 ModalClock menu credit across TickCount wrap, resumed active
+time expiry, raw I/O within a fake TLS handshake, retries and explicit limits.
+OS9 helper is identical to the reviewed implementation on #11 at 8086781.
+
+Limits: #11's window menu-credit wiring has not been combined/runtime-tested
+with this branch. Tiger is parked. No native OS9 menu-hold acceptance claimed.
+No actual PowerPC slow-TLS relay test performed (host relay and PPC fake-I/O
+unit tests passed). Checks happen before reads/writes; POSIX getaddrinfo remains
+blocking. At this recorded head, connect timeouts remained per address (#72);
+see posix-connect-budget-2026-10-26.txt for the later shared-budget correction.
