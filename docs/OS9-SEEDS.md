@@ -93,15 +93,21 @@ The application refuses ambiguous recovery rather than picking an old seed:
 | State | Action |
 |---|---|
 | Missing/invalid Seed | Provision a fresh unique seed using SeedInstall |
-| Lock exists | First verify no Weather, SeedInstall or probe owns it; a crash may leave a stale lock |
+| Lock exists, no `Weather TLS Next` | A crash or force-quit may leave a stale lock. Quit Weather, SeedInstall and any probe, then delete only `Weather TLS Lock`. The seed is intact; no new seed is needed |
 | Next exists after a failure | Treat rotation as interrupted; do not automatically restore the old record |
 | Clone, restored snapshot or suspected seed disclosure | Provision a fresh independent seed |
 
-For stale-lock/interrupted-rotation recovery, quit all users of this seed store.
-Remove only the three managed Weather TLS files from Preferences, then provision
-a newly generated seed. Do not alter unrelated preferences. Never remove a live
-owner's lock or reuse an old import to recover. These actions need no root on the
-supported test installation; privileged changes remain the owner's responsibility.
+Lock-only recovery (owner decision, 2026-10-26, #64): if no Weather, SeedInstall
+or probe app is running and only `Weather TLS Lock` is left over, deleting just
+that file is safe and recovers. A small tool that removes only the lock may follow
+after a hardware test; until then do it by hand in the Finder.
+
+If `Weather TLS Next` is also present, rotation was interrupted. Quit all users of
+this seed store, remove only the three managed Weather TLS files from Preferences,
+then provision a newly generated seed. Do not alter unrelated preferences. Never
+remove a live owner's lock or reuse an old import to recover. These actions need
+no root on the supported test installation; privileged changes remain the owner's
+responsibility.
 
 ## Verification
 
