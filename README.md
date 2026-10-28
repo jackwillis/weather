@@ -2,26 +2,66 @@
 
 <p align="center"><img src="assets/logo/whatitbelike-512x256.png" alt="What It Be Like? logo" width="384"></p>
 
-*What It Be Like?* is the project; its programs are `weather` (command line), `xweather` (NetBSD/X11 window) and `Weather` (Mac OS 9 window).
-A small weather tool for old big-endian machines. It reads forecasts over TLS (BearSSL),
-works without a proxy, and is cross-built from Linux for NetBSD/macppc first, then Mac OS 9.
-The portable core (`src/`, no OS headers except in `net_posix.cpp`/`log.cpp`) is separate from the
-per-OS UI layer. NetBSD gets `xweather`, a CDE-look window drawn in plain Xlib (no Xt, no Motif).
+*A little weather application for old computers.*
 
-**Releases:** https://github.com/jackwillis/weather/releases. 0.0.1 is a deliberately rough pre-release that proves the release pipeline (see `docs/release-notes/0.0.1.md`); the version in this tree is the unreleased 0.1.0.
+What It Be Like? brings live weather forecasts to classic Macintosh and NetBSD systems.
+It connects directly to weather services over HTTPS, displays conditions in native
+interfaces, and can save the last forecast for use when the network is unavailable.
+The programs share a portable C++17 core with separate operating-system interfaces:
 
-Status (details in `docs/STATUS.md`): the CLI (`weather`) and `xweather` work on maul (NetBSD/macppc). A first Mac OS 9 build
-(`Weather`) has a native window; `WeatherConsole` retains the console diagnostic.
-`weather -1` prints a live forecast; `xweather` shows it in a window (menus, Location dialog, auto-refresh every 15 min, weather pictures).
+- **Weather** — a native Mac OS 9 window application, built with Retro68 and the classic Macintosh Toolbox.
+- **xweather** — a CDE-inspired X11 weather window for NetBSD, implemented in plain Xlib.
+- **weather** — a Unix command-line client.
+
+The project is developed and tested on a Power Mac G4 running NetBSD/macppc,
+Mac OS 9.2.2 and Mac OS X 10.4 Tiger's Classic environment.
+
+**Download:** [v0.0.1 prerelease](https://github.com/jackwillis/weather/releases/tag/v0.0.1)
+([release notes](docs/release-notes/0.0.1.md)). This early release primarily
+demonstrates the packaging and deployment pipeline. **v0.1.0 is in development.**
+The version in this tree is unreleased; check [docs/STATUS.md](docs/STATUS.md)
+for the latest test evidence and [the v0.1 release tracker](https://github.com/jackwillis/weather/issues/45)
+for the remaining acceptance work.
+
+## Platforms and readiness
+
+| Platform | Application | Current evidence |
+| --- | --- | --- |
+| NetBSD/macppc on Power Mac G4 | `weather`, `xweather` | Live CLI and X11/Xvfb hardware tests; real-display review of xweather remains open (#70). |
+| Mac OS 9.2.2 (native) | `Weather` | Owner-observed working production application across restart; full native acceptance remains open (#102). |
+| Mac OS 9 under Tiger Classic | `Weather` | Live verified-TLS fetches, window diagnostic and cache-recovery tests passed; remaining lifecycle and Preferences checks are tracked. |
+
+### Screenshots
+
+Screenshots from actual Mac OS 9 and NetBSD/X11 runs will be added after
+selection and review; the artwork in this README is the project logo, not a UI mockup.
+
+### Before installing
+
+The OS 9 application currently requires a unique TLS seed provisioned separately
+with `SeedInstall` ([instructions and recovery](docs/OS9-SEEDS.md)).
+Stand-alone first-run entropy collection is planned for v0.1 (#120), but remains
+dependent on the measurements and review in #121. Do not treat ordinary mouse
+movement as proven cryptographic entropy.
+
+In the OS 9 window app, Command-period does **not** yet cancel an in-progress fetch
+(#168), and system-requested quit can block logout or Classic shutdown (#169).
+Use File > Quit or Command-Q to quit manually. See the release notes for limitations
+of the published prerelease; these issue links describe ongoing development.
+
+### Quick look
 
     $ weather -1
     54.6F Clear sky, wind 9.0mph SE, humidity 83% (open-meteo 2026-10-24T05:00)
 
-See `docs/PLAN.md` (goals, milestones, decision log), `docs/ARCHITECTURE.md` (layers, seams, targets, build, tests, releases) and `TODO.md`.
+The example above is illustrative, not a live forecast.
+
+For project goals and technical detail, see [docs/PLAN.md](docs/PLAN.md),
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [the issue tracker](https://github.com/jackwillis/weather/issues).
 
 ## xweather
     xweather [-dhqvV] [-c file] [-display name]
-A CDE-look window: menu bar (File: Refresh F5, Location... Ctrl+L, Exit Ctrl+Q; Options: auto-refresh, units; Help: About),
+A CDE-look window: menu bar (File: Refresh F5, Location... Ctrl+L, Exit Ctrl+Q; Options: auto-refresh, units and forecast saving; Help: About xweather... > Credits...),
 a picture for the conditions (sun, moon, clouds, rain, snow, storm, fog), temperature, wind, humidity, and a status bar
 ("Updated 5 min ago / Next update in 10 min"; after a failure it keeps showing the last good data, marked as stale).
 It shares `~/.weatherrc` with `weather`. Closing the window during a fetch cancels it. X resources (xrdb):
@@ -45,7 +85,7 @@ code. Turning saving off (`cache = off`) removes the saved forecast and prevents
 further forecast storage. MET Norway requires saving; choose Open-Meteo to use
 Weather without persistent forecasts.
 Plain-HTTP test requests bypass caching. See
-[cache behavior and format](docs/FORECAST-CACHE.md). OS 9 cache storage and UI wiring are cross-built; native acceptance is pending.
+[cache behavior and format](docs/FORECAST-CACHE.md). OS 9 forecast caching has been exercised under Classic and owner-observed under native OS 9; the saving-off flow and full native acceptance remain pending.
 
 ## Build and test
 GNU make is required (`gmake` on BSD and under Homebrew; Apple's make 3.81 works too). One fragment per target in `mk/`.
@@ -100,7 +140,7 @@ deadlines. A server can still close an idle connection during a long hold. The a
 continues fetching and refreshing in the background. Options/Location (Cmd-L) opens a native validated editor. Location, units and
 automatic-update changes save to Preferences before taking effect; Apply/Cancel
 and failure behavior are described in [OS 9 Preferences](docs/OS9-PREFERENCES.md).
-Native Preferences hardware acceptance is still pending.
+Some native Preferences hardware acceptance remains pending.
 
 Both apps prefer nonempty `Weather Preferences` in the classic Preferences folder,
 otherwise optional `weather.conf` next to the app (same `key = value` lines as
