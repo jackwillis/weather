@@ -1,7 +1,7 @@
 # OS 9 TLS seed provisioning and recovery
 
 The managed-seed build requires an independently generated secret seed. It refuses
-TLS if provisioning is missing or invalid, a seed-store lock is already held, or
+TLS if provisioning is missing, invalid or zero-filled, a seed-store lock is already held, or
 the next launch's seed cannot be safely saved. It does not silently fall back to
 jitter and does not import the legacy raw `weather.seed` file.
 
@@ -40,6 +40,10 @@ The record is exactly 72 bytes: eight-byte magic/version `WXSEED1\n`, 32 secret 
 bytes, then SHA-256 of the first 40 bytes. The checksum detects accidental corruption;
 it neither authenticates the file nor proves that a CSPRNG generated its contents.
 Versioning prevents accidental promotion of old jitter-only seed files.
+The decoder also refuses a checksum-valid record whose 32 seed bytes are all
+zero, without changing its output buffer. The provisioning helper refuses
+zero-filled or wrong-length OS random output before creating an import. These
+checks detect a placeholder/fault; nonzero bytes do not prove entropy or secrecy.
 
 The OS 9 adapter uses `FindFolder` for Preferences and fixed managed names:
 `Weather TLS Seed`, `Weather TLS Next`, `Weather TLS Lock`. The active store does
@@ -61,6 +65,27 @@ duplicate or roll back seed state. A stolen seed compromises the assumptions;
 unmeasured jitter does not prove recovery from that compromise. Classic OS 9 does
 not provide modern per-user isolation.
 
+## If seed state is exposed
+
+BearSSL documents that PRNG output depends on seed inputs and the exact sequence
+of generation calls (including their lengths):
+[BearSSL PRNG documentation](https://www.bearssl.org/apidoc/bearssl__rand_8h.html).
+For this application, someone who learns a saved seed and can reconstruct the
+supplemental inputs and calls can reproduce the stream. Saving a successor before
+releasing TLS output does not recover secrecy after that compromise. The timing
+samples have no measured entropy guarantee; differing outputs for differing
+samples demonstrate mixing, not resistance to guessing those samples.
+
+A leftover import, backup or cloned volume can expose or duplicate seed state.
+After suspected exposure, stop Weather and follow the owner-controlled recovery
+procedure below to provision an independent new OS CSPRNG seed. Do not rely on
+normal rotation or additional launches to recover secrecy. Protect and remove
+all unneeded copies according to the first-install instructions.
+
+The current decoder rejects all-zero seeds, but still accepts known nonzero
+diagnostic seed values. That remaining admission hardening is tracked in issue
+#59. The checks do not prove the provenance of any accepted record.
+
 ## Recovery
 
 The application refuses ambiguous recovery rather than picking an old seed:
@@ -68,15 +93,21 @@ The application refuses ambiguous recovery rather than picking an old seed:
 | State | Action |
 |---|---|
 | Missing/invalid Seed | Provision a fresh unique seed using SeedInstall |
-| Lock exists | First verify no Weather, SeedInstall or probe owns it; a crash may leave a stale lock |
+| Lock exists, no `Weather TLS Next` | A crash or force-quit may leave a stale lock. Quit Weather, SeedInstall and any probe, then delete only `Weather TLS Lock`. The seed is intact; no new seed is needed |
 | Next exists after a failure | Treat rotation as interrupted; do not automatically restore the old record |
 | Clone, restored snapshot or suspected seed disclosure | Provision a fresh independent seed |
 
-For stale-lock/interrupted-rotation recovery, quit all users of this seed store.
-Remove only the three managed Weather TLS files from Preferences, then provision
-a newly generated seed. Do not alter unrelated preferences. Never remove a live
-owner's lock or reuse an old import to recover. These actions need no root on the
-supported test installation; privileged changes remain the owner's responsibility.
+Lock-only recovery (owner decision, 2026-10-26, #64): if no Weather, SeedInstall
+or probe app is running and only `Weather TLS Lock` is left over, deleting just
+that file is safe and recovers. A small tool that removes only the lock may follow
+after a hardware test; until then do it by hand in the Finder.
+
+If `Weather TLS Next` is also present, rotation was interrupted. Quit all users of
+this seed store, remove only the three managed Weather TLS files from Preferences,
+then provision a newly generated seed. Do not alter unrelated preferences. Never
+remove a live owner's lock or reuse an old import to recover. These actions need
+no root on the supported test installation; privileged changes remain the owner's
+responsibility.
 
 ## Verification
 

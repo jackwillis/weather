@@ -1,0 +1,30 @@
+#41 partial #72: pass a shorter attempt budget into OS9 async DNS controller.
+
+DnsResolver optionally borrows Net for the duration of resolve only. No pointer
+is retained, even when an async open is abandoned. It checks after foreground
+yield (cancellation first) and before local tick timeout/completion. Missing or
+regressing budget clocks fail closed, an expired budget refuses a new open,
+and both async open/query and abandoned-open drain observe the earlier limit.
+Pending opens still own callback storage until completion can be drained; a
+completed query is closed as before. Existing no-Net callers keep their old
+policy. Production os9_connect passes its current Net into the controller.
+
+Initial556unit run failed6assertions: ignored shorter query/open budget,
+missing/regressing clock, expired pre-open and completion-at-expiry boundary.
+Regression also requires callback retention/drain on retry and cancellation
+precedence. Actual controller is tested on host/G4 using a deterministic backend;
+it is not a real stalled DNS or OS9 runtime test. No parser input path added.
+
+Limit: OS9 TCP/read/write platform waits still do not internally consume the
+optional budget; raw-I/O checks continue outside them. POSIX libc getaddrinfo
+remains blocking until return. Modal-clock/menu-credit integration with #11
+still needs native acceptance; this change does not establish that every older
+local tick deadline credits menus. Poll-slice scheduling can overshoot expiry.
+No native runtime, new OS/OT compatibility or strict wall-clock bound claimed.
+Tiger remains parked; all compilation on Linux and maul runs tests only.
+
+Final: host556unit/34POSIXbudget/230242mutation/109CLI/16realTLS/21serializedGUI;
+explicit ASan+UBSan556/34/230242/109. Actual NetBSD G4556unit/86242mutation/
+34POSIXbudget, status0. Full Retro68 PowerPC OS9 app/diagnostic build passed.
+All builds Linux. No native OS9 runtime or deliberately stalled DNS claim.
+Logs /tmp/weather-dns-attempt-{red,check,san,maul,os9}.log.

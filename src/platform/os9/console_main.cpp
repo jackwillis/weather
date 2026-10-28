@@ -7,6 +7,8 @@
 #include "app/preferences.hpp"
 #include "settings_os9.hpp"
 #include "config_os9.hpp"
+#include "cache_os9.hpp"
+#include "app/model.hpp"
 #include "core/fetch.hpp"
 #include "core/log.hpp"
 #include "core/providers.hpp"
@@ -86,12 +88,40 @@ int main()
 		q.metric = cfg.metric;
 		static char buf[64 * 1024];
 		Forecast f;
-		s = fetch_forecast(net, chosen, nchosen, q, fo, buf, sizeof buf, &f);
-		if (s.ok()) {
+		bool cached=false;
+		long long at=0,now=net.now(net);
+		Os9Cache cache;
+		bool cache_ready=false;
+		{
+			wx::Status initialized=os9_cache_init(&cache);
+			if(!initialized.ok()) logf(LogWarn,"%s",initialized.msg);
+			else cache_ready=true;
+		}
+        if(cache_ready && !cfg.cache) {
+            wx::Status removed=remove_cached_forecast(cache.base);
+            if(!removed.ok()) logf(LogWarn,"%s",removed.msg);
+        }
+        fo.save_forecasts=cfg.cache && cache_ready;
+		s=fetch_forecast_cached(net,chosen,nchosen,q,fo,buf,sizeof buf,&f,cache_ready && cfg.cache?&cache.base:nullptr,cfg.providers);
+		now=net.now(net);
+		if(cache_ready) {
+			if(s.ok()) {
+				wx::Status saved=update_forecast_cache(cache.base,cache_key(cfg),f,now,cfg.cache);
+				if(!saved.ok()) logf(LogWarn,"%s",saved.msg);
+			} else if(s.err!=Err::Cancelled && cfg.cache) {
+				CachedForecast previous; bool found=false;
+				wx::Status loaded=read_cached_forecast(cache.base,cache_key(cfg),now,&previous,&found);
+				if(loaded.ok() && found) { f=previous.forecast; at=previous.fetched_at; cached=true; }
+				else if(!loaded.ok()) logf(LogWarn,"%s",loaded.msg);
+			}
+		}
+		if (s.ok() || cached) {
 			Buf<512> out;
+			if(cached) { out.add("STALE cached forecast (fetched "); Model::add_age(out,static_cast<long>(now-at)); out.add("): "); }
 			format_full(out, f, cfg.name);
 			fputs(out.c_str(), stdout);
-		} else {
+		}
+		if(!s.ok()) {
 			printf("weather: %s: %s", err_name(s.err), s.msg);
 			if (s.detail) printf(" (detail %d)", s.detail);
 			putchar('\n');

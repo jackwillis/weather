@@ -1,0 +1,1 @@
+- Opt-in last-good forecast cache for CLI, X11 and Mac OS 9, with validated location/units identity and explicit stale labels. Native OS 9 cache acceptance remains pending.
