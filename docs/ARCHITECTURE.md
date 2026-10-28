@@ -17,7 +17,7 @@ Rule: dependencies point down only. `core/` and `app/` include no OS headers (on
 build on a hit, so the rule is enforced, not hoped for. No heap in `core/`; no exceptions, no RTTI.
 
 ## 2. The OS seams (function-pointer structs, as in `net.hpp`)
-- **Net**: connect / close / sleep_ms / now, plus tls_open / tls_close.
+- **Net**: connect / close / sleep_ms / now / monotonic_ms, plus tls_open / tls_close.
 - **Io**: read / write on a stream. Errors carry an `Err` kind, `errno`-style detail and a static message.
 - **yield (new)**: `bool (*yield)(Net&)` called whenever the code would block (poll slices of ~50 ms,
   backoff sleeps). A UI uses it to pump its event loop (redraw "Fetching...", handle expose/close); returning
@@ -27,6 +27,7 @@ build on a hit, so the rule is enforced, not hoped for. No heap in `core/`; no e
 - **Entropy and time** (done): TLS takes both from the platform (`Net::now`, `Net::entropy`), not from `time()`
   and `/dev/urandom` directly; no entropy source means TLS refuses to start. Epoch times are 64-bit (`long` is 32-bit on ppc32).
   Known limit: `getaddrinfo()` is a blocking call and cannot yield, so a UI can freeze for the resolver's timeout. Needed for OS 9 (no /dev/urandom) and testable with a fake clock.
+- **Attempt deadlines**: fetch uses nonnegative monotonic milliseconds, separate from UTC certificate time. POSIX exposes CLOCK_MONOTONIC; OS 9 uses the same modal-credit active clock as DNS and socket waits. Missing or regressing stream-clock samples fail closed. Reads and writes cannot start at or beyond the attempt limit. A scoped borrowed budget bounds POSIX platform waits and OS 9 async DNS; OS 9 stream-wait internals still use their per-wait timeout.
 - **Settings store** (done: `SettingsStore`, posix dotfile): load/save of the raw text per OS, atomic save, follows a symlinked dotfile; the text editor `settings_update` is portable and refuses anything that would not read back (rc file on Unix, Preferences
   folder on OS 9). The *text* handling (parse, and "replace these keys but keep every other
   line and comment") is portable and tested; only reading/writing the bytes is per-OS.
@@ -64,7 +65,11 @@ Retro68 container. Layers: the same core, app and tls code; `src/platform/os9/` 
   `Net::yield`, so the event loop keeps running and Cmd-. cancels. DNS uses an asynchronous service provider with a host-tested
   controller (2026-10-25). The foreground loop yields and enforces a wrap-safe deadline. An abandoned open retains its callback
   storage until a later request drains it, or OT shuts down; a failed close quarantines the resolver until restart.
-  POSIX `getaddrinfo` still blocks. See `spike/os9/DNS-PROBE.md` for hardware coverage and limits.
+  POSIX `getaddrinfo` still blocks. Its elapsed time is charged when it returns,
+  and all returned addresses share one connection timeout budget. A borrowed, scoped
+  Net::budget also caps POSIX connect/read/write waits to the earlier attempt or caller
+  limit; fetch restores the caller pointer on every return. OS9 async DNS also checks the borrowed attempt budget during open/query/drain;
+  its TCP and stream waits do not yet enforce it internally (raw-I/O checks still apply). See `spike/os9/DNS-PROBE.md` for hardware coverage and limits.
 * **Window scheduling**: SIZE allows background execution. The event pump checks osEvt suspend/resume flags and redraws on resume. A shared active-time clock excludes measured MenuSelect/DragWindow/TrackGoAway intervals from both DNS and socket/TLS deadlines, using modulo-32-bit tick arithmetic and an extended millisecond counter. This pauses only local deadline accounting; a server may close a connection during a long menu hold. New background/menu interaction acceptance is pending a Tiger boot; earlier window artwork/live-TLS scenarios passed under Classic.
 * **Clock**: UTC is derived from the Date & Time time zone (`gmtDelta` plus the daylight-saving flag); TLS certificate dates
   use it, and `fetch` refuses a clock before 2025. Verified against OS X on the real machine: gmtDelta already includes daylight saving (an extra DST term made it an hour slow).

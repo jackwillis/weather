@@ -37,6 +37,7 @@ serve chunked; P_CHUNK=$P
 serve trunc; P_TRUNC=$P
 serve garbage; P_GARB=$P
 serve hangup; P_HANG=$P
+serve dribble; P_DRIP=$P
 serve imperial; P_IMP=$P
 serve badjson; P_BADJ=$P
 serve metno; P_MET=$P
@@ -70,6 +71,18 @@ expect "garbage reply" 65 $W -H 127.0.0.1:$P_GARB
 expect "hangup" 74 $W -H 127.0.0.1:$P_HANG
 expect "bad json" 65 $W -H 127.0.0.1:$P_BADJ
 expect "read timeout" 75 $W -t 1 -H 127.0.0.1:$P_SLOW
+# a server that trickles one byte every half second keeps every read short: the whole attempt must still end (3 x timeout)
+t0=$(date +%s)
+"$BIN" $W -t 1 -H 127.0.0.1:$P_DRIP >/dev/null 2>"$CFG.drip" &
+wp=$!
+( sleep 12; kill $wp 2>/dev/null ) &         # watchdog: a missing deadline fails the test instead of stalling it
+wd=$!
+wait $wp; got=$?; t1=$(date +%s)
+kill $wd 2>/dev/null; wait $wd 2>/dev/null
+if [ "$got" = 75 ]; then ok; else bad "dribbling server: exit $got, wanted 75 ($(cat "$CFG.drip"))"; fi
+if [ $((t1 - t0)) -le 8 ]; then ok; else bad "dribbling server: took $((t1 - t0)) s with -t 1"; fi
+grep -Eq "time limit|timed out waiting for the server" "$CFG.drip" && ok || bad "dribbling server: no deadline or socket-timeout message ($(cat "$CFG.drip"))"
+rm -f "$CFG.drip"
 expect "connection refused" 69 $W -H 127.0.0.1:1
 expect "unknown host" 68 $W -H no-such-host.invalid:80
 

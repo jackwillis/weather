@@ -80,6 +80,9 @@ $(BUILD)/cde-field-test: $(OBJ)/test/cde_field.o $(OBJ)/ui/xweather/cde.o $(OBJ)
 $(BUILD)/xdrive: $(OBJ)/test/xdrive.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $< $(X11_LIBS)
 
+$(BUILD)/connect-budget-test: $(OBJ)/test/connect_budget.o $(OBJ)/platform/$(PLATFORM)/log_posix.o $(OBJ)/platform/$(PLATFORM)/nocxx.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^
+
 # Optional live TLS compatibility probe, never part of the offline check suite.
 $(BUILD)/tls-live: $(OBJ)/test/tls_live.o $(OBJ)/tls/tls.o $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/log_posix.o $(OBJ)/platform/$(PLATFORM)/nocxx.o $(BEARSSL_LIB)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^
@@ -202,12 +205,14 @@ check: $(CHECK_TARGET)
 
 # Exercise both configurations, preserving production defaults and release artifacts.
 check-test-hooks: $(BUILD)/weather
-	$(MAKE) TARGET=$(TARGET) TEST_HOOKS=1 build/$(TARGET)-test-hooks/unittest build/$(TARGET)-test-hooks/weather
+	$(MAKE) TARGET=$(TARGET) TEST_HOOKS=1 build/$(TARGET)-test-hooks/unittest build/$(TARGET)-test-hooks/weather build/$(TARGET)-test-hooks/connect-budget-test
 	build/$(TARGET)-test-hooks/unittest
+	build/$(TARGET)-test-hooks/connect-budget-test
 	TEST_HOOKS_ENABLED=1 sh test/feature.sh build/$(TARGET)-test-hooks/weather
 	sh test/test-builds.sh $(BUILD)/weather build/$(TARGET)-test-hooks/weather
-check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather
+check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather $(BUILD)/connect-budget-test
 	$(BUILD)/unittest
+	$(BUILD)/connect-budget-test
 	$(BUILD)/robust
 	TEST_HOOKS_ENABLED=$(TEST_HOOKS) sh test/feature.sh $(BUILD)/weather
 	python3 test/cache_cli.py $(BUILD)/weather
@@ -221,8 +226,9 @@ endif
 # Everything again under AddressSanitizer + UBSan: unit tests, parser robustness, the CLI's feature tests.
 check-san:
 	@$(MAKE) -s TARGET=host-san san-note
-	$(MAKE) TARGET=host-san build/host-san/unittest build/host-san/robust build/host-san/weather
+	$(MAKE) TARGET=host-san build/host-san/unittest build/host-san/robust build/host-san/weather build/host-san/connect-budget-test
 	build/host-san/unittest
+	build/host-san/connect-budget-test
 	build/host-san/robust
 	sh test/feature.sh build/host-san/weather
 	python3 test/cache_cli.py build/host-san/weather
@@ -249,8 +255,8 @@ check-cross:
 	@echo "TARGET=$(TARGET) cannot run here: use 'make smoke-maul' (and later 'make check-maul')"; false
 
 check-maul:
-	$(MAKE) TARGET=netbsd-macppc build/netbsd-macppc/unittest build/netbsd-macppc/robust
-	sh test/check-maul.sh build/netbsd-macppc/unittest build/netbsd-macppc/robust
+	$(MAKE) TARGET=netbsd-macppc build/netbsd-macppc/unittest build/netbsd-macppc/robust build/netbsd-macppc/connect-budget-test
+	sh test/check-maul.sh build/netbsd-macppc/unittest build/netbsd-macppc/robust build/netbsd-macppc/connect-budget-test
 
 smoke-maul:
 	$(MAKE) TARGET=netbsd-macppc all

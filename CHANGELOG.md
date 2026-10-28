@@ -24,6 +24,12 @@ First version.
   answer: retried, exit 74. It was reported as malformed data (exit 65) and not retried, contrary to the man page.
 - CLI: `-c` is honoured in every form (`-c FILE`, `-cFILE`, `-Sc FILE`); before, the clustered and attached forms were ignored
   and `-S` rewrote `~/.weatherrc` instead. `-V` and `-h` no longer read the config, so a malformed file cannot block them.
+- One fetch attempt is now given up on after three times the `timeout`, counted from its start (`FetchOpts::deadline_s`), and checked before
+  every read and write, so the TLS handshake is covered. The timeout applied to each wait, so a server sending a byte every half second could
+  hold a fetch for as long as the 64 KB response cap allowed (39 s at `-t 2`; far longer at 1 byte/s). A timeout is retried like any other.
+  Deadlines use a separate monotonic millisecond clock, so UTC corrections do not move them; the OS 9 clock shares the wrap-safe
+  active-time helper used by the window branch. A missing or regressing deadline clock fails explicitly. Name lookup and each connect
+  address are still bounded only by their own waits.
 - Retry delays still start at 500 ms and double, but never exceed 30 seconds (`FetchOpts::max_backoff_ms`). Before, a large `attempts`
   (up to 300) meant sleeps of hours, and past 22 doublings the delay overflowed a 32-bit `long`.
 - The config parser and `-S` accept LF, CRLF or a lone CR (classic Mac) as line breaks. A CR-only file used to be read as one line (a comment,

@@ -25,8 +25,8 @@ bad() { fail=$((fail+1)); echo "FAIL: $1"; }
 command -v openssl >/dev/null 2>&1 || { echo "tls tests: openssl not found, skipped"; exit 0; }
 command -v python3 >/dev/null 2>&1 || { echo "tls tests: python3 not found, skipped"; exit 0; }
 
-T=; SRV=
-trap 'kill $SRV 2>/dev/null; rm -rf "$T"' EXIT
+T=; SRV=; PRX=
+trap 'kill $SRV $PRX 2>/dev/null; rm -rf "$T"' EXIT
 trap 'exit 1' INT TERM
 T=$(mktemp -d "${TMPDIR:-/tmp}/tls-test.XXXXXX") || exit 1
 
@@ -82,20 +82,30 @@ python3 -B test/tls_server.py "$T/ports" "$T/requests" \
 	"expired:$T/good.pem:$T/good.key" "notyet:$T/good.pem:$T/good.key" \
 	"untrusted:$T/untrusted.pem:$T/untrusted.key" "nonca:$T/viainter_chain.pem:$T/viainter.key" \
     "abrupt:$T/good.pem:$T/good.key" "abruptcut:$T/good.pem:$T/good.key" "cleanclose:$T/good.pem:$T/good.key" \
-    "legacy:$T/good.pem:$T/good.key" "cbc:$T/good.pem:$T/good.key" &
+    "legacy:$T/good.pem:$T/good.key" "cbc:$T/good.pem:$T/good.key" \
+	"proxied:$T/good.pem:$T/good.key" &
 SRV=$!
 i=0; while [ ! -s "$T/ports" ] && [ $i -lt 20 ] && kill -0 $SRV 2>/dev/null; do sleep 1; i=$((i+1)); done
 [ -s "$T/ports" ] || { bad "the test server did not start"; echo "tls tests: $pass passed, $fail failed"; exit 1; }
 
+# A relay in front of the good server: "trickle" passes the server's bytes on one at a time, 0.3 s apart, so every read
+# returns quickly yet the handshake takes minutes; "paced" relays the same way at full speed (the control for the relay itself).
+PROXIED=$(sed -n "s/^proxied //p" "$T/ports")
+python3 -B test/tls_proxy.py "$T/proxyports" "$PROXIED" trickle:0.3 paced:0 &
+PRX=$!
+i=0; while [ ! -s "$T/proxyports" ] && [ $i -lt 20 ] && kill -0 $PRX 2>/dev/null; do sleep 1; i=$((i+1)); done
+[ -s "$T/proxyports" ] || { bad "the relay did not start"; echo "tls tests: $pass passed, $fail failed"; exit 1; }
+
 NOW=$(date +%s)
 # check NAME CLOCK WANT_ERR WANT_DETAIL WANT_REQUESTS_SEEN_BY_SERVER
 check() {
-	port=$(sed -n "s/^$1 //p" "$T/ports")
+	port=$(sed -n "s/^$1 //p" "${PF:-$T/ports}")
 	if [ -n "$6" ]; then OUT=$("$T/harness" localhost "$port" "$2" --attempts "$6" 2>&1)
+	elif [ -n "$DEADLINE" ]; then OUT=$("$T/harness" localhost "$port" "$2" "$DEADLINE" 2>&1)
 	else OUT=$("$T/harness" localhost "$port" "$2" 2>&1); fi
 	want="RESULT err=$3 detail=$4"
 	if [ "$OUT" = "$want" ]; then ok; else bad "$1: got '$OUT', wanted '$want'"; fi
-	seen=$(grep -c "^$1\$" "$T/requests")
+	seen=$(grep -c "^${SERVER:-$1}\$" "$T/requests")
 	if [ "$seen" = "$5" ]; then ok; else bad "$1: the server read $seen request(s), wanted $5"; fi
 }
 
@@ -105,6 +115,11 @@ check expired   $((NOW + 60 * 86400))     cert EXPIRED         0    # clock 60 d
 check notyet    1750000000                cert EXPIRED         0    # clock in mid-2025, before the leaf existed
 check untrusted "$NOW"                    cert NOT_TRUSTED     0    # signed by a root we do not trust
 check nonca     "$NOW"                    cert NOT_CA          0    # leaf signed by an intermediate that is not a CA
+
+# The deadline must hold over TLS too: the handshake and each record are single blocking calls underneath, so a check
+# only between reads would not stop a trickling HTTPS server. Deadline 2 s; the trickle would need minutes.
+PF="$T/proxyports" SERVER=proxied DEADLINE=2 check paced   "$NOW" ok      0 1    # control: same relay at full speed
+PF="$T/proxyports" SERVER=proxied DEADLINE=2 check trickle "$NOW" timeout ETIMEDOUT 1    # one byte per 0.3 s: given up on, not waited for
 
 check cleanclose "$NOW" ok 0 1
 check abrupt "$NOW" truncated 0 1

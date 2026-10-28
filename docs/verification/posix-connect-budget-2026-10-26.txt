@@ -1,0 +1,106 @@
+Issue #72 partial, in #41: POSIX connection-stage budget
+
+Start a checked monotonic budget before getaddrinfo. Charge elapsed lookup time
+when it returns, and share the remaining timeout across all address attempts,
+including immediate failures, nonblocking waits and late immediate success.
+The connection-stage budget is timeout_s; the outer fetch budget remains the
+existing3x timeout_s across raw/TLS I/O. Cancel is checked before lookup, on its
+return, between addresses and during sliced connect waits. Timestamp sums and
+32-bit millisecond overflow are avoided. Preserve poll errno across clock reads.
+
+CRITICAL LIMIT: this does NOT interrupt a blocked libc getaddrinfo. DNS may
+still exceed both budgets until it returns, and Ctrl-C cannot yet interrupt
+that call. #72 and #53 C6 remain open. No resolver worker, libc override or
+production test environment switch is added. OS9 code and menu credit unchanged.
+
+The test compiles the actual backend source with test-only syscall-boundary
+macros after system headers, not a separate copy of the address loop or runtime
+interposition.24 deterministic checks cover shared/elapsed budgets, delayed DNS,
+immediate/asynchronous success/failure, interrupted/error polls, all descriptor/
+address cleanup, cancel before/during/after lookup, bad clocks, bad timeouts,
+clock failure in I/O and sleep. Fake DNS delay is simulated elapsed time, not
+a deliberately stalled real resolver. Tests run in check/check-san/check-maul.
+Initial red8checks/6failures. Expanded clock-failure coverage also exposed the
+old unchecked timespec read via a compiler diagnostic; this now fails closed.
+
+Initial full check failed with:
+make: *** [Makefile:172: check-native] Segmentation fault (core dumped)
+GDB located test_posix_net at unittest.cpp:493: its read-cancel counter was active
+during new connection-stage yields, so it dereferenced an uninitialized I/O
+callback after an expected cancellation. The test now arms/reset counts after
+successful connection, and checks setup before reading. Separate focused cases
+prove connection-stage cancellation, so read cancellation remains independently
+tested. Original log retained as weather-connect-budget-check-initial.log.
+
+Primary API references checked 2026-10-26:
+https://man.netbsd.org/connect.2 (nonblocking readiness and SO_ERROR)
+https://man.netbsd.org/poll.2 (bounded millisecond wait)
+https://man.netbsd.org/getaddrinfo.3 (address-list ownership)
+No new parser input path, dependency, worker process or privileged action.
+
+Additional descriptor fault tests failed4 assertions out of28 before hardening.
+F_GETFL and setting O_NONBLOCK are now checked before connect; errors close the
+socket without calling potentially blocking connect. SO_ERROR lookup and flag
+restoration after success are also checked; failure closes/falls back instead
+of reporting false success. Final28 tests include these branches. The earlier
+24-check full host/san/G4 pass preceded this refinement; final verification
+is rerun below. Production changes remain exclusively in the POSIX backend.
+
+A shorter explicit FetchOpts::deadline_s is still enforced by the raw-I/O
+wrapper, not passed into this connection-stage API. The stage now shares
+its timeout_s budget, but can still overrun a shorter explicit outer deadline
+until connect returns. Remaining #72 work must integrate that earlier deadline
+and interruptible DNS; this partial fix does not claim a strict whole-attempt
+wall-clock bound during connection setup.
+
+Final verification: make check533 unit /28 connection-budget checks /230242
+mutation inputs /109 CLI /16 local TLS /21 serialized GUI. Explicit ASan+UBSan
+533/28/230242/109. Actual NetBSD/macppc G4533 unit /86242 mutation inputs /28
+connection-budget checks, status=0. The connection test needs libc/libgcc_s,
+not libstdc++ (readelf verified). All compilation was on Linux.
+
+Actual G4 live Open-Meteo certificate-verified fetch succeeded, followed by
+negative controls: no anchors76, expired-certificate clock76, pre-2025 clock71.
+Used a private disposable config containing only attempts1/providersopen-meteo;
+did not read saved user settings or invent a contact. Private remote files were
+removed on success. No OS9/Tiger access or native runtime claim; this refinement
+changes only POSIX code. The previous #41 OS9 compile evidence remains historical.
+Logs /tmp/weather-connect-final-{check,san,maul}.log and weather-connect-live.log.
+
+Scoped outer-budget follow-up (supersedes the shorter-explicit-limit gap above)
+
+Net carries an optional borrowed TimeBudget. fetch_once installs a stack-owned
+budget for the earlier of its attempt limit and an existing caller budget;
+a scope guard restores the old pointer on success and every failure. Net.ctx
+is untouched. Checked subtraction avoids timestamp addition and overflow.
+POSIX connect and socket poll waits use the same Net monotonic clock and clamp
+their own wait to the remaining outer budget, checking again after poll. An
+expired or invalid budget refuses lookup before invoking libc. OS9 currently
+ignores this optional platform budget; its raw-I/O deadline checks still apply.
+Blocked POSIX getaddrinfo remains uninterruptible until it returns.
+
+Initial focused red: 34 backend checks, 5 failures; 542 unit checks, 1 failure.
+Green adds caller-pointer restoration, inherited earlier budget and arithmetic
+boundaries; a real loopback listener that never answers proves a1s attempt
+ends its10s socket wait in900..2999ms. This runs on host and actual NetBSD G4.
+No real resolver stall is simulated by that loopback test.
+
+Full regression initially exposed two expected-output changes:
+FAIL: trickle: got 'RESULT err=timeout detail=110', wanted 'RESULT err=timeout detail=0'
+FAIL: dribbling server: no 'time limit' message (... timed out waiting for the server (detail110))
+The POSIX poll now ends the wait itself, retaining ETIMEDOUT. The TLS harness
+prints the portable errno name; the CLI check accepts the socket timeout message
+as well as the existing raw-wrapper deadline message. Exit75 and elapsed-time
+assertions remain required. An initial restricted run could not create a socket
+(PermissionError: [Errno1] Operation not permitted); rerun with loopback access.
+
+Scoped-budget verification: full host545unit /34backend /230242mutation /
+109CLI /16realTLS /21serializedGUI, all green. Explicit ASan+UBSan545/34/
+230242/109 green (log confirms with AddressSanitizer). Actual NetBSD/macppc
+G4545unit /86242mutation /34backend, status0. Retro68 PowerPC and68k portable
+probes and full OS9 app cross-build passed. No OS9 execution or stalled real
+DNS acceptance claimed. Logs /tmp/weather-outer-{check,san,maul,probe,os9}.log.
+Fresh cross-built G4 CLI also passed live verified-TLS Open-Meteo and negative
+controls: no anchors76, expired certificate clock76, pre2025clock71. Disposable
+public config only; no saved settings read; remote temporary files cleaned.
+Log /tmp/weather-outer-live.log. No privileged action or compilation on maul.

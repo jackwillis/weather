@@ -77,7 +77,7 @@ instead of standard error.
 Save the location, name and units (after applying any other options) into the settings file and exit.
 Comments and all other settings in the file are kept; the file is replaced atomically.
 .It Fl t Ar seconds
-Network timeout for each connect, read and write.
+Network timeout for each connect, read and write. Once a connection is made, one attempt as a whole (handshake and answer) is given up on after about three times this.
 .It Fl u Ar units
 Either
 .Ql metric
