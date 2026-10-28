@@ -116,10 +116,19 @@ check notyet    1750000000                cert EXPIRED         0    # clock in m
 check untrusted "$NOW"                    cert NOT_TRUSTED     0    # signed by a root we do not trust
 check nonca     "$NOW"                    cert NOT_CA          0    # leaf signed by an intermediate that is not a CA
 
+# NAME=value before a function call is not scoped to the call in every sh: macOS /bin/sh (bash 3.2) keeps it for the rest of
+# the script, so the checks after the relay would run against the relay's ports. Set and clear the settings explicitly;
+# check treats an empty PF as unset and tests DEADLINE with -n.
+relay_check() {
+	PF="$T/proxyports"; SERVER=proxied; DEADLINE=2
+	check "$@"
+	PF=; SERVER=; DEADLINE=
+}
+
 # The deadline must hold over TLS too: the handshake and each record are single blocking calls underneath, so a check
 # only between reads would not stop a trickling HTTPS server. Deadline 2 s; the trickle would need minutes.
-PF="$T/proxyports" SERVER=proxied DEADLINE=2 check paced   "$NOW" ok      0 1    # control: same relay at full speed
-PF="$T/proxyports" SERVER=proxied DEADLINE=2 check trickle "$NOW" timeout ETIMEDOUT 1    # one byte per 0.3 s: given up on, not waited for
+relay_check paced   "$NOW" ok      0 1    # control: same relay at full speed
+relay_check trickle "$NOW" timeout ETIMEDOUT 1    # one byte per 0.3 s: given up on, not waited for
 
 check cleanclose "$NOW" ok 0 1
 check abrupt "$NOW" truncated 0 1
