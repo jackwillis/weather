@@ -8,6 +8,7 @@ and is not the v0.1 gate. See `docs/release-notes/0.0.1.md` for what works and t
 
 ## 0.1.0 (unreleased)
 First version.
+- OS 9 status now reads “Automatic updates are on” when automatic updates are enabled.
 - New installations fall back from Open-Meteo to MET Norway using the project URL as contact, with user overrides preserved. Saved MET forecasts honor server expiry across source changes and revalidate afterwards; saving off still skips MET. Forecast timestamps are labelled as forecasts.
 - Both windows ignore manual refresh requests within five seconds of the last fetch starting; automatic refresh and location changes remain immediate.
 - OS 9 Preferences uses a single compiled writer to prevent Retro68 inline workspace storage from overlapping other globals.
