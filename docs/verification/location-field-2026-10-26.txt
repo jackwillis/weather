@@ -1,0 +1,51 @@
+Issue #56 F7: long Location field rendering
+
+Original native Xlib pixel regression failed2/2: a47-character name and its
+caret drew beyond the200px field. Add a caret-visible horizontal viewport and
+clip text/caret to the field interior. Rendering and mouse hit testing share
+font-metric viewport helpers, so a click targets the displayed substring.
+Home/End naturally move the viewport; stored text remains complete. Tiny fields
+are ignored, and the temporary GC clip is reset before later drawing.
+
+19 focused checks include fixed/proportional font widths, cursor/coordinate
+clamping, zero width, empty values, real Xlib guard pixels, visible end caret,
+and a subsequent draw outside the field proving clip reset. Test-owned fonts,
+GC, pixmap and images are freed explicitly for sanitizer/leak verification.
+The field test's private Xvfb and ordinary GUI suite run sequentially.
+
+A full GUI scenario loads a47-character ASCII name, scrolls to End, clicks the
+visible left edge and edits there, edits both endpoints with Home/End, saves,
+checks complete length and click position, and checks exactly one refetch.
+All27 host GUI assertions passed. Visually inspected E01-name-tail.png: field
+text and end caret stay inside the border. This does not add Unicode support.
+
+The identical #84 empty-text/fit_text safeguards and95 font-only regressions
+were copied before using empty substrings here. Keep these fixes when merging
+branches; no button-handling behavior from #84 is included in this branch.
+This also addresses #56's fit_text bounds; no claim of nativeOS9 visual testing.
+
+Full host verification passed:545 unit /230242 mutation inputs /106 CLI /12 local
+TLS /95 CDE text /19 real Xlib field /27 GUI checks. Explicit ASan+UBSan passed
+545/230242/106 plus95 text and19 field checks. No sanitizer leak suppression was
+added. The final test-only resource cleanup was rerun in the focused suites.
+Actual G4 core regression passed545/86242 inputs, status=0.
+
+Actual NetBSD/macppc G4 GUI: all27 checks passed, including full-length Location
+name scrolling, click edit and Home/End/save/refetch. Native screenshots E01/E02/
+E03 copied to build/gui-field-maul and inspected. Native widget19 and text95
+checks passed. These are Xvfb results, not acceptance of the physical display.
+The disposable remote GUI/fixture directories and Xvfb processes were cleaned.
+Authenticated fixture forwarding used ExitOnForwardFailure and laptop-only
+HTTP data; no external provider request or invented production contact.
+
+An ELF audit caught an unwanted libstdc++ dependency in the new test executables.
+Added the existing platform nocxx.o shim to both test targets, forced relink,
+and confirmed both now need only libX11 and libc. Production xweather already
+needed only X11/libgcc_s/libc. Final relinked focused host/sanitizer/native tests
+are recorded below when complete. No compilation took place on maul.
+Logs: /tmp/weather-field-{check,san,maul,hardware,gui-maul,recheck}.log and
+/tmp/weather-field-hardware-recheck.log. Native build log uses native-build.
+
+Final relinked checks passed: host95 text +19 widget; ASan+UBSan95+19; actual
+NetBSD/macppc G495+19. Readelf confirms no libstdc++ dependency in either new
+NetBSD test executable. No further production changes followed verification.

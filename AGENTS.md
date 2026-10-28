@@ -25,6 +25,21 @@ This file is the working agreement. Updated 2026-10-25.
 * Retro68 quirks: no `%z`/`%ll` in printf, no Open Transport/`Microseconds`/`ReadLocation`/`GetKeys` headers (we declare what we use), an event pump must call
   `BeginUpdate/EndUpdate` for update events and bound its work per call.
 
+## Project conventions (all agents)
+* **Licence:** GPL-3.0-or-later. Every new source, script or test file starts with `SPDX-License-Identifier: GPL-3.0-or-later` and
+  `Copyright (c) 2026 Jack Willis`; `tools/check-policy.sh` (CI "Repository policy") fails without them. Vendored code under `third_party/` keeps its own licence;
+  credits live in `THIRD_PARTY.md` and `src/app/credits.hpp`.
+* **Issues and PRs:** one issue per change where possible. The PR description opens with `Closes #n` (finishes the issue) or `Refs #n` (part of it; name the
+  checkbox). If a PR leaves an issue open, comment on the issue with what is done and what is not. Milestones and labels (`area/*`, `agent/*`, `needs-hardware-*`)
+  on a PR should match its issue, and a stacked PR should not sit in an earlier milestone than its base. File follow-ups as issues rather than leaving TODOs.
+* **Merging:** the owner decides. Do not merge, tag, publish a release or close issues unless the owner says so in the current session. The owner may turn on
+  GitHub auto-merge per PR; agents do not enable it on their own. Keep draft until the checks you can run pass; say what was not verified (hardware, live services).
+* **Stay in lane:** before editing files a teammate's open PR touches, check `gh pr list`. Do not push to another agent's branch without saying so on the PR.
+  Never force-push. Never drop a stash or branch someone else parked.
+* **Releases:** a `vX.Y.Z` tag runs `.github/workflows/release.yml` and makes a draft pre-release; see `docs/PROJECT-MANAGEMENT.md` "Releasing". The version
+  in `Makefile` must equal the tag. CI installs apt packages with `--no-install-recommends` and retries; do not add heavy packages.
+* **Handoff:** when you stop, append a dated note to `~/scratch/memo-claude-to-codex.md` (what merged, what is open, what is unverified).
+
 ## Build and test
     make check            # host: lint, anchors (+14 tests of the check), unit (461), robustness (186k inputs), CLI feature (78), seed provisioning (2),
                           # Makefile flags (6), GUI in Xvfb (21; where X11 headers exist)
@@ -33,7 +48,9 @@ This file is the working agreement. Updated 2026-10-25.
     make os9              # Mac OS 9 app via Retro68 in podman -> build/os9/Weather.{APPL,bin,dsk}
     make package-netbsd   # build/pkg/weather-0.1.0.tgz (pkg_create runs on maul); install is `doas pkg_add` by the owner
     make dist distcheck   # reproducible tarball (needs a clean, committed tree)
-The GUI test uses Xvfb display :88: never run two GUI runs at once (a collision once produced a false 10-check failure).
+Host GUI checks allocate a private Xvfb display. Run all GUI checks serially, including checks with private displays, as directed by the owner.
+Concurrent non-GUI checks require separate source/build/output trees; never compile into the same object directories.
+The maul GUI check uses display :77. Older branches with fixed :88/fixture ports also require coordination.
 Toolchains: NetBSD cross compiler in `~/scratch/netbsd-xc` (see its `README-repro.md`); Retro68 container `ghcr.io/autc04/retro68`.
 
 ## Reaching the test machine (details live outside the repo)

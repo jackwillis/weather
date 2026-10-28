@@ -1,0 +1,69 @@
+Forecast cache / PR #15 integration, 2026-10-27
+Base: origin/main e3b5a87. Prior cache head: 1fae972.
+
+Merged current main without rewriting the cache branch. Preserved cache state,
+live unknown-age handling, manual refresh cooldown, automatic resume behavior,
+persistent Preferences and isolated diagnostic settings. WeatherCacheUITest now
+links Location and Preferences adapters as required by the merged window.
+
+Regression: the pre-integration cache test failed at model.tick(202), requesting
+a refresh two seconds after a fetch start. Updated it to assert rejection, no
+queued refresh, acceptance at five seconds, then successful live replacement.
+Added a live rollback status/staleness check after cached recovery.
+
+Passed locally:
+- host unit/storage: 1521 checks, 0 failed
+- host robustness: 346152 inputs, 0 failed
+- ASan + UBSan unit/storage: 1521 checks, 0 failed
+- ASan + UBSan robustness: 346152 inputs, 0 failed
+- make lint check-anchors (14 anchor tests), tools/check-policy.sh
+- NetBSD cross-build: CLI, X11, unit and robustness binaries
+- make os9, including enabled diagnostic targets: Weather, WeatherConsole,
+  CacheProbe, WeatherPrefsUITest, WeatherUITest and WeatherCacheUITest
+
+Initial sandbox unit run also reported "FAIL test/unittest.cpp:419: ls >= 0":
+local socket binding was restricted. Re-run outside the sandbox passed.
+NetBSD linker printed existing compatibility cabs()/cabsf() warnings.
+
+Local full make check/check-san and shared fixture/GUI runs were held because a
+Claude process was active and the handoff prohibits overlapping those runs.
+Hosted CI must provide full combined-tree fixture/GUI/32-bit results; see PR.
+No hardware tests or production delivery performed on this integrated head.
+Tiger cache storage-fault/window acceptance remains pending; keep PR draft.
+
+Evening integration: main 3cb287f (#80 isolated fixtures, #81 HTTP framing).
+The earlier model/window integration was already present. New conflicts were
+Makefile and the three GUI harness/scenario files. Kept both cache CLI and
+fixture-startup checks, ephemeral fixtures, main's allocated Xvfb display, and
+cache fixture generation/delivery to the validated private maul run directory.
+Existing tests cover cached/live rollback age, stale labels and the 5 s floor.
+No new product behavior; #146 carries Jack's default-on saving decision.
+Hardware status: gateway reachable; maul NetBSD failed "Name or service not
+known"; OS X failed "No route to host". No hardware tests or delivery performed.
+Exact owner hardware steps are in docs/FORECAST-CACHE.md.
+Evening results: make check passed 1525 unit/storage, 346152 mutation inputs,
+111 CLI, 4 cache CLI, 20 TLS, 31 GUI, 3 fixture-startup, 14 anchors,
+3 provisioning and 6 flags checks. ASan+UBSan check-san passed the same unit,
+mutation, CLI and cache CLI suites. OS 9 production/diagnostics and NetBSD
+CLI/X11/unit cross-builds passed; existing cabs/cabsf linker warnings remain.
+Policy/whitespace checks passed. No failed tests in the evening integration run.
+
+Auto-merge batch integration (2026-10-27): main 435a711 includes #145 TLS policy,
+#83 complete debug dumps/last-attempted-source errors, #84 interrupted gestures
+and CDE bounds, and #43 Open Transport ABI assertions. GitHub merged these;
+Codex performed no manual PR merge. First integrated 9b147e2 at 03e7001, then
+435a711, preserving all newer tests alongside the cache tests. The cache parent
+leaves main's fetch/TLS code unchanged. The model integration remains intact.
+
+Final serial verification: make check passed 1538 unit/storage in both production
+and explicit test-hook builds, 346152 mutation inputs, 116 CLI checks in each
+build, 4 cache CLI, 24 TLS, 40 GUI, 95 CDE text, 3 fixture-startup, 14 anchors,
+3 provisioning, 6 flags and linked-artifact build isolation. ASan+UBSan passed
+1538 unit/storage in both builds, the mutation/CLI/cache suites and 95 CDE checks.
+OS 9 production/diagnostic and NetBSD CLI/X11/unit cross-builds passed; existing
+NetBSD cabs/cabsf sysroot linker warnings remain. Policy and feature-diff whitespace
+checks pass. git diff --cached --check flags the intentional Markdown hard break
+imported at docs/rfcs/open-transport-compatibility.md:3; the diff against main is
+clean. No code tests failed. No hardware run, delivery or live HTTP API request.
+Jack enabled GitHub auto-merge on ready PRs; #15 itself remains a draft without
+an auto-merge request, pending native acceptance. #146 carries the saving policy.

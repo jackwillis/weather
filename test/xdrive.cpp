@@ -5,6 +5,7 @@
 //
 //   xdrive wait NAME [ms]      wait until a top-level window titled NAME exists (default 20000)
 //   xdrive click X Y [BUTTON]  press and release at window coordinates
+//   xdrive down|up X Y [BUTTON]  send one button edge (for interrupted gestures)
 //   xdrive move X Y            pointer motion
 //   xdrive key NAME [ctrl]     press a key by X keysym name (Return, Tab, BackSpace, F5, q, ...)
 //   xdrive type TEXT           type printable ASCII
@@ -120,10 +121,13 @@ int main(int argc, char **argv)
 			bool gone = false;
 			for (long t = 0; t <= ms && !gone; t += 100) { if (!find_window(name)) gone = true; else msleep(100); }
 			if (!gone) { fprintf(stderr, "xdrive: window '%s' is still there\n", name); return 1; }
-		} else if (!strcmp(c, "click") && i + 2 < argc) {
+		} else if ((!strcmp(c, "click") || !strcmp(c, "down") || !strcmp(c, "up")) && i + 2 < argc) {
 			int x = atoi(argv[++i]), y = atoi(argv[++i]);
 			int b = (i + 1 < argc && argv[i + 1][0] >= '1' && argv[i + 1][0] <= '3' && !argv[i + 1][1]) ? atoi(argv[++i]) : 1;
-			send_motion(x, y); send_button(x, y, b, true); msleep(40); send_button(x, y, b, false);
+			send_motion(x, y);
+			if (strcmp(c, "up")) send_button(x, y, b, true);
+			if (!strcmp(c, "click")) msleep(40);
+			if (strcmp(c, "down")) send_button(x, y, b, false);
 		} else if (!strcmp(c, "move") && i + 2 < argc) {
 			send_motion(atoi(argv[i + 1]), atoi(argv[i + 2])); i += 2;
 		} else if (!strcmp(c, "key") && i + 1 < argc) {

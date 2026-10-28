@@ -37,3 +37,25 @@ Review follow-up: explicitly initialize QuickDraw, fonts, windows and menus befo
 creating the diagnostic window, matching the platform startup requirements.
 The final full diagnostics-enabled OS 9 rebuild passed after that correction.
 Native startup, event handling and file output are still unverified on hardware.
+
+Current-main integration (2026-10-27): merged main 6d5d518. Resolved CMake/status
+conflicts by retaining both optional CacheProbe and EntropyProbe targets and all
+status sections. Core/app/TLS/platform source matches main exactly. EntropyProbe
+and analyzer behavior are unchanged from f14650e; no measurements were invented.
+
+make check passed: 1750 unit checks in each production/test-hook build,
+396036 mutation inputs, 116 CLI checks in each mode, 5 cache CLI, 24 TLS,
+54 GUI, 95 CDE text, 19 field, 3 fixture-startup, 14 anchors, 3 provisioning,
+6 flags, linked-artifact build isolation and 5 entropy-analysis tests. ASan+UBSan
+passed both unit/CLI modes, mutation/cache suites, 95 CDE and 19 field checks.
+Full diagnostics-ON OS 9 build passed, including EntropyProbe_APPL. A fresh
+separate diagnostics-OFF Weather_APPL build passed: no EntropyProbe target
+directory and no probe markers in Weather.pef or Weather.xcoff. Positive control
+finds "# WeatherEntropyProbe v1" in EntropyProbe.pef. Its link command contains
+only entropy_probe.cc and nocxx.cpp objects, with no seed/Preferences/network
+objects. NetBSD CLI/X11/unit cross-build passed; existing cabs/cabsf sysroot
+linker warnings remain. Policy and feature-diff whitespace checks passed.
+No code tests failed in this integration. No app was delivered/run on hardware,
+no raw capture or conservative entropy estimate exists, and no threshold or
+per-source credit is proposed. Classic/native runs and source assessment remain
+owner work in #121; collector/conditioner/first-run UI remain #120 work.

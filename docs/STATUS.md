@@ -75,3 +75,32 @@ They collect timings from owned resources without reading seeds or logging key
 contents. The analyzer always credits zero bits; no hardware measurements,
 source credit, seed collector or threshold is claimed. Production provisioning
 is unchanged. See OS9-ENTROPY-MEASUREMENT.md for the owner runbook and review gate.
+
+## Forecast cache integration in PR #15 (2026-10-27)
+
+The cache branch incorporates current main, preserving the five-second manual
+refresh floor, live-data unknown-age handling and persistent OS 9 Preferences.
+Host unit/storage and mutation checks pass; full combined-suite verification is
+recorded in the PR. Earlier NetBSD hardware results apply to the earlier heads
+only. OS 9 cache storage-fault and window runtime acceptance remain pending;
+see docs/FORECAST-CACHE.md.
+
+## MET conditional requests in #128 (2026-10-27)
+
+Stacked on cache PR #15: bounded Last-Modified persistence, matching
+If-Modified-Since requests and safe 304 reuse are implemented through the shared
+CLI/X11/OS 9 path. Cache record v2 is 224 bytes; unsupported draft v1 records are
+refetched. Host/GUI and cross-build results are recorded in the implementation
+PR. Forecast saving defaults on, with a persisted Options setting on both window
+apps. Turning it off deletes the saved forecast and disables MET Norway with an
+explanation; Open-Meteo remains available without disk storage. Native runtime
+acceptance remains pending.
+
+## TLS policy in issue #66 (2026-10-27)
+
+The TLS policy branch restricts negotiation to TLS 1.2 and six ECDHE AEAD suites.
+All four provider/geocoding services passed certificate-verified handshakes with
+Weather's production client. Production omits the environment clock/trust hooks;
+explicit test builds retain them in separate output paths. Host fixture tests
+reject CBC-only and TLS-1.1-only peers. Native execution is not claimed; see
+TLS-POLICY.md and verification/tls-policy-2026-10-27.txt.

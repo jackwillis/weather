@@ -11,6 +11,7 @@ target_compile_options(bearssl PRIVATE -Os)
 
 set(WEATHER_VERSION_STR "0.1.0")
 set(WEATHER_COMMON
+  ${ROOT}/src/platform/os9/cache_os9.cpp
   ${ROOT}/src/app/preferences.cpp
   ${ROOT}/src/core/fetch.cpp
   ${ROOT}/src/platform/os9/config_os9.cpp
@@ -50,6 +51,13 @@ if(WEATHER_BUILD_DIAGNOSTICS)
     ${ROOT}/src/platform/posix/nocxx.cpp)
   target_include_directories(EntropyProbe PRIVATE ${ROOT}/src)
   target_compile_options(EntropyProbe PRIVATE -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
+
+  add_application(CacheProbe CONSOLE
+    ${ROOT}/src/platform/os9/cache_os9.cpp
+    ${ROOT}/spike/os9/cache_probe.cc
+    ${ROOT}/src/platform/posix/nocxx.cpp)
+  target_include_directories(CacheProbe PRIVATE ${ROOT}/src)
+  target_compile_options(CacheProbe PRIVATE -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
   add_application(PreferencesProbe CONSOLE
     ${ROOT}/spike/os9/preferences_probe.cc
     ${ROOT}/src/platform/os9/settings_os9.cpp
@@ -71,6 +79,13 @@ if(WEATHER_BUILD_DIAGNOSTICS)
   target_compile_definitions(WeatherUITest PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
   target_compile_options(WeatherUITest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
   target_link_libraries(WeatherUITest bearssl OpenTransportLib OpenTptInternetLib)
+  add_application(WeatherCacheUITest CONSOLE ${WEATHER_COMMON}
+    ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/location.cpp
+    ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/spike/os9/window_probe.cc)
+  target_include_directories(WeatherCacheUITest PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+  target_compile_definitions(WeatherCacheUITest PRIVATE WEATHER_CACHE_UI_TEST=1 WEATHER_VERSION="${WEATHER_VERSION_STR}")
+  target_compile_options(WeatherCacheUITest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
+  target_link_libraries(WeatherCacheUITest bearssl OpenTransportLib OpenTptInternetLib)
   add_application(PortableProbe CONSOLE
     ${ROOT}/spike/os9/portable_probe.cc
     ${ROOT}/src/platform/posix/nocxx.cpp)

@@ -1,0 +1,46 @@
+Complete debug dumps: issue #53 / audit C7
+
+The old core dump stopped at 1500 bytes, then sent that buffer through a logger
+whose formatted-record limit is 512 bytes. The header therefore overstated what
+the user actually received, while the tail of longer responses disappeared.
+
+Emit the true byte count, followed by numbered records containing at most 240
+input bytes each. Bytes outside printable ASCII (including CR/LF/tab) become
+'.', so each record is one physical line. Offsets refer to the original bytes.
+The payload plus the internal request/response label and size_t decimal offset
+fits both existing 512-byte platform loggers. Stack use drops from 1600 to 241
+bytes; no allocation or platform logging API changes are needed. Existing
+LogDebug filtering is preserved; dump size is bounded by request/response limits.
+
+Regression
+The real CLI contacts the local MET fixture, with fixture-only contact metadata,
+and test/debug_dump.py reconstructs the entire sanitized HTTP response. It checks
+the exact total byte count, contiguous offsets, maximum record size and every
+response byte against the fixture, including the tail beyond byte 1500.
+Against the old implementation: feature tests106 passed1failed; failure output:
+AssertionError: response header must give the complete byte count
+FAIL: complete debug response
+Log: /tmp/weather-dump-red.log.
+
+Scope
+Fixes C7 only. Multi-source error reporting (C5) and interrupting DNS lookup (C6)
+remain outstanding under #53. No production parser input path was added.
+
+Green verification
+make check: lint, anchors, 517 unit checks, 230242 mutation inputs, 107 CLI
+checks, 12 real local-TLS checks, provisioning/flags and 21 serialized GUI checks.
+make check-san: AddressSanitizer explicitly enabled with UBSan; 517 unit checks,
+230242 mutation inputs and 107 CLI checks passed. Logs:
+/tmp/weather-dump-check.log and /tmp/weather-dump-san.log.
+
+Cross-built NetBSD/macppc CLI on Linux, copied it to a private temporary directory
+on maul, and ran the real CLI against the laptop's MET fixture through a single
+SSH reverse forward with ExitOnForwardFailure=yes. The same whole-response
+checker passed against actual G4 output. Own remote files/directory removed on
+success. Fixture-only contact was tester@example.org; no external service was
+contacted. Evidence: /tmp/weather-dump-hardware.log and
+/tmp/weather-dump-hardware-output.log; driver /tmp/weather-dump-hardware.sh.
+
+make os9: full Retro68 OS 9 application build passed, including the changed
+fetch.cpp and the OS 9 logger. No OS 9 runtime or macOS host test was run.
+No compilation on maul, Tiger boot, privileged changes or system dialogs.

@@ -12,6 +12,7 @@
 #include "app/credits.hpp"
 #include "app/locform.hpp"
 #include "app/model.hpp"
+#include "app/weather_art.hpp"
 #include "app/config_load.hpp"
 #include "app/preferences.hpp"
 #include "app/window_actions.hpp"
@@ -43,6 +44,7 @@ using namespace wx;
 static int g_fail = 0, g_run = 0;
 #define CHECK(c) do { g_run++; if (!(c)) { g_fail++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
 #include "seed_tests.hpp"
+#include "cache_tests.hpp"
 #include "os9_helper_tests.hpp"
 
 static char g_fixbuf[2][8192];
@@ -263,6 +265,15 @@ static void test_fetch()
 		fetch_retry(gn, "h", "80", false, "/", tight, buf, sizeof buf, &body);
 		CHECK(g.nsleeps == 3 && g.sleeps[0] == 1000 && g.sleeps[1] == 1000 && g.sleeps[2] == 1000);
 	}
+	{ // The complete response can fill the buffer, but the next byte must not fit.
+		Fake f; f.steps[0]={okay(),kGood,Err::Ok}; f.nsteps=1;
+		Net n=make_net(&f); size_t size=std::strlen(kGood);
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,size,&body).ok());
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,size-1,&body).err==Err::BadData);
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,0,&body).err==Err::BadData);
+		f.steps[0].read_err=Err::Timeout;
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,size,&body).err==Err::Timeout);
+	}
 	{ // chunked response: refused, not retried
 		Fake f; f.steps[0] = {okay(), kChunked, Err::Ok}; f.nsteps = 1;
 		Net n = make_net(&f);
@@ -345,13 +356,40 @@ static void test_fallback()
 		Fake f; f.steps[0] = {make(Err::Connect, "refused"), "", Err::Ok}; f.nsteps = 1;
 		Net n = make_net(&f);
 		Status s = fetch_forecast(n, two, 2, q, o, buf, sizeof buf, &out);
-		CHECK(s.err == Err::NoSource && s.detail == 2);
+		CHECK(s.err == Err::Connect && !strcmp(s.msg, "refused"));
 	}
 	{ // single source: the real error comes through (so the exit code is meaningful)
 		Fake f; f.steps[0] = {make(Err::Connect, "refused"), "", Err::Ok}; f.nsteps = 1;
 		Net n = make_net(&f);
 		Status s = fetch_forecast(n, two, 1, q, o, buf, sizeof buf, &out);
 		CHECK(s.err == Err::Connect);
+	}
+	{ // Multiple sources preserve the last attempted cause and its detail.
+		const Err errors[] = {Err::CertUntrusted, Err::Clock, Err::Dns, Err::Timeout, Err::Io};
+		for (Err error : errors) {
+			Fake f;
+			f.steps[0] = {make(Err::Connect, "first failure", 11), "", Err::Ok};
+			f.steps[1] = {make(error, "last failure", 42), "", Err::Ok};
+			f.nsteps = 2;
+			Net n = make_net(&f);
+			Status s = fetch_forecast(n, two, 2, q, o, buf, sizeof buf, &out);
+			CHECK(s.err == error && s.detail == 42 && !strcmp(s.msg, "last failure"));
+			CHECK(f.connects == 2 && exit_code(s.err) == exit_code(error));
+		}
+	}
+	{ // A source skipped for missing contact must not hide an actual failure.
+		const Provider *mixed[] = {&kOpenMeteo, &kMetNo};
+		Fake f; f.steps[0] = {make(Err::CertUntrusted, "certificate rejected", 62), "", Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f);
+		Status s = fetch_forecast(n, mixed, 2, q, o, buf, sizeof buf, &out);
+		CHECK(s.err == Err::CertUntrusted && s.detail == 62 && f.connects == 1);
+	}
+	{ // Cancellation stops fallback and keeps the cancellation status.
+		Fake f; f.steps[0] = {make(Err::Cancelled, "cancelled", 7), "", Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f);
+		Status s = fetch_forecast(n, two, 2, q, o, buf, sizeof buf, &out);
+		CHECK(s.err == Err::Cancelled && s.detail == 7 && f.connects == 1);
+		CHECK(fetch_forecast(n, two, 0, q, o, buf, sizeof buf, &out).err == Err::NoSource);
 	}
 	CHECK(exit_code(Err::Dns) == 68 && exit_code(Err::Timeout) == 75 && exit_code(Err::Usage) == 64);
 	CHECK(retryable(make(Err::HttpStatus, "", 503)) && !retryable(make(Err::HttpStatus, "", 404)));
@@ -482,7 +520,11 @@ static void test_posix_net()
 		unsetenv("WEATHER_NOW");
 		CHECK(n.now(n) > kMinSaneTime);
 		setenv("WEATHER_NOW", "4102444800", 1);
+		#ifdef WEATHER_TEST_HOOKS
 		CHECK(n.now(n) == 4102444800LL);
+#else
+		CHECK(n.now(n) != 4102444800LL && n.now(n) > kMinSaneTime);
+#endif
 		unsetenv("WEATHER_NOW");
 	}
 	CHECK(unix_to_br_time(1790000000LL).days == 719528 + 1790000000LL / 86400);
@@ -702,8 +744,69 @@ static Forecast some_forecast(long t10)
 	return f;
 }
 
+// Record conservative primitive extents, including round line caps.
+struct ArtBounds {
+	ArtRect area;
+	bool valid = true;
+	int calls = 0;
+	void box(int x0, int y0, int x1, int y1) {
+		calls++;
+		if (x0 < area.x || y0 < area.y || x1 > area.x + area.w || y1 > area.y + area.h) valid = false;
+	}
+	void rect(int x, int y, int w, int h, Rgb) { box(x, y, x + w, y + h); }
+	void disc(int x, int y, int r, Rgb) { box(x - r, y - r, x + r, y + r); }
+	void line(int x, int y, int xx, int yy, int width, Rgb) {
+		int pad = (width + 1) / 2;
+		box((x < xx ? x : xx) - pad, (y < yy ? y : yy) - pad,
+		    (x > xx ? x : xx) + pad, (y > yy ? y : yy) + pad);
+	}
+	void poly(const ArtPt *p, int n, Rgb) { for (int i = 0; i < n; i++) box(p[i].x, p[i].y, p[i].x, p[i].y); }
+};
+static void test_art_bounds()
+{
+	const ArtRect areas[] = {{0, 0, 60, 60}, {9, 11, 60, 90}, {-9, -11, 90, 60},
+	    {0, 0, 100, 100}, {8, 12, 160, 120}, {0, 0, 16, 16},
+	    {0, 0, 5, 5}, {0, 0, 4, 4}, {0, 0, 1, 1}};
+	for (ArtRect area : areas) {
+		int failures = 0;
+		for (long code = -1; code <= 99; code++) for (int night = 0; night < 2; night++) {
+			ArtBounds canvas{area};
+			art::picture(canvas, area, code, night != 0);
+			if (!canvas.valid || canvas.calls == 0) failures++;
+		}
+		if (failures) printf("art bounds: %dx%d at %d,%d: %d of 202 scenes failed\n", area.w, area.h, area.x, area.y, failures);
+		CHECK(failures == 0);
+	}
+	const ArtRect empty[] = {{0, 0, 0, 60}, {0, 0, 60, 0}, {0, 0, -1, 60}};
+	for (ArtRect area : empty) {
+		ArtBounds canvas{area}; art::picture(canvas, area, 0, false);
+		CHECK(canvas.calls == 0);
+	}
+}
+
 static void test_model()
 {
+	{ // Rounding at the minute/hour boundary must not produce "60 min".
+		struct DurationCase { long seconds; const char *text; };
+		const DurationCase cases[] = {
+			{0, "0 s"}, {59, "59 s"}, {60, "1 min"}, {89, "1 min"},
+			{90, "2 min"}, {3540, "59 min"}, {3569, "59 min"},
+			{3570, "1 h"}, {3599, "1 h"}, {3600, "1 h"},
+			{3659, "1 h"}, {3660, "1 h 1 min"}, {7199, "1 h 59 min"}, {7200, "2 h"}
+		};
+		for (const DurationCase &c : cases) {
+			Buf<64> text;
+			Model::add_dur(text, c.seconds);
+			CHECK(text.view() == sv(c.text));
+		}
+		ModelConfig hourly; hourly.interval_s = 3600;
+		Model model(hourly, 0);
+		CHECK(model.tick(0));
+		Forecast forecast = some_forecast(100);
+		model.finish(0, okay(), &forecast);
+		Buf<128> status; model.status_line(status, 30);
+		CHECK(status.view() == sv("Updated 30 s ago. Next update in 1 h"));
+	}
 	ModelConfig mc;                    // 15 min interval, 60 s backoff base
 	{ // first tick fetches; no second fetch while one is running; refresh during a fetch is ignored
 		Model m(mc, 0);
@@ -1306,6 +1409,8 @@ static void test_credits()
 	}
 }
 
+#include "conditional_tests.hpp"
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -1318,6 +1423,7 @@ int main()
 	test_settings_text();
 	test_settings_store();
 	test_model();
+	test_art_bounds();
 	test_credits();
 	test_window_actions();
 	test_config_load();
@@ -1327,6 +1433,10 @@ int main()
 	test_metno();
 	test_os9_dns();
 	test_seed_pool();
+	test_conditional_requests();
+	test_cache_codec();
+	test_cache_storage();
+	test_cache_model();
 	test_os9_helpers();
 	printf("%d checks, %d failed\n", g_run, g_fail);
 	return g_fail ? 1 : 0;

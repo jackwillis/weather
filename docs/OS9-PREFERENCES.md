@@ -26,7 +26,10 @@ Both Weather and WeatherConsole use these rules:
 An unreadable or invalid selected file reports an error and applies nothing.
 Invalid Preferences never silently falls back to weather.conf. The first successful
 save copies legacy settings/comments into Preferences while replacing latitude,
-longitude, name, units and autorefresh. The legacy file is never modified.
+longitude, name, units, autorefresh and cache. The Options menu exposes the cache
+setting as “Save forecasts on this computer”, enabled by default. Switching it
+off first removes the saved forecast; a deletion failure leaves the setting on
+and displays an error. MET Norway is unavailable while saving is off. The legacy file is never modified.
 Subsequent loads/saves use Preferences. To edit providers, contact or other settings
 after migration, edit Weather Preferences and restart; changing weather.conf no
 longer changes the active configuration once nonempty Preferences exists.
