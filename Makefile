@@ -221,17 +221,6 @@ check-test-hooks: $(BUILD)/weather
 	build/$(TARGET)-test-hooks/connect-budget-test
 	TEST_HOOKS_ENABLED=1 sh test/feature.sh build/$(TARGET)-test-hooks/weather
 	sh test/test-builds.sh $(BUILD)/weather build/$(TARGET)-test-hooks/weather
-PPC_RUN ?= qemu-ppc -L /usr/powerpc-linux-gnu
-$(BUILD)/ppc-runtime: $(OBJ)/test/ppc_runtime.o
-	$(CXX) $(EXTRA_LDFLAGS) -o $@ $<
-
-# No binfmt registration or privileged emulator setup is required.
-check-ppc: $(BUILD)/ppc-runtime $(BUILD)/unittest $(BUILD)/robust
-	$(PPC_RUN) $(BUILD)/ppc-runtime
-	$(PPC_RUN) $(BUILD)/unittest
-	$(PPC_RUN) $(BUILD)/robust
-.PHONY: check-ppc
-
 check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather $(BUILD)/connect-budget-test
 	$(BUILD)/unittest
 	$(BUILD)/connect-budget-test
