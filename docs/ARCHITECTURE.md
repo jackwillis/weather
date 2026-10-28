@@ -193,3 +193,19 @@ Each platform's configuration, environment and file locations follow that platfo
 A setting may exist on only some platforms where a platform has no idiom for it; the core never depends on a platform-only setting. Linux and macOS are recorded here so the design does not close them off; nothing is implemented for them until they are supported.
 
 **Pre-1.0 policy:** no migrations and no compatibility shims. Settings formats, file names, command names and paths may change between 0.x releases without a migration path. Remove old code paths instead of keeping them (for example the OS 9 `weather.conf` fallback and the text-editing instructions in OS9-PREFERENCES.md, which #182 removes). This policy ends at 1.0.
+
+## OS 9 window cancellation and core events (#168/#169)
+
+Command-period sets a per-fetch cancellation request, separate from terminal Quit.
+The network yield returns false for either request; the existing fetch/model path
+unwinds and retains previous data. Starting a later fetch clears only cancellation.
+
+Window executables install core Apple Event handlers and advertise that support in
+`os9/window.r`; console executables retain `os9/weather.r` without that flag. The
+bounded window pump dispatches high-level events even while a Location dialog is
+open or a fetch is yielding. A quit handler requests the same terminal Quit as the
+menu; it never closes network/seed state from inside the callback. Once the fetch
+has unwound, the window loop removes handlers and performs its normal terminal
+network/seed shutdown. Handler-installation failure exits before network startup.
+The window diagnostic sends actual quit events in separate idle/fetch runs and
+checks lock availability after exit. Classic/native OS 9 acceptance remains pending.

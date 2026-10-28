@@ -1,0 +1,36 @@
+OS 9 system-requested quit (#169), 2026-10-28
+Stacked on the Command-period fix (#184).
+
+Red: host core-event lifecycle test against an unimplemented SystemEvents returned
+exit 1: FAIL OS 9 core-event lifecycle.
+Green: the same test passes registration order, open/document/print/quit dispatch,
+partial-install rollback at each of four positions, allocation failure and
+explicit/destructor teardown. It runs in make check and under ASan/UBSan in
+make check-san, against the actual production handler header with host API stubs.
+
+make check and make check-san passed: 1839 unit checks in each production/test-hook
+mode; 426598 mutation inputs; 119 CLI checks per mode; 34 connection-budget checks;
+28 TLS checks; 95 CDE text checks; 19 field checks; 55 serialized host GUI checks
+(full make check). Repository policy, Python driver syntax and diff whitespace pass.
+
+Retro68 cross-build on Linux: production Weather/WeatherConsole and all diagnostics
+passed. First resource build failed with:
+/src/os9/weather.r:16:2: error: Identifier "highleveleventaware" is not defined.
+The installed open Multiversal resource definition spells it isHighLevelEventAware;
+correcting that flag and new enum warnings produced a successful rebuild. The
+pre-existing net_os9.cpp enum/non-enum conditional warning remains.
+
+Read the generated MacBinary resource forks: console SIZE flags 0x5080, window
+SIZE flags 0x50c0; XOR 0x0040 is solely the high-level-event-aware bit.
+Production Weather.pef has no weather-ui.ready marker; WeatherUITest.pef is the
+positive control and contains it. No Apple SDK material was copied into the tree.
+
+The diagnostic sends a real quit Apple Event to itself at the final stage, either
+while fetching (default) or idle (--quit-mode idle). After normal window return it
+acquires/releases only the managed lock to check availability, never reads seed
+contents or removes an existing lock. Run the two variants serially.
+
+Not run: actual Apple Event delivery, Tiger logout, Classic/native OS 9 shutdown,
+physical dialogs or hardware lock-release verification. maulctl status: NetBSD
+name resolution failed; Tiger address reported No route to host. No hardware
+configuration, reboot, deployment, provisioning or privileged operation attempted.

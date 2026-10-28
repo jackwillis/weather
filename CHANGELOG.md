@@ -1,6 +1,8 @@
 # Changelog
 
 ## 0.0.1 (pre-release)
+- Mac OS 9: handle system quit Apple Events through normal fetch cancellation and shutdown; native acceptance pending (#169).
+
 - Mac OS 9: Command-period cancels a window fetch without closing the window; native acceptance pending (#168).
 
 - Licence changed from BSD 2-clause to GPL-3.0-or-later (owner decision, 2026-10-26).

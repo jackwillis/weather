@@ -210,7 +210,7 @@ check-test-hooks: $(BUILD)/weather
 	build/$(TARGET)-test-hooks/connect-budget-test
 	TEST_HOOKS_ENABLED=1 sh test/feature.sh build/$(TARGET)-test-hooks/weather
 	sh test/test-builds.sh $(BUILD)/weather build/$(TARGET)-test-hooks/weather
-check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather $(BUILD)/connect-budget-test
+check-native: check-os9-events lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather $(BUILD)/connect-budget-test
 	$(BUILD)/unittest
 	$(BUILD)/connect-budget-test
 	$(BUILD)/robust
@@ -223,9 +223,16 @@ endif
 	python3 test/seed_provision.py
 	python3 test/entropy_analysis.py
 	sh test/flags.sh "$(MAKE)"
-# Everything again under AddressSanitizer + UBSan: unit tests, parser robustness, the CLI's feature tests.
+# Host stand-ins exercise the production core-event registration and callback code.
+check-os9-events:
+	mkdir -p $(BUILD)
+	$(CXX) $(CXXFLAGS_ALL) -Itest/os9-event-stubs test/os9_events.cpp -o $(BUILD)/os9-events-test $(EXTRA_LDFLAGS)
+	$(BUILD)/os9-events-test
+
+# Everything again under AddressSanitizer + UBSan.
 check-san:
 	@$(MAKE) -s TARGET=host-san san-note
+	$(MAKE) TARGET=host-san check-os9-events
 	$(MAKE) TARGET=host-san build/host-san/unittest build/host-san/robust build/host-san/weather build/host-san/connect-budget-test
 	build/host-san/unittest
 	build/host-san/connect-budget-test
@@ -276,4 +283,4 @@ clean:
 
 -include $(wildcard $(OBJ)/*.d $(OBJ)/*/*.d $(OBJ)/*/*/*.d)
 
-.PHONY: check-test-hooks check-ot-layout os9 FORCE san-note check-san anchors check-anchors check-tls all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean
+.PHONY: check-os9-events check-test-hooks check-ot-layout os9 FORCE san-note check-san anchors check-anchors check-tls all ppc check check-native check-gui check-gui-maul check-cross check-maul smoke-maul lint clean

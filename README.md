@@ -50,7 +50,8 @@ movement as proven cryptographic entropy.
 
 In the OS 9 window app, Command-period cancels an in-progress fetch and keeps
 previous weather visible; a later refresh can run normally. Native confirmation
-of this shortcut is pending (#168). System-requested quit remains an open issue (#169).
+of this shortcut is pending (#168). System-requested quit now follows the manual quit path; Classic/native shutdown
+acceptance is pending (#169).
 Use File > Quit or Command-Q to quit manually. See the release notes for limitations
 of the published prerelease; these issue links describe ongoing development.
 
@@ -165,7 +166,10 @@ Optional diagnostics: configure the OS 9 CMake build with
 `python3 tools/check-os9-window.py /tmp/weather-window-shots` from the laptop.
 The driver uses explicit marker files in the separate test app, takes screenshots,
 and verifies a yielding update, refresh suppression, units, stale data, live TLS and
-quit. It also activates Finder programmatically to test background execution and
+Command-period cancellation and system-requested quit. Run it again with
+`--quit-mode idle` to check idle quit as well as the default quit during fetch.
+After shutdown it checks lock availability without reading seed contents.
+It also activates Finder programmatically to test background execution and
 suspend/resume; it never clicks or answers a system dialog. Production `Weather` does not link fixture/marker code. The test app has a
 ten-minute watchdog and never answers system dialogs or changes the user's config.
 
