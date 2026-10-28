@@ -1,0 +1,3 @@
+- Display a rounded duration of 60 minutes as “1 h” in refresh countdowns and forecast ages, keeping the existing nearest-minute rounding below an hour.
+- Scale the shared weather artwork to fit small panels, retaining complete sun, cloud and precipitation geometry inside60x60 areas. Existing scenes at least100x100 keep their original geometry.
+- Scroll and clip long Location text fields while keeping the caret visible and mouse clicks aligned with the displayed text; fix empty-text and bounded ellipsis handling in the shared X11 text helpers.

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jack Willis
 #pragma once
 #include "app/window_actions.hpp"
+#include "app/cache_store.hpp"
 #include "core/net.hpp"
 #include "core/settings.hpp"
 namespace wx {
@@ -13,6 +14,7 @@ struct WindowTestHooks {
 	Status (*fetch)(const Config &, Net &, Forecast *) = nullptr;
 	SettingsStore *preferences = nullptr;
 	SettingsStore *legacy = nullptr;
+	CacheStore *cache_store = nullptr;
 };
 int run_os9_window(const WindowTestHooks *hooks = nullptr);
 void os9_window_action(WindowAction action);

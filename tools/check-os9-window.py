@@ -25,6 +25,7 @@ def remote(command):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--app", choices=("WeatherUITest", "WeatherCacheUITest"), default="WeatherUITest")
     parser.add_argument("--capture", nargs="*", type=int, default=list(range(12)),
                         help="stages to capture (all by default); assertions always run")
     args = parser.parse_args()
@@ -32,7 +33,7 @@ def main():
     # Only diagnostic-owned markers/logs. Never touch production config or seeds.
     remote(f"rm -f {REMOTE}/weather-ui.ready {REMOTE}/weather-ui.advance "
            f"{REMOTE}/weather-ui.pumps {REMOTE}/weather-ui.live-go "
-           f"{REMOTE}/weather-ui-test.log; open {REMOTE}/WeatherUITest")
+           f"{REMOTE}/weather-ui-test.log; open {REMOTE}/{args.app}")
     names = ["clear-day", "clear-night", "cloud", "rain", "snow", "storm",
              "fog", "about", "metric", "stale-error", "yielding-fetch", "live"]
     for stage, name in enumerate(names):
@@ -56,13 +57,13 @@ def main():
             first = int(remote(f"cat {REMOTE}/weather-ui.pumps").strip())
             time.sleep(2)
             second = int(remote(f"cat {REMOTE}/weather-ui.pumps").strip())
-            remote(f"open {REMOTE}/WeatherUITest")
+            remote(f"open {REMOTE}/{args.app}")
             time.sleep(2)
             if second <= first:
                 raise RuntimeError("native event pump did not advance while Finder was active")
             print("background event pump advanced", flush=True)
         if stage == 11:
-            remote(f"open {REMOTE}/WeatherUITest")
+            remote(f"open {REMOTE}/{args.app}")
             time.sleep(2)
         if stage in args.capture:
             shot = remote("/usr/sbin/screencapture -x /tmp/weather-ui-shot.png; "

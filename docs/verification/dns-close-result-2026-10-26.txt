@@ -101,3 +101,25 @@ lifecycle cases; explicit ASan+UBSan525/230242/106 plus4lifecycle cases. Actual
 G4 all4cases with PowerPC assertions active, libc only. Full PowerPC OS9 build
 and native size/offset rejection probe pass. No native OS9 runtime claim.
 Logs /tmp/weather-ot-integration-{red,check,san,os9,layout,maul,cross}.log.
+
+2026-10-28 integration refresh
+
+Merged main 8c2d5bce50a3eab646d44690788f5f8f19ffc4dd without rewriting
+the existing PR history. Resolved Makefile conflicts by keeping both the
+actual-glue lifecycle test and main's connection-budget, production/test-hook,
+cache, entropy and GUI checks. DnsResolver retains cleanup_status alongside
+the borrowed Net/attempt budget parameter; timeout/cancellation still precede
+completion. Architecture text retains both lifecycle and deadline guarantees.
+No production behavior beyond the existing PR was added during this refresh.
+
+E7 is now present through main's ModalClock: DNS ticks and monotonic milliseconds
+use the shared active clock. Existing tests cover TickCount wrap, modal credit
+across wrap, credit-counter wrap, and excluding modal time from DNS ticks.
+This establishes source/host coverage, not a new native hardware result. E10's
+native layout assertions are already in main; retain its negative cross-compiler
+probe. E5/E6 native failed-close/process-exit acceptance remains outstanding.
+
+Initial make check could not open the TLS fixture socket in the filesystem
+sandbox: PermissionError: [Errno 1] Operation not permitted;
+FAIL: the test server did not start; tls tests: 0 passed, 1 failed.
+Reran with local networking permitted; final results follow below.

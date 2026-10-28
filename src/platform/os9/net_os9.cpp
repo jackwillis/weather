@@ -98,6 +98,7 @@ DnsResolver<DnsBackend> g_resolver(g_dns);
 constexpr long kSliceTicks = 3;   // 3/60 s = 50 ms
 
 long long mono_ms() { return g_active_clock.milliseconds(TickCount()); }
+long long os9_monotonic(Net &) { return mono_ms(); }
 
 enum Wait { WaitOk = 0, WaitTimeout, WaitCancelled };
 
@@ -258,7 +259,7 @@ Status os9_connect(Net &net, const char *host, const char *port, int timeout_s, 
 	if (!host || std::strlen(host) >= sizeof g_dns.host) return make(Err::Dns, "host name too long");
 	if (timeout_s <= 0 || timeout_s > 86400) return make(Err::Usage, "bad DNS timeout");
 	g_dns.net = &net;
-	Status dns = g_resolver.resolve(host, static_cast<uint32_t>(timeout_s) * 60);
+	Status dns = g_resolver.resolve(host, static_cast<uint32_t>(timeout_s) * 60, &net);
 	if (!dns.ok()) return dns;
 	Status cleanup = g_resolver.cleanup_status();
 	if (!cleanup.ok())
@@ -374,6 +375,7 @@ void os9_net_init(Net *net)
 	net->close = os9_close;
 	net->sleep_ms = os9_sleep;
 	net->now = os9_now;
+	net->monotonic_ms = os9_monotonic;
 	net->entropy = os9_entropy;
 }
 

@@ -76,7 +76,7 @@ void flakes(C &c, int cx, int y, Rgb col)
 
 // Fill `a` with sky and draw the weather for a WMO code (code < 0: unknown).
 template <class C>
-void picture(C &c, ArtRect a, long code, bool night)
+void picture_geometry(C &c, ArtRect a, long code, bool night)
 {
 	Rgb sky = night ? Rgb{38, 50, 86} : Rgb{124, 172, 224};
 	c.rect(a.x, a.y, a.w, a.h, sky);
@@ -121,6 +121,47 @@ void picture(C &c, ArtRect a, long code, bool night)
 	} else {
 		cloud(c, cx, cy, 100, white, edge);                        // unknown: a plain cloud
 	}
+}
+
+
+// Map the complete 100x100 scene into a smaller centered square. A two-pixel
+// margin keeps minimum-width lines and their caps inside even at tiny scales.
+// Arrays retain their compile-time size; no heap or polygon-size limit needed.
+template <class C>
+struct ScaledCanvas {
+	C &canvas;
+	int x, y, span;
+	int scale(int v) const { return v * span / 100; }
+	void rect(int xx, int yy, int w, int h, Rgb color) {
+		canvas.rect(x + scale(xx), y + scale(yy), scale(xx + w) - scale(xx), scale(yy + h) - scale(yy), color);
+	}
+	void disc(int xx, int yy, int r, Rgb color) { canvas.disc(x + scale(xx), y + scale(yy), scale(r), color); }
+	void line(int x0, int y0, int x1, int y1, int width, Rgb color) {
+		int pen = scale(width);
+		canvas.line(x + scale(x0), y + scale(y0), x + scale(x1), y + scale(y1), pen > 0 ? pen : 1, color);
+	}
+	template <unsigned N>
+	void poly(const ArtPt (&points)[N], int n, Rgb color) {
+		if (n < 0 || static_cast<unsigned>(n) > N) return;
+		ArtPt mapped[N];
+		for (int i = 0; i < n; i++) mapped[i] = {x + scale(points[i].x), y + scale(points[i].y)};
+		canvas.poly(mapped, n, color);
+	}
+};
+
+// Larger areas keep the original geometry. Small areas fit the whole scene;
+// empty areas draw nothing, and areas below five pixels show only sky.
+template <class C>
+void picture(C &c, ArtRect a, long code, bool night)
+{
+	if (a.w <= 0 || a.h <= 0) return;
+	if (a.w >= 100 && a.h >= 100) { picture_geometry(c, a, code, night); return; }
+	Rgb sky = night ? Rgb{38, 50, 86} : Rgb{124, 172, 224};
+	c.rect(a.x, a.y, a.w, a.h, sky);
+	int side = a.w < a.h ? a.w : a.h;
+	if (side < 5) return;
+	ScaledCanvas<C> scaled{c, a.x + (a.w - side) / 2 + 2, a.y + (a.h - side) / 2 + 2, side - 4};
+	picture_geometry(scaled, ArtRect{0, 0, 100, 100}, code, night);
 }
 
 } // namespace art
