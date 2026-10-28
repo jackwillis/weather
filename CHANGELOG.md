@@ -9,6 +9,7 @@ and is not the v0.1 gate. See `docs/release-notes/0.0.1.md` for what works and t
 ## 0.1.0 (unreleased)
 First version.
 - OS 9 status now reads “Automatic updates are on” when automatic updates are enabled.
+- New installations fall back from Open-Meteo to MET Norway using the project URL as contact, with user overrides preserved. Saved MET forecasts honor server expiry across source changes and revalidate afterwards; saving off still skips MET. Forecast timestamps are labelled as forecasts.
 - Both windows ignore manual refresh requests within five seconds of the last fetch starting; automatic refresh and location changes remain immediate.
 - OS 9 Preferences uses a single compiled writer to prevent Retro68 inline workspace storage from overlapping other globals.
 - OS 9 Preferences replacement checks native write access before exchanging files, preserving locked settings.
@@ -18,7 +19,7 @@ First version.
 - `xweather`: CDE-look X11 window with menus, Location dialog, weather pictures, auto-refresh every 15 minutes,
   stale-data display after failures.
 - Portable core (`src/core`, `src/app`) with an OS seam; NetBSD/macppc is the first target.
-- Second data source `met-no` (MET Norway; needs `contact` in the config because their terms require it).
+- Second data source `met-no` (MET Norway; optional personal contact override).
 - Mac OS 9 (first cut): `make os9` builds a PowerPC console app `Weather` with Retro68. It uses Open Transport through our own declarations
   and client glue (no Apple files), the same TLS/HTTP/JSON/core code, and fetched a live forecast on a real Mac OS 9.2.2.
 - A connection that closes before the HTTP status line is complete (an empty reply, or a cut inside `HTTP/1.x ...`) is now a truncated

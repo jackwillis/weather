@@ -83,6 +83,17 @@ int main() {
     check(wx::remove_cached_forecast(store.base).ok(),"delete saved forecast");
     check(wx::remove_cached_forecast(store.base).ok(),"deleting absent forecast succeeds");
     check(wx::write_cached_forecast(store.base,key,forecast,at).ok(),"re-enable saving");
+    key.providers="open-meteo,met-no";
+    forecast.source="met-no"; forecast.expires=at+3600;
+    std::strcpy(forecast.last_modified,"Sun, 25 Oct 2026 12:00:00 GMT");
+    check(wx::write_cached_forecast(store.base,key,forecast,at).ok(),"save MET expiry");
+    forecast.source="open-meteo"; forecast.expires=0; forecast.last_modified[0]=0;
+    check(wx::write_cached_forecast(store.base,key,forecast,at+1).ok(),"save Open-Meteo and preserve MET");
+    check(wx::os9_cache_init(&store,path).ok(),"reopen two-record native cache");
+    check(wx::read_cached_forecast(store.base,key,at+2,&cached,&found).ok() && found && wx::sv(cached.forecast.source)=="open-meteo","primary is latest Open-Meteo");
+    check(wx::read_cached_met(store.base,key,at+2,&cached).ok() && cached.forecast.expires==at+3600 && cached.fetched_at==at,"retained MET expiry and original fetch time survive reopen");
+    check(wx::remove_cached_forecast(store.base).ok(),"saving off deletes both records");
+    check(wx::write_cached_forecast(store.base,key,forecast,at+3).ok(),"restore disposable primary for cleanup");
 	FSSpec file; check(spec(path,file)==noErr && FSpDelete(&file)==noErr,"remove diagnostic primary");
 	check(FSpDelete(&dir)==noErr,"remove empty diagnostic directory");
 	std::fprintf(logfile,"finished: %d failures\n",failures); std::fclose(logfile);

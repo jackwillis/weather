@@ -164,7 +164,7 @@ void draw_contents()
 		Buf<80> humidity; humidity.add("Humidity ");
 		if(f.humidity==kUnset) humidity.add("unavailable"); else humidity.add_int(f.humidity).add('%');
 		text(143,143,humidity.c_str(),10,180);
-		Buf<80> observed; observed.add("Observed ").add(f.time).add(" UTC"); text(16,165,observed.c_str(),10);
+		Buf<80> observed; observed.add("Forecast for ").add(f.time).add(" UTC"); text(16,165,observed.c_str(),10);
 		text(16,182,f.source?f.source:"",9);
 	}
 	Buf<256> status;

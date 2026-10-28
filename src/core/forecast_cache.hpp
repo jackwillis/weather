@@ -63,6 +63,8 @@ inline bool valid(const CacheKey &key,const Forecast &f)
 	if(key.query.lat_e4 < -900000 || key.query.lat_e4>900000 || key.query.lon_e4 < -1800000 || key.query.lon_e4>1800000) return false;
 	if(f.metric!=key.query.metric || key.providers.empty() || key.providers.size()>=64) return false;
 	for(char c:key.providers) if(c<32 || c>126) return false;
+	if(f.expires<0 || f.expires>253402300799LL) return false;
+	if(f.expires && (!f.source || sv(f.source)!="met-no")) return false;
 	if(!f.source || (sv(f.source)!="open-meteo" && sv(f.source)!="met-no" && sv(f.source)!="nws")) return false;
 	if(!selected(key.providers,f.source)) return false;
 	if(!plausible_temp_t10(f.temp_t10,f.metric)) return false;
@@ -80,12 +82,12 @@ inline bool valid(const CacheKey &key,const Forecast &f)
 }
 
 // Layout: magic[8], lat/lon[8], metric/source[2], reserved[6], fetched[8],
-// six signed fields[24], observation[24], provider selection[64], reserved[12], Last-Modified[64], CRC[4].
+// six signed fields[24], observation[24], provider selection[64], expiry[8], reserved[4], Last-Modified[64], CRC[4].
 inline bool cache_encode(const CacheKey &key,const Forecast &f,long long at,unsigned char *out)
 {
 	if(at<0 || !cache_detail::valid(key,f)) return false;
 	for(size_t i=0;i<kForecastCacheBytes;i++) out[i]=0;
-	const char magic[]="WXFCACH2";
+	const char magic[]="WXFCACH3";
 	for(size_t i=0;i<8;i++) out[i]=magic[i];
 	cache_detail::put32(out+8,static_cast<uint32_t>(key.query.lat_e4));
 	cache_detail::put32(out+12,static_cast<uint32_t>(key.query.lon_e4));
@@ -97,18 +99,20 @@ inline bool cache_encode(const CacheKey &key,const Forecast &f,long long at,unsi
 	for(size_t i=0;i<sizeof f.time && f.time[i];i++) out[56+i]=static_cast<unsigned char>(f.time[i]);
 	for(size_t i=0;i<key.providers.size();i++) out[80+i]=static_cast<unsigned char>(key.providers[i]);
 	for(size_t i=0;i<sizeof f.last_modified && f.last_modified[i];i++) out[156+i]=static_cast<unsigned char>(f.last_modified[i]);
+	uint64_t expiry=static_cast<uint64_t>(f.expires);
+    for(int i=151;i>=144;i--) { out[i]=static_cast<unsigned char>(expiry); expiry>>=8; }
 	cache_detail::put32(out+220,cache_detail::crc(out,220));
 	return true;
 }
 
-inline bool cache_decode(const unsigned char *p,size_t n,const CacheKey &key,long long now,CachedForecast *out)
+inline bool cache_decode(const unsigned char *p,size_t n,const CacheKey &key,long long now,CachedForecast *out,bool retain_expiry=false)
 {
 	if(n!=kForecastCacheBytes || now<0 || key.providers.empty() || key.providers.size()>=64) return false;
-	const char magic[]="WXFCACH2";
+	const char magic[]="WXFCACH3";
 	for(size_t i=0;i<8;i++) if(p[i]!=static_cast<unsigned char>(magic[i])) return false;
 	if(cache_detail::crc(p,220)!=cache_detail::get32(p+220)) return false;
 	for(size_t i=18;i<24;i++) if(p[i]) return false;
-	for(size_t i=144;i<156;i++) if(p[i]) return false;
+	for(size_t i=152;i<156;i++) if(p[i]) return false;
 	if(p[16]>1 || p[17]<1 || p[17]>3) return false;
 	if(cache_detail::signed32(p+8)!=key.query.lat_e4 || cache_detail::signed32(p+12)!=key.query.lon_e4 || (p[16]!=0)!=key.query.metric) return false;
 	for(size_t i=0;i<64;i++) {
@@ -119,9 +123,13 @@ inline bool cache_decode(const unsigned char *p,size_t n,const CacheKey &key,lon
 	for(size_t i=24;i<32;i++) stamp=(stamp<<8)|p[i];
 	if(stamp>9223372036854775807ULL) return false;
 	long long at=static_cast<long long>(stamp);
-	if(at>now || now-at>kForecastCacheAge) return false;
+	uint64_t expiry=0;
+    for(size_t i=144;i<152;i++) expiry=(expiry<<8)|p[i];
+    if(expiry>253402300799ULL) return false;
+    if(at>now || (now-at>kForecastCacheAge && (!retain_expiry || expiry<=static_cast<uint64_t>(now)))) return false;
 	CachedForecast decoded; decoded.fetched_at=at;
 	Forecast &f=decoded.forecast;
+	f.expires=static_cast<long long>(expiry);
 	f.metric=p[16]!=0; f.source=p[17]==1?"open-meteo":p[17]==2?"met-no":"nws";
 	f.temp_t10=cache_detail::signed32(p+32); f.humidity=cache_detail::signed32(p+36);
 	f.wind_t10=cache_detail::signed32(p+40); f.wind_dir=cache_detail::signed32(p+44);

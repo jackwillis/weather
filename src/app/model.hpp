@@ -90,7 +90,7 @@ public:
 			return;
 		}
 		if (s.ok() && f) {
-			fc_ = *f; have_ = true; at_ = now; failures_ = 0;
+			fc_ = *f; have_ = true; at_ = f->saved_valid ? f->retrieved_at : now; failures_ = 0;
 			cached_ = false;
 			phase_ = Phase::Ok; last_ = okay();
 			next_at_ = now + cfg_.interval_s;
@@ -150,7 +150,7 @@ public:
 			o.add("Fetching"); if (have_ && !cached_) { o.add(" (showing data from "); add_data_age(o, now); o.add(")"); } else o.add("..."); break;
 		case Phase::Ok:
 			if (cached_) o.add("Live update pending");
-			else { o.add("Updated "); if (age_unknown(now)) o.add("at "); add_data_age(o, now); } break;
+			else { o.add(fc_.saved_valid ? (now<fc_.expires ? "Saved forecast, server-valid; fetched " : "Saved forecast expired; fetched ") : "Updated "); if (age_unknown(now)) o.add("at "); add_data_age(o, now); } break;
 		case Phase::Failed:
 			o.add("Update failed: ").add(last_.msg);
 			if (have_ && !cached_) { o.add(". Showing data from "); add_data_age(o, now); }

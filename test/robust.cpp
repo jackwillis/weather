@@ -6,6 +6,7 @@
 // says OK the answer is sane"; build it with -fsanitize=address,undefined (make check-san) and the
 // sanitizers do the watching. usage: robust [random-iterations] (default 20000)
 #include "app/textedit.hpp"
+#include "app/cache_store.hpp"
 #include "app/config_load.hpp"
 #include "app/preferences.hpp"
 #include "core/config.hpp"
@@ -76,6 +77,18 @@ static void exercise(const char *p, size_t n)
 		check_cache(checked,n);
 	}
 	}
+    CacheStore forecast_store; forecast_store.ctx=&in;
+    forecast_store.load=[](CacheStore &store,unsigned char *out,size_t cap,size_t *size) {
+        sv bytes=*static_cast<sv *>(store.ctx); *size=bytes.size();
+        if(bytes.size()>cap) return make(Err::BadData,"fixture too large");
+        memcpy(out,bytes.data(),bytes.size()); return okay();
+    };
+    CachedForecast saved; bool found=false;
+    CacheKey mixed{Query{},"open-meteo,met-no"};
+    Status met=read_cached_met(forecast_store,mixed,1792950000LL,&saved);
+    if(met.ok()) EXPECT(sv(saved.forecast.source)=="met-no");
+    Status primary=read_cached_forecast(forecast_store,mixed,1792950000LL,&saved,&found);
+    if(found) EXPECT(primary.ok());
 	SettingsStore config_store; config_store.ctx=&in;
 	config_store.load=[](SettingsStore &store,char *out,size_t cap,size_t *size) {
 		sv value=*static_cast<sv *>(store.ctx);
@@ -125,7 +138,7 @@ static void exercise(const char *p, size_t n)
 	Buf<256> conditional;
 	bool accepted=http_request(conditional,"fixture.invalid","/","fixture",in);
 	if(accepted) EXPECT(http_validator(in));
-	if(h.st.ok()) EXPECT(http_validator(h.last_modified));
+	if(h.st.ok()) { EXPECT(http_validator(h.last_modified)); EXPECT(h.expires>=0 && h.expires<=253402300799LL); }
     if (h.st.ok()) {
         EXPECT(inside(in,h.body) && h.code>=0 && h.code<=999);
         size_t at=find(in,"\r\n")+2, end=find(in,"\r\n\r\n");
@@ -326,10 +339,10 @@ int main(int argc, char **argv)
 	static char http[9000];
 	snprintf(path, sizeof path, "%s/openmeteo-ok.json", FIXTURE_DIR);
 	slurp(path, seed, sizeof seed, &n);
-	int hl = snprintf(http, sizeof http, "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nLast-Modified: Tue, 27 Oct 2026 12:00:00 GMT\r\nContent-Length: %zu\r\n\r\n", n);
+	int hl = snprintf(http, sizeof http, "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nLast-Modified: Tue, 27 Oct 2026 12:00:00 GMT\r\nExpires: Tue, 27 Oct 2026 13:00:00 GMT\r\nContent-Length: %zu\r\n\r\n", n);
 	memcpy(http + hl, seed, n);
 	mutate_all(http, static_cast<size_t>(hl) + n, iterations, rng);
-	constexpr char not_modified[]="HTTP/1.0 304 Not Modified\r\nLast-Modified: Tue, 27 Oct 2026 12:00:00 GMT\r\nContent-Length: 999\r\n\r\n";
+	constexpr char not_modified[]="HTTP/1.0 304 Not Modified\r\nLast-Modified: Tue, 27 Oct 2026 12:00:00 GMT\r\nExpires: Tue, 27 Oct 2026 13:00:00 GMT\r\nContent-Length: 999\r\n\r\n";
 	mutate_all(not_modified,sizeof not_modified-1,iterations,rng);
 	static const char cfg[] = "# my weather\nlatitude = 43.0747  # home\nlongitude=-89.3841\nname = Madison, WI\nunits = metric\n"
 	    "timeout = 15\nattempts = 3\nproviders = open-meteo\nlog = info\nautorefresh = off\ncache = on\n";
@@ -344,10 +357,16 @@ int main(int argc, char **argv)
 	if(!cache_encode(CacheKey{Query{},"open-meteo"},cached,1792950000LL,cache_record)) return 1;
 	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);
 	cached.source="met-no";
+	cached.expires=1793106000LL;
 	strcpy(cached.last_modified,"Tue, 27 Oct 2026 12:00:00 GMT");
 	if(!cache_encode(CacheKey{Query{},"met-no"},cached,1792950000LL,cache_record)) return 1;
 	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);
-	cached.last_modified[0]=0;
+    unsigned char bundle[2*kForecastCacheBytes];
+    if(!cache_encode(CacheKey{Query{},"open-meteo,met-no"},cached,1792950000LL,bundle+kForecastCacheBytes)) return 1;
+    Forecast open=cached; open.source="open-meteo"; open.expires=0; open.last_modified[0]=0;
+    if(!cache_encode(CacheKey{Query{},"open-meteo,met-no"},open,1792950000LL,bundle)) return 1;
+    mutate_all(reinterpret_cast<const char *>(bundle),sizeof bundle,iterations,rng);
+	cached.last_modified[0]=0; cached.expires=0;
 	cached.source="nws"; cached.code=-1;
 	if(!cache_encode(CacheKey{Query{},"nws"},cached,1792950000LL,cache_record)) return 1;
 	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);

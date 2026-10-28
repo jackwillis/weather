@@ -52,7 +52,7 @@ contains "metric output is converted and labelled" "12.7C Clear sky, wind 14.0km
 expect "server ignoring the unit parameters is refused" 65 $W -u metric -1 -H 127.0.0.1:$P_IMP
 contains "units mismatch explained" "units in the response do not match the request"
 expect "ok full" 0 $W -H 127.0.0.1:$P_OK
-contains "full layout" "Weather for Madison, WI from open-meteo, observed 2026-10-24T04:45 UTC"
+contains "full layout" "Weather for Madison, WI from open-meteo, forecast for 2026-10-24T04:45 UTC"
 contains "full wind line" "Wind 8.7 mph from SE   Humidity 84%"
 expect "plain-http warning is shown" 0 $W -1 -H 127.0.0.1:$P_OK
 contains "warn" "NO TLS"
@@ -112,8 +112,8 @@ echo "attempts = 3" > "$CFG"
 
 # second data source: MET Norway needs a contact (its terms), is skipped without one, and is the fallback
 printf 'attempts = 1\ncontact = tester@example.org\n' > "$CFG.met"
-expect "met-no without contact is refused" 78 -c "$CFG" -p met-no -H 127.0.0.1:$P_MET
-contains "contact explained" "requires 'contact'"
+expect "met-no uses project identity without contact" 0 -c "$CFG" -p met-no -H 127.0.0.1:$P_MET
+contains "default MET response" "met-no"
 expect "met-no with contact" 0 -c "$CFG.met" -1 -p met-no -H 127.0.0.1:$P_MET
 contains "met-no output" "54.5F Partly cloudy, wind 7.8mph S, humidity 77% (met-no 2026-10-24T06:00)"
 expect "met-no metric" 0 -c "$CFG.met" -1 -u metric -p met-no -H 127.0.0.1:$P_MET
@@ -121,7 +121,7 @@ contains "met-no metric output" "12.5C Partly cloudy, wind 12.6km/h S"
 expect "contact is sent in the User-Agent" 0 -c "$CFG.met" -d -1 -p met-no -H 127.0.0.1:$P_MET
 contains "user agent" "User-Agent: weather/$("$BIN" -V | sed -n "1s/^weather //p") (contact: tester@example.org)"
 if printf '%s\n' "$OUT" | python3 "$HERE/debug_dump.py"; then ok; else bad "complete debug response"; fi
-expect "met-no is skipped without contact, next source used" 0 -c "$CFG" -1 -p met-no,open-meteo -H 127.0.0.1:$P_OK
+expect "malformed MET data falls back to next source" 0 -c "$CFG" -1 -p met-no,open-meteo -H 127.0.0.1:$P_OK
 contains "fell back to open-meteo" "(open-meteo "
 expect "falls back when the first source is broken" 0 -c "$CFG.met" -1 -p open-meteo,met-no -H 127.0.0.1:$P_FALL
 contains "fell back to met-no" "(met-no "
