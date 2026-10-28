@@ -21,7 +21,7 @@ set(WEATHER_COMMON
   ${ROOT}/src/platform/os9/ot_glue.cc
   ${ROOT}/src/platform/os9/log_os9.cpp
   ${ROOT}/src/platform/posix/nocxx.cpp)
-set(WEATHER_WINDOW_COMMON ${WEATHER_COMMON} ${ROOT}/os9/window.r)
+set(WEATHER_WINDOW_COMMON ${WEATHER_COMMON} ${ROOT}/os9/window.r ${ROOT}/src/ui/os9/system_events.cpp)
 add_application(Weather ${WEATHER_WINDOW_COMMON} ${ROOT}/src/ui/os9/window.cpp
   ${ROOT}/src/ui/os9/location.cpp
   ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/src/ui/os9/main.cpp)
@@ -79,6 +79,9 @@ if(WEATHER_BUILD_DIAGNOSTICS)
   target_compile_definitions(WeatherUITest PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
   target_compile_options(WeatherUITest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
   target_link_libraries(WeatherUITest bearssl OpenTransportLib OpenTptInternetLib)
+  add_custom_command(TARGET WeatherUITest POST_BUILD
+    COMMAND sh ${ROOT}/test/os9-event-layout.sh ${CMAKE_NM} $<TARGET_FILE:WeatherUITest>
+    VERBATIM)
   add_application(WeatherCacheUITest CONSOLE ${WEATHER_WINDOW_COMMON}
     ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/location.cpp
     ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/spike/os9/window_probe.cc)

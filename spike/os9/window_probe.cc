@@ -195,6 +195,7 @@ wx::Status fetch(const Config &cfg,Net &net,Forecast *f) {
 		}
 		check(!os9_window_foreground(),"production live fetch starts in background");
 		wx::Status s=os9_window_fetch_live(cfg,net,f);
+		check(s.ok(),"production live fetch returned success");
 		check(!os9_window_foreground(),"production live fetch completes in background");
 		return s;
 	}

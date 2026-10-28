@@ -226,7 +226,7 @@ endif
 # Host stand-ins exercise the production core-event registration and callback code.
 check-os9-events:
 	mkdir -p $(BUILD)
-	$(CXX) $(CXXFLAGS_ALL) -Itest/os9-event-stubs test/os9_events.cpp -o $(BUILD)/os9-events-test $(EXTRA_LDFLAGS)
+	$(CXX) $(CXXFLAGS_ALL) -Itest/os9-event-stubs test/os9_events.cpp src/ui/os9/system_events.cpp -o $(BUILD)/os9-events-test $(EXTRA_LDFLAGS)
 	$(BUILD)/os9-events-test
 
 # Everything again under AddressSanitizer + UBSan.

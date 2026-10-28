@@ -8,7 +8,7 @@ namespace wx {
 class SystemEvents {
     AEEventHandlerUPP handler_ = nullptr;
     unsigned installed_ = 0;
-    inline static void (*quit_)() = nullptr;
+    static void (*quit_)(); // Defined once: Retro68 can overlap weak inline mutable storage.
     inline static constexpr AEEventID ids_[4] = {
         kAEOpenApplication,kAEOpenDocuments,kAEPrintDocuments,kAEQuitApplication
     };
