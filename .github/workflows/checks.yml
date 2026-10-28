@@ -25,9 +25,10 @@ jobs:
         with:
           persist-credentials: false
       - name: Install distribution cross compiler and user-mode emulator
+        timeout-minutes: 12
         run: |
-          sudo apt-get update
-          sudo apt-get install -y g++-powerpc-linux-gnu qemu-user make
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends g++-powerpc-linux-gnu qemu-user make
       - name: Record toolchain provenance
         run: |
           powerpc-linux-gnu-g++ --version

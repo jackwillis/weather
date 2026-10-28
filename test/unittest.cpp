@@ -12,6 +12,7 @@
 #include "app/credits.hpp"
 #include "app/locform.hpp"
 #include "app/model.hpp"
+#include "app/weather_art.hpp"
 #include "app/config_load.hpp"
 #include "app/preferences.hpp"
 #include "app/window_actions.hpp"
@@ -24,6 +25,7 @@
 #include "platform/os9/dns_resolve.hpp"
 #include "platform/os9/modal_clock.hpp"
 #include <arpa/inet.h>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -42,6 +44,7 @@ using namespace wx;
 static int g_fail = 0, g_run = 0;
 #define CHECK(c) do { g_run++; if (!(c)) { g_fail++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
 #include "seed_tests.hpp"
+#include "cache_tests.hpp"
 #include "os9_helper_tests.hpp"
 
 static char g_fixbuf[2][8192];
@@ -68,7 +71,7 @@ static void test_openmeteo()
 
 	Buf<300> full;
 	format_full(full, f, "Madison, WI");
-	constexpr sv head = "Weather for Madison, WI from open-meteo, observed";
+	constexpr sv head = "Weather for Madison, WI from open-meteo, forecast for";
 	CHECK(full.view().substr(0, head.size()) == head);
 
 	Buf<300> one;
@@ -117,6 +120,20 @@ static void test_config()
 	CHECK(s.err == Err::Config && s.detail == 2);           // line number reported
 	s = config_parse("latitude = 91\n", &c);
 	CHECK(s.err == Err::Config && s.detail == 1);
+	{ // The limits themselves: inclusive at 90 and 180, refused just past them, and each axis has its own limit.
+		Config e;
+		CHECK(config_parse("latitude = 90\nlongitude = 180\n", &e).ok() && e.lat_e4 == 900000 && e.lon_e4 == 1800000);
+		e = Config();
+		CHECK(config_parse("latitude = -90\nlongitude = -180\n", &e).ok() && e.lat_e4 == -900000 && e.lon_e4 == -1800000);
+		CHECK(config_parse("latitude = 90.0001\n", &e).err == Err::Config);
+		CHECK(config_parse("latitude = -90.0001\n", &e).err == Err::Config);
+		CHECK(config_parse("longitude = 180.0001\n", &e).err == Err::Config);
+		CHECK(config_parse("longitude = -180.0001\n", &e).err == Err::Config);
+		e = Config();
+		CHECK(config_parse("longitude = 91\n", &e).ok() && e.lon_e4 == 910000);   // past the latitude limit, inside the longitude one
+		CHECK(config_parse("longitude = -122.3321\n", &e).ok() && e.lon_e4 == -1223321);   // Seattle: west of -90
+		CHECK(config_parse("longitude = 151.2093\n", &e).ok() && e.lon_e4 == 1512093);     // Sydney: east of 90
+	}
 	s = config_parse("no equals sign\n", &c);
 	CHECK(s.err == Err::Config);
 	s = config_parse("name = Oslo, Norway\n", &c);
@@ -151,6 +168,14 @@ struct Fake {
 	int nsteps = 0, next = 0, connects = 0, closes = 0, nsleeps = 0;
 	long sleeps[64] = {};
 	long long clock = 1790000000LL;
+	os9::ModalClock active_clock;
+	uint32_t ticks = 0xfffffff0U;
+	bool use_active = false, pause_reads = false;
+	long long monotonic = 0;
+	long long seen_budget_limit = -1;
+	long mono_read_ms = 0;
+	long read_secs = 0;      // the clock advances this much on every read (a slow trickle)
+	int reads = 0;
 	bool cancel_sleep = false;
 	const char *cur = ""; size_t pos = 0; Err cur_err = Err::Ok;
 	char request[512] = {};
@@ -160,6 +185,9 @@ static Fake *F(Net &n) { return static_cast<Fake *>(n.ctx); }
 static long fk_read(Io &io, void *buf, size_t len)
 {
 	Fake *f = static_cast<Fake *>(io.ctx);
+	f->reads++; f->clock += f->read_secs; f->monotonic += f->mono_read_ms;
+	uint32_t before = f->ticks; f->ticks += 120;
+	if (f->pause_reads) f->active_clock.credit(before, f->ticks);
 	size_t left = strlen(f->cur) - f->pos;
 	if (left == 0) {
 		if (f->cur_err != Err::Ok) { io.err = f->cur_err; io.detail = 1; return -1; }
@@ -181,6 +209,7 @@ static long fk_write(Io &io, const void *buf, size_t len)
 static Status fk_connect(Net &n, const char *, const char *, int, Io *out)
 {
 	Fake *f = F(n);
+	f->seen_budget_limit = n.budget ? n.budget->limit_ms : -1;
 	f->connects++;
 	Step &s = f->steps[f->next < f->nsteps ? f->next : f->nsteps - 1];
 	f->next++;
@@ -194,10 +223,12 @@ static void fk_close(Net &n, Io &) { F(n)->closes++; }
 static bool fk_sleep(Net &n, long ms) { Fake *f = F(n); if (f->nsleeps < 64) f->sleeps[f->nsleeps++] = ms; return !f->cancel_sleep; }
 static long long fk_now(Net &n) { return F(n)->clock; }
 
+static long long fk_monotonic(Net &n) { Fake *f = F(n); return f->use_active ? f->active_clock.milliseconds(f->ticks) : f->monotonic; }
+
 static Net make_net(Fake *f)
 {
 	Net n;
-	n.ctx = f; n.connect = fk_connect; n.close = fk_close; n.sleep_ms = fk_sleep; n.now = fk_now;
+	n.ctx = f; n.connect = fk_connect; n.close = fk_close; n.sleep_ms = fk_sleep; n.now = fk_now; n.monotonic_ms = fk_monotonic;
 	return n;
 }
 
@@ -246,6 +277,90 @@ static void test_fetch()
 		Status s = fetch_retry(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
 		CHECK(s.ok() && f.connects == 2 && f.nsleeps == 1);
 	}
+	{ // a server that trickles its answer: every read is quick, but the whole attempt must not outlast 3 x the timeout
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1; f.mono_read_ms = 1000;     // one second per read, timeout_s = 1
+		Net n = make_net(&f);
+		Status s = fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body);
+		CHECK(s.err == Err::Timeout && f.closes == 1 && f.reads == 3);                     // reads at 0, 1 and 2 s; reaching the 3 s deadline refuses the next
+		Fake g; g.steps[0] = {okay(), kGood, Err::Ok}; g.nsteps = 1;                      // the same answer at full speed is fine
+		Net gn = make_net(&g);
+		CHECK(fetch_once(gn, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+		Fake r; r.steps[0] = {okay(), kGood, Err::Ok}; r.nsteps = 1; r.mono_read_ms = 1000;
+		Net rn = make_net(&r);
+		Status rs = fetch_retry(rn, "h", "80", false, "/", o, buf, sizeof buf, &body);    // a timeout is retried, each attempt bounded
+		CHECK(rs.err == Err::Timeout && r.connects == 3 && r.closes == 3);
+		Fake e; e.steps[0] = {okay(), kGood, Err::Ok}; e.nsteps = 1; e.mono_read_ms = 1000;
+		Net en = make_net(&e);
+		Fake t; t.steps[0] = {okay(), kGood, Err::Ok}; t.nsteps = 1; t.mono_read_ms = 1000;
+		Net tn = make_net(&t);
+		FetchOpts tight = o; tight.deadline_s = 2;                                            // a deadline below 3 x timeout wins
+		CHECK(fetch_once(tn, "h", "80", false, "/", tight, buf, sizeof buf, &body).err == Err::Timeout && t.reads == 2);
+		FetchOpts roomy = o; roomy.deadline_s = 100;                                         // an explicit deadline replaces 3 x timeout
+		CHECK(fetch_once(en, "h", "80", false, "/", roomy, buf, sizeof buf, &body).ok());
+		Fake b; b.steps[0] = {okay(), kGood, Err::Ok}; b.nsteps = 1; b.read_secs = -100;     // the clock steps back mid-fetch: never a false timeout
+		Net bn = make_net(&b);
+		CHECK(fetch_once(bn, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+	}
+	{ // The attempt budget reaches backend waits, and restores caller state.
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f); FetchOpts explicit_limit = o; explicit_limit.deadline_s = 1;
+		CHECK(fetch_once(n, "h", "80", false, "/", explicit_limit, buf, sizeof buf, &body).ok());
+		CHECK(f.seen_budget_limit == 1000 && n.budget == nullptr && n.ctx == &f);
+		f.monotonic = 200;
+		const TimeBudget outer{0, 500}; n.budget = &outer;
+		CHECK(fetch_once(n, "h", "80", false, "/", explicit_limit, buf, sizeof buf, &body).ok());
+		CHECK(f.seen_budget_limit == 300 && n.budget == &outer);
+		f.steps[0].connect_result = make(Err::Dns, "failed");
+		CHECK(fetch_once(n, "h", "80", false, "/", explicit_limit, buf, sizeof buf, &body).err == Err::Dns);
+		CHECK(n.budget == &outer);
+		CHECK((TimeBudget{0, 0}.remaining(0) == 0));
+		CHECK((TimeBudget{100, 10}.remaining(99) == -1));
+		CHECK((TimeBudget{9223372036854775000LL, 500}.remaining(9223372036854775100LL) == 400));
+	}
+	{ // UTC corrections and paused active time cannot change the attempt deadline.
+		for (long step : {-100L, 100L}) {
+			Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+			f.read_secs = step; // an arbitrarily long menu hold also advances UTC only
+			Net n = make_net(&f);
+			CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+			f.mono_read_ms = 1000;
+			CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Timeout);
+		}
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f); n.monotonic_ms = nullptr;
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Clock && f.connects == 0);
+		n.monotonic_ms = fk_monotonic; f.monotonic = -1;
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Clock && f.connects == 0);
+		f.monotonic = 9223372036854775000LL; f.mono_read_ms = -1000;
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Clock && f.closes == 1);
+	}
+	{ // Regression above the attempt start is still an invalid monotonic clock.
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f);
+		n.monotonic_ms = [](Net &net) -> long long {
+			int reads = F(net)->reads;
+			return reads == 0 ? 1000 : reads == 1 ? 2000 : 1500;
+		};
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Clock);
+		CHECK(f.closes == 1 && n.budget == nullptr);
+	}
+	{ // The actual OS9 active clock crosses TickCount wrap, credits menu holds, and resumes deadlines.
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1;
+		f.use_active = true; f.pause_reads = true;
+		Net n = make_net(&f);
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).ok());
+		f.pause_reads = false;
+		CHECK(fetch_once(n, "h", "80", false, "/", o, buf, sizeof buf, &body).err == Err::Timeout);
+	}
+	{ // TLS handshake raw I/O is subject to the same deadline and preserves the error.
+		Fake f; f.steps[0] = {okay(), kGood, Err::Ok}; f.nsteps = 1; f.mono_read_ms = 1000;
+		Net n = make_net(&f);
+		n.tls_open = [](Net &, Io &raw, const char *, Io *) -> Status {
+			char b[1]; while (raw.read(raw, b, sizeof b) > 0) {}
+			return raw.err == Err::Ok ? make(Err::Tls, "test handshake unexpectedly reached EOF") : make(raw.err, raw.msg);
+		};
+		CHECK(fetch_once(n, "h", "443", true, "/", o, buf, sizeof buf, &body).err == Err::Timeout && f.closes == 1);
+	}
 	{ // backoff doubles but is capped (default 30 s): a long run of attempts never sleeps for hours or overflows a 32-bit long
 		Fake f; f.steps[0] = {okay(), k500, Err::Ok}; f.nsteps = 1;
 		Net n = make_net(&f);
@@ -261,6 +376,15 @@ static void test_fetch()
 		FetchOpts tight = o; tight.attempts = 4; tight.backoff_ms = 5000; tight.max_backoff_ms = 1000;   // a first delay above the cap is capped too
 		fetch_retry(gn, "h", "80", false, "/", tight, buf, sizeof buf, &body);
 		CHECK(g.nsleeps == 3 && g.sleeps[0] == 1000 && g.sleeps[1] == 1000 && g.sleeps[2] == 1000);
+	}
+	{ // The complete response can fill the buffer, but the next byte must not fit.
+		Fake f; f.steps[0]={okay(),kGood,Err::Ok}; f.nsteps=1;
+		Net n=make_net(&f); size_t size=std::strlen(kGood);
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,size,&body).ok());
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,size-1,&body).err==Err::BadData);
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,0,&body).err==Err::BadData);
+		f.steps[0].read_err=Err::Timeout;
+		CHECK(fetch_once(n,"h","80",false,"/",o,buf,size,&body).err==Err::Timeout);
 	}
 	{ // chunked response: refused, not retried
 		Fake f; f.steps[0] = {okay(), kChunked, Err::Ok}; f.nsteps = 1;
@@ -344,13 +468,40 @@ static void test_fallback()
 		Fake f; f.steps[0] = {make(Err::Connect, "refused"), "", Err::Ok}; f.nsteps = 1;
 		Net n = make_net(&f);
 		Status s = fetch_forecast(n, two, 2, q, o, buf, sizeof buf, &out);
-		CHECK(s.err == Err::NoSource && s.detail == 2);
+		CHECK(s.err == Err::Connect && !strcmp(s.msg, "refused"));
 	}
 	{ // single source: the real error comes through (so the exit code is meaningful)
 		Fake f; f.steps[0] = {make(Err::Connect, "refused"), "", Err::Ok}; f.nsteps = 1;
 		Net n = make_net(&f);
 		Status s = fetch_forecast(n, two, 1, q, o, buf, sizeof buf, &out);
 		CHECK(s.err == Err::Connect);
+	}
+	{ // Multiple sources preserve the last attempted cause and its detail.
+		const Err errors[] = {Err::CertUntrusted, Err::Clock, Err::Dns, Err::Timeout, Err::Io};
+		for (Err error : errors) {
+			Fake f;
+			f.steps[0] = {make(Err::Connect, "first failure", 11), "", Err::Ok};
+			f.steps[1] = {make(error, "last failure", 42), "", Err::Ok};
+			f.nsteps = 2;
+			Net n = make_net(&f);
+			Status s = fetch_forecast(n, two, 2, q, o, buf, sizeof buf, &out);
+			CHECK(s.err == error && s.detail == 42 && !strcmp(s.msg, "last failure"));
+			CHECK(f.connects == 2 && exit_code(s.err) == exit_code(error));
+		}
+	}
+	{ // A source skipped for missing contact must not hide an actual failure.
+		const Provider *mixed[] = {&kOpenMeteo, &kMetNo};
+		Fake f; f.steps[0] = {make(Err::CertUntrusted, "certificate rejected", 62), "", Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f);
+		Status s = fetch_forecast(n, mixed, 2, q, o, buf, sizeof buf, &out);
+		CHECK(s.err == Err::CertUntrusted && s.detail == 62 && f.connects == 2);
+	}
+	{ // Cancellation stops fallback and keeps the cancellation status.
+		Fake f; f.steps[0] = {make(Err::Cancelled, "cancelled", 7), "", Err::Ok}; f.nsteps = 1;
+		Net n = make_net(&f);
+		Status s = fetch_forecast(n, two, 2, q, o, buf, sizeof buf, &out);
+		CHECK(s.err == Err::Cancelled && s.detail == 7 && f.connects == 1);
+		CHECK(fetch_forecast(n, two, 0, q, o, buf, sizeof buf, &out).err == Err::NoSource);
 	}
 	CHECK(exit_code(Err::Dns) == 68 && exit_code(Err::Timeout) == 75 && exit_code(Err::Usage) == 64);
 	CHECK(retryable(make(Err::HttpStatus, "", 503)) && !retryable(make(Err::HttpStatus, "", 404)));
@@ -421,10 +572,12 @@ static void test_posix_net()
 	char buf[64];
 	{ // yield can cancel a blocked read quickly
 		Net n; posix_net_init(&n);
-		n.yield = count_yield; g_yields = 0; g_cancel_at = 3;
+		n.yield = count_yield; g_yields = 0; g_cancel_at = 0;
 		Io io;
 		Status s = n.connect(n, "127.0.0.1", portstr, 10, &io);
 		CHECK(s.ok());
+		if (!s.ok()) { close(ls); return; }
+		g_yields = 0; g_cancel_at = 3; // count only the blocked read, not connection setup
 		long long t0 = now_ms();
 		long r = io.read(io, buf, sizeof buf);
 		long long took = now_ms() - t0;
@@ -450,6 +603,24 @@ static void test_posix_net()
 		long r = io.read(io, buf, sizeof buf);
 		CHECK(r < 0 && io.err == Err::Timeout && g_yields >= 10);
 		n.close(n, io);
+	}
+	{ // A shorter whole-attempt budget reaches the real silent socket wait.
+		int silent_port = 0;
+		int silent = listen_local(&silent_port);
+		CHECK(silent >= 0);
+		if (silent >= 0) {
+			char service[16], response[4096];
+			snprintf(service, sizeof service, "%d", silent_port);
+			Net n; posix_net_init(&n);
+			FetchOpts opts; opts.timeout_s = 10; opts.deadline_s = 1;
+			sv body;
+			long long began = now_ms();
+			Status status = fetch_once(n, "127.0.0.1", service, false, "/", opts, response, sizeof response, &body);
+			long long elapsed = now_ms() - began;
+			CHECK(status.err == Err::Timeout && elapsed >= 900 && elapsed < 3000);
+			CHECK(n.budget == nullptr);
+			close(silent);
+		}
 	}
 	{ // sleep: completes, or stops when yield cancels
 		Net n; posix_net_init(&n);
@@ -481,7 +652,11 @@ static void test_posix_net()
 		unsetenv("WEATHER_NOW");
 		CHECK(n.now(n) > kMinSaneTime);
 		setenv("WEATHER_NOW", "4102444800", 1);
+		#ifdef WEATHER_TEST_HOOKS
 		CHECK(n.now(n) == 4102444800LL);
+#else
+		CHECK(n.now(n) != 4102444800LL && n.now(n) > kMinSaneTime);
+#endif
 		unsetenv("WEATHER_NOW");
 	}
 	CHECK(unix_to_br_time(1790000000LL).days == 719528 + 1790000000LL / 86400);
@@ -609,6 +784,39 @@ static void test_settings_store()
 	struct stat sb;
 	CHECK(stat(path, &sb) == 0 && (sb.st_mode & 0777) == 0600);
 
+	// Replacement must preserve the existing mode even under a restrictive umask.
+	CHECK(chmod(path, 0644) == 0);
+	mode_t previous_mask = umask(0077);
+	Status mode_save = settings_save(st.base, c);
+	umask(previous_mask);
+	CHECK(mode_save.ok());
+	CHECK(stat(path, &sb) == 0 && (sb.st_mode & 0777) == 0644);
+
+	// Near the fixed text limit, successful rewrites remain loadable and repeatable.
+	char large[4096], saved[4096];
+	const char *owned = "latitude = 59.9100\nlongitude = 10.7500\nname = Oslo\nunits = metric\n";
+	size_t owned_n = strlen(owned);
+	memset(large, 'x', 4094);
+	large[0] = '#'; large[4094 - owned_n - 1] = '\n';
+	memcpy(large + 4094 - owned_n, owned, owned_n);
+	large[4094] = 0;
+	f = fopen(path, "wb"); CHECK(f != nullptr);
+	if (f) { CHECK(fwrite(large, 1, 4094, f) == 4094); fclose(f); }
+	CHECK(settings_save(st.base, c).ok());
+	CHECK(slurp(path, saved, sizeof saved) && !strcmp(saved, large));
+	CHECK(settings_save(st.base, c).ok());
+	CHECK(st.base.load(st.base, saved, sizeof saved, &n).ok() && n == 4094);
+
+	// A smaller input can grow past the limit when missing keys are appended.
+	// Refuse clearly, preserving every byte and leaving no temporary files.
+	memset(large, 'x', 4090); large[0] = '#'; large[4090] = 0;
+	f = fopen(path, "wb"); CHECK(f != nullptr);
+	if (f) { CHECK(fwrite(large, 1, 4090, f) == 4090); fclose(f); }
+	Status too_big = settings_save(st.base, c);
+	CHECK(too_big.err == Err::Config && !strcmp(too_big.msg, "settings file too large"));
+	CHECK(slurp(path, saved, sizeof saved) && !strcmp(saved, large));
+	CHECK(count_entries(dir) == 1);
+
 	// a symlinked dotfile stays a symlink and the real file is updated
 	char real[300], link[300];
 	snprintf(real, sizeof real, "%s/real", dir);
@@ -621,6 +829,24 @@ static void test_settings_store()
 	struct stat lsb;
 	CHECK(lstat(link, &lsb) == 0 && S_ISLNK(lsb.st_mode));
 	CHECK(slurp(real, text, sizeof text) && strstr(text, "name = Oslo") != nullptr);
+
+	// Atomic replacement must not bypass the existing file's protection or split links.
+	CHECK(chmod(real, 0444) == 0);
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	CHECK(stat(real, &sb) == 0 && (sb.st_mode & 0777) == 0444);
+	CHECK(chmod(real, 0600) == 0);
+	char alias[300];
+	snprintf(alias, sizeof alias, "%s/alias", dir);
+	CHECK(::link(real, alias) == 0);
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	struct stat asb;
+	CHECK(stat(real, &sb) == 0 && stat(alias, &asb) == 0 && sb.st_ino == asb.st_ino && sb.st_nlink == 2);
+	CHECK(unlink(alias) == 0);
+	CHECK(unlink(real) == 0); // the dotfile is now a dangling symlink
+	CHECK(posix_settings_init(&ls, link, false).ok());
+	CHECK(settings_save(ls.base, c).err == Err::Io);
+	CHECK(lstat(link, &lsb) == 0 && S_ISLNK(lsb.st_mode));
+	CHECK(stat(real, &sb) != 0 && errno == ENOENT);
 
 	// a directory we cannot write to: a clean Io error, original untouched
 	if (geteuid() != 0) {
@@ -650,8 +876,69 @@ static Forecast some_forecast(long t10)
 	return f;
 }
 
+// Record conservative primitive extents, including round line caps.
+struct ArtBounds {
+	ArtRect area;
+	bool valid = true;
+	int calls = 0;
+	void box(int x0, int y0, int x1, int y1) {
+		calls++;
+		if (x0 < area.x || y0 < area.y || x1 > area.x + area.w || y1 > area.y + area.h) valid = false;
+	}
+	void rect(int x, int y, int w, int h, Rgb) { box(x, y, x + w, y + h); }
+	void disc(int x, int y, int r, Rgb) { box(x - r, y - r, x + r, y + r); }
+	void line(int x, int y, int xx, int yy, int width, Rgb) {
+		int pad = (width + 1) / 2;
+		box((x < xx ? x : xx) - pad, (y < yy ? y : yy) - pad,
+		    (x > xx ? x : xx) + pad, (y > yy ? y : yy) + pad);
+	}
+	void poly(const ArtPt *p, int n, Rgb) { for (int i = 0; i < n; i++) box(p[i].x, p[i].y, p[i].x, p[i].y); }
+};
+static void test_art_bounds()
+{
+	const ArtRect areas[] = {{0, 0, 60, 60}, {9, 11, 60, 90}, {-9, -11, 90, 60},
+	    {0, 0, 100, 100}, {8, 12, 160, 120}, {0, 0, 16, 16},
+	    {0, 0, 5, 5}, {0, 0, 4, 4}, {0, 0, 1, 1}};
+	for (ArtRect area : areas) {
+		int failures = 0;
+		for (long code = -1; code <= 99; code++) for (int night = 0; night < 2; night++) {
+			ArtBounds canvas{area};
+			art::picture(canvas, area, code, night != 0);
+			if (!canvas.valid || canvas.calls == 0) failures++;
+		}
+		if (failures) printf("art bounds: %dx%d at %d,%d: %d of 202 scenes failed\n", area.w, area.h, area.x, area.y, failures);
+		CHECK(failures == 0);
+	}
+	const ArtRect empty[] = {{0, 0, 0, 60}, {0, 0, 60, 0}, {0, 0, -1, 60}};
+	for (ArtRect area : empty) {
+		ArtBounds canvas{area}; art::picture(canvas, area, 0, false);
+		CHECK(canvas.calls == 0);
+	}
+}
+
 static void test_model()
 {
+	{ // Rounding at the minute/hour boundary must not produce "60 min".
+		struct DurationCase { long seconds; const char *text; };
+		const DurationCase cases[] = {
+			{0, "0 s"}, {59, "59 s"}, {60, "1 min"}, {89, "1 min"},
+			{90, "2 min"}, {3540, "59 min"}, {3569, "59 min"},
+			{3570, "1 h"}, {3599, "1 h"}, {3600, "1 h"},
+			{3659, "1 h"}, {3660, "1 h 1 min"}, {7199, "1 h 59 min"}, {7200, "2 h"}
+		};
+		for (const DurationCase &c : cases) {
+			Buf<64> text;
+			Model::add_dur(text, c.seconds);
+			CHECK(text.view() == sv(c.text));
+		}
+		ModelConfig hourly; hourly.interval_s = 3600;
+		Model model(hourly, 0);
+		CHECK(model.tick(0));
+		Forecast forecast = some_forecast(100);
+		model.finish(0, okay(), &forecast);
+		Buf<128> status; model.status_line(status, 30);
+		CHECK(status.view() == sv("Updated 30 s ago. Next update in 1 h"));
+	}
 	ModelConfig mc;                    // 15 min interval, 60 s backoff base
 	{ // first tick fetches; no second fetch while one is running; refresh during a fetch is ignored
 		Model m(mc, 0);
@@ -759,7 +1046,42 @@ static void test_model()
 		CHECK(m.tick(100001));
 		m.finish(100002, okay(), &f);
 		m.set_auto_refresh(true, 100003);
-		CHECK(m.seconds_until_refresh(100003) == 900);
+		CHECK(m.seconds_until_refresh(100003) == 899);
+	}
+	{ // resuming automatic updates keeps the original deadline, even when overdue
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		m.set_auto_refresh(false, 1);
+		CHECK(!m.tick(7200));
+		m.set_auto_refresh(true, 7200);
+		CHECK(m.seconds_until_refresh(7200) == 0 && m.next_refresh_at() == 900);
+		CHECK(m.tick(7200) && !m.tick(7200));
+	}
+	{ // toggles and repeated enable calls cannot postpone a pending failure retry
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		m.finish(0, fail_dns(), nullptr);
+		m.set_auto_refresh(false, 5);
+		m.set_auto_refresh(true, 6);
+		m.set_auto_refresh(true, 7);
+		CHECK(m.next_refresh_at() == 60 && !m.tick(59) && m.tick(60));
+		m.finish(60, fail_dns(), nullptr);
+		m.set_auto_refresh(false, 61);
+		CHECK(!m.tick(200));
+		m.set_auto_refresh(true, 200);
+		CHECK(m.tick(200));
+	}
+	{ // toggling during a fetch neither starts another nor changes its completion schedule
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		m.set_auto_refresh(false, 1);
+		m.set_auto_refresh(true, 2);
+		CHECK(!m.tick(3));
+		Forecast f = some_forecast(548);
+		m.finish(4, okay(), &f);
+		CHECK(m.next_refresh_at() == 904 && !m.tick(903) && m.tick(904));
 	}
 	{ // the clock jumped back by years: the next refresh is not postponed that long
 		Model m(mc, 1000000);
@@ -816,6 +1138,28 @@ static void test_model()
 		m.finish(0, okay(), &f);
 		m.location_changed();
 		CHECK(!m.has_forecast() && m.tick(1));
+	}
+	{ // a cancelled manual retry preserves the failed forecast and retry count
+		Model m(mc, 0);
+		CHECK(m.tick(0));
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		CHECK(m.tick(900));
+		m.finish(900, fail_dns(), nullptr);
+		m.request_refresh();
+		CHECK(!m.tick(901));             // within the 5 s manual floor
+		m.request_refresh();
+		CHECK(m.tick(905));
+		m.finish(906, make(Err::Cancelled, "cancelled"), nullptr);
+		CHECK(m.phase() == Phase::Failed && m.has_forecast() && m.failures() == 1);
+		CHECK(m.last_error().err == Err::Dns && m.next_refresh_at() == 1806);
+		m.location_changed();
+		CHECK(!m.has_forecast() && m.failures() == 0 && m.phase() == Phase::Idle);
+		CHECK(m.tick(903));
+		m.location_changed();
+		m.finish(904, fail_dns(), nullptr); // discard failure about the previous location too
+		CHECK(m.phase() == Phase::Idle && !m.has_forecast() && m.failures() == 0);
+		CHECK(m.tick(904));
 	}
 	{ // status text
 		Model m(mc, 0);
@@ -967,7 +1311,7 @@ static void test_metno()
 		Fake fk; fk.steps[0] = {okay(), kGood, Err::Ok}; fk.nsteps = 1;
 		Net n = make_net(&fk);
 		Status r = fetch_forecast(n, only, 1, lq, o, buf, sizeof buf, &out);
-		CHECK(r.err == Err::Config && fk.connects == 0);
+		CHECK(!r.ok() && r.err != Err::Config && fk.connects == 1);
 	}
 	static char metresp[4096];
 	snprintf(metresp, sizeof metresp, "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n%s", fixture(1, "metno-ok.json"));
@@ -995,7 +1339,7 @@ static void test_metno()
 		Fake fk; fk.steps[0] = {okay(), omresp, Err::Ok}; fk.nsteps = 1;
 		Net n = make_net(&fk);
 		Status r = fetch_forecast(n, two, 2, lq, o2, buf, sizeof buf, &out);
-		CHECK(r.ok() && !strcmp(out.source, "open-meteo") && fk.connects == 1);
+		CHECK(r.ok() && !strcmp(out.source, "open-meteo") && fk.connects == 2);
 	}
 	// config key
 	Config c;
@@ -1029,8 +1373,43 @@ struct DnsFake {
 	int close() { ++closes; return close_error; }
 };
 
+static Net dns_budget_net(DnsFake &f)
+{
+	Net n; n.ctx = &f;
+	n.monotonic_ms = [](Net &net) -> long long { return static_cast<DnsFake *>(net.ctx)->clock * 1000LL / 60; };
+	return n;
+}
 static void test_os9_dns()
 {
+	{ // A shorter attempt deadline stops a pending query and closes its provider.
+	  DnsFake f; f.query_delay = 100; DnsResolver<DnsFake> r(f);
+	  Net n = dns_budget_net(f); const TimeBudget b{0, 100}; n.budget = &b;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Timeout);
+	  CHECK(f.clock == 6 && f.closes == 1); }
+	{ // Expired async open retains callback storage, then drains under a fresh budget.
+	  DnsFake f; f.open_delay = 100; DnsResolver<DnsFake> r(f);
+	  Net n = dns_budget_net(f); const TimeBudget b{0, 100}; n.budget = &b;
+	  CHECK(r.resolve("first", 60, &n).err == Err::Timeout);
+	  CHECK(f.clock == 6 && f.closes == 0 && f.opens == 1);
+	  f.open_delay = 6; const TimeBudget fresh{100, 1000}; n.budget = &fresh;
+	  CHECK(r.resolve("second", 60, &n).ok());
+	  CHECK(f.opens == 2 && f.queries == 1 && f.closes == 2); }
+	{ // Fail closed before open when budget clock is absent or regressed.
+	  DnsFake f; DnsResolver<DnsFake> r(f); Net n;
+	  const TimeBudget b{100, 100}; n.budget = &b;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Clock && f.opens == 0);
+	  n.monotonic_ms = [](Net &) -> long long { return 99; };
+	  CHECK(r.resolve("h", 60, &n).err == Err::Clock && f.opens == 0); }
+	{ // Cancellation precedes a simultaneous expired outer budget.
+	  DnsFake f; f.cancel_at = 1; DnsResolver<DnsFake> r(f);
+	  Net n = dns_budget_net(f); const TimeBudget b{0, 0}; n.budget = &b;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Cancelled && f.opens == 0);
+	  f.cancel_at = 0;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Timeout && f.opens == 0); }
+	{ // The outer budget wins over completion at the exact same instant.
+	  DnsFake f; f.query_delay = 6; DnsResolver<DnsFake> r(f);
+	  Net n = dns_budget_net(f); const TimeBudget b{0, 100}; n.budget = &b;
+	  CHECK(r.resolve("h", 60, &n).err == Err::Timeout && f.closes == 1); }
 	{ DnsFake f; DnsResolver<DnsFake> r(f);
 	  CHECK(r.resolve("h", 60).ok()); CHECK(f.opens == 1 && f.queries == 1 && f.closes == 1); }
 	{ DnsFake f; f.open_delay = 6; f.query_delay = 9; DnsResolver<DnsFake> r(f);
@@ -1197,6 +1576,8 @@ static void test_credits()
 	}
 }
 
+#include "conditional_tests.hpp"
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -1209,15 +1590,21 @@ int main()
 	test_settings_text();
 	test_settings_store();
 	test_model();
+	test_art_bounds();
 	test_credits();
 	test_window_actions();
 	test_config_load();
 	test_preferences();
+	test_preference_effects();
 	test_modal_clock();
 	test_forms();
 	test_metno();
 	test_os9_dns();
 	test_seed_pool();
+	test_conditional_requests();
+	test_cache_codec();
+	test_cache_storage();
+	test_cache_model();
 	test_os9_helpers();
 	printf("%d checks, %d failed\n", g_run, g_fail);
 	return g_fail ? 1 : 0;

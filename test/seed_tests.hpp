@@ -26,6 +26,35 @@ struct SeedFake {
 static void test_seed_pool()
 {
 	unsigned char out[64], first[64];
+	{ // A valid checksum does not make a zero-filled seed usable.
+	  unsigned char zero[32] = {}, record[wx::kSeedRecordSize], decoded[32];
+	  wx::seed_encode(zero, record);
+	  std::memset(decoded, 0xA5, sizeof decoded);
+	  CHECK(!wx::seed_decode(record, sizeof record, decoded));
+	  bool untouched = true;
+	  for (unsigned char c : decoded) untouched = untouched && c == 0xA5;
+	  CHECK(untouched);
+	  // The check covers all32 bytes without requiring every byte to be nonzero.
+	  for (size_t i = 0; i < sizeof zero; ++i) {
+		zero[i] = 0x80;
+		wx::seed_encode(zero, record);
+		CHECK(wx::seed_decode(record, sizeof record, decoded));
+		CHECK(std::memcmp(zero, decoded, sizeof zero) == 0);
+		zero[i] = 0;
+	  }
+	}
+	{ // Supplemental input cannot promote a refused record into a usable seed.
+	  SeedFake f;
+	  unsigned char zero[32] = {}, extra[] = {1, 2, 3};
+	  wx::seed_encode(zero, f.disk);
+	  wx::SeedPool<SeedFake> pool(f);
+	  std::memset(out, 0xA5, sizeof out);
+	  CHECK(!pool.fill(out, sizeof out, extra, sizeof extra));
+	  bool untouched = true;
+	  for (unsigned char c : out) untouched = untouched && c == 0xA5;
+	  CHECK(untouched && !f.locked && f.saves == 0);
+	  CHECK(!pool.fill(out, sizeof out));
+	}
 	{ SeedFake f; unsigned char seed[32];
 	  CHECK(wx::seed_decode(f.disk, f.len, seed));
 	  for (size_t n = 0; n < wx::kSeedRecordSize; ++n) CHECK(!wx::seed_decode(f.disk, n, seed));
@@ -53,6 +82,40 @@ static void test_seed_pool()
 	{ SeedFake a, b; wx::SeedPool<SeedFake> one(a), two(b);
 	  CHECK(one.fill(first, sizeof first) && two.fill(out, sizeof out));
 	  CHECK(std::memcmp(first, out, sizeof out) == 0); // reproducibility, not an entropy claim
+	  CHECK(one.shutdown() && two.shutdown());
+	}
+	{ // The persisted successor is never the first bytes released to TLS.
+	  SeedFake f; wx::SeedPool<SeedFake> pool(f);
+	  unsigned char successor[32] = {};
+	  CHECK(pool.fill(out, sizeof out));
+	  CHECK(wx::seed_decode(f.disk, f.len, successor));
+	  CHECK(std::memcmp(successor, out, sizeof successor) != 0);
+	  wx::secret_clear(successor, sizeof successor);
+	  CHECK(pool.shutdown());
+	}
+	{ // Supplemental input before the first request changes both successor and output.
+	  SeedFake a, b, same;
+	  wx::SeedPool<SeedFake> one(a), two(b), repeat(same);
+	  const unsigned char extra_a[] = {1, 3, 5, 7}, extra_b[] = {1, 3, 5, 8};
+	  unsigned char repeated[64];
+	  CHECK(one.fill(first, sizeof first, extra_a, sizeof extra_a));
+	  CHECK(two.fill(out, sizeof out, extra_b, sizeof extra_b));
+	  CHECK(repeat.fill(repeated, sizeof repeated, extra_a, sizeof extra_a));
+	  CHECK(std::memcmp(first, out, sizeof out) != 0);
+	  CHECK(std::memcmp(a.disk, b.disk, wx::kSeedRecordSize) != 0);
+	  CHECK(std::memcmp(first, repeated, sizeof first) == 0);
+	  CHECK(std::memcmp(a.disk, same.disk, wx::kSeedRecordSize) == 0);
+	  CHECK(one.shutdown() && two.shutdown() && repeat.shutdown());
+	}
+	{ // Supplemental input on a later request changes the stream without another disk rotation.
+	  SeedFake a, b;
+	  wx::SeedPool<SeedFake> one(a), two(b);
+	  CHECK(one.fill(first, sizeof first) && two.fill(out, sizeof out));
+	  CHECK(std::memcmp(first, out, sizeof out) == 0);
+	  const unsigned char extra[] = {2, 4, 6, 8};
+	  CHECK(one.fill(first, sizeof first, extra, sizeof extra) && two.fill(out, sizeof out));
+	  CHECK(std::memcmp(first, out, sizeof out) != 0);
+	  CHECK(a.saves == 1 && b.saves == 1 && std::memcmp(a.disk, b.disk, wx::kSeedRecordSize) == 0);
 	  CHECK(one.shutdown() && two.shutdown());
 	}
 	{ SeedFake f; wx::SeedPool<SeedFake> one(f), two(f);

@@ -69,3 +69,37 @@ non-root mounts lacked the matching per-container SELinux label and could not
 read fixtures; no tests ran in those attempts. No host permissions were changed.
 No actual NetBSD or OS9 hardware run was performed for this CI-only refresh.
 Hosted verification will rerun at the new PR head.
+
+## Refresh against main, 2026-10-28
+
+Merged main ef25f333 (including #154), preserving both check-ppc and the current
+production/test-hook, connection-budget, cache, entropy and GUI host gates.
+The added workflow job uses the current pinned actions, retains read-only
+permissions and per-main-commit concurrency, and now follows the repository
+package-install policy: retries, bounded network timeouts, a step timeout and
+--no-install-recommends.
+
+One explicit non-root container run (uid/gid 1000, read-only source mount)
+executed the expected ABI probe (bytes=1,2,3,4; long=4; pointer=4), all 1868 unit
+checks, and 426598 mutation inputs with zero failures. The host ABI probe
+reported bytes=4,3,2,1; long=8; pointer=8 and correctly returned failure.
+
+Initial --userns keep-id alone retained the image's root user and ran 1865 units
+(three permission checks skipped). An overlapping container changed the private
+SELinux mount label, causing that first mutation run to fail with
+"cannot read test/fixtures/metno-thunder-sleet.json". The final run uses a single
+container, explicit --user 1000:1000 and one stable read-only mount; both units
+and mutations pass. No host permission or SELinux policy was changed.
+Container-owned cross-build outputs prevented the host build from creating
+build/host (Permission denied), so host checks use a separate source/output copy.
+This is Linux/PPC user-mode emulation; no NetBSD or OS 9 execution is claimed.
+Logs: /tmp/weather-pr19-{ppc,ppc-nonroot,ppc-final,host-check}.log.
+Full host/sanitizer results follow below.
+
+Final host check and ASan/UBSan suites passed: 1868 unit checks per production/
+test-hook mode, 426598 mutation inputs, 129 CLI checks per mode, 34 connection-
+budget checks, 28 local TLS, 95 CDE text, 19 field and 55 serialized GUI checks.
+Source copies were byte-compared for every implementation change before host
+verification; only this evidence text differs. Repository policy and whitespace
+checks relative to main passed. No runtime source changes were required.
+Host sanitizer log: /tmp/weather-pr19-host-san.log.

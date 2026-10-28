@@ -1,0 +1,42 @@
+Issue #53 C5: preserve cause when multiple sources fail
+
+Policy: successful fallback wins. Otherwise return the last attempted source's
+Status unchanged (kind, static message, detail), preserving its CLI exit status.
+Sources skipped for missing contact or an unbuildable request path do not hide
+an attempted source's failure. If none was attempted, return the last skip;
+empty lists return NoSource. Cancellation stops immediately. This does not
+aggregate every failure; earlier causes remain warning-level diagnostics.
+No dynamic storage, new parser path or Status layout change is introduced.
+
+Red: 530 unit checks, 12 failed before core change. Four new CLI assertions
+also failed: -q multi-source HTTP500/404 returned generic NoSource/69 instead
+of the underlying HTTP error/76. The initial CLI red run also hit the existing
+debug-dump check because it used a stale previously built branch binary; that
+extra failure is not attributed to the cause-reporting change.
+
+Tests cover differing first/last failures, cert/clock/DNS/timeout/I/O status and
+detail propagation, skipping MET without contact after certificate rejection,
+empty list, cancellation, and existing successful fallback. Local fixture CLI
+tests prove final diagnostic visibility and HTTP exit code with -q, with and
+without a later skipped source. The bounded dump fix and its regression remain.
+DNS SIGINT interruption (C6) is still outstanding under #72. Tiger is parked.
+
+Verified: make check (530 unit, 230242 mutation inputs, 111 CLI, 12 local TLS,
+21 serialized GUI); make check-san explicitly enabled ASan+UBSan (530/230242/
+111); full OS 9 cross-build, with core/fetch.cpp rebuilt into Weather. No OS 9
+runtime claim. Logs: /tmp/weather-causes-{check,san,os9}.log.
+
+Actual NetBSD/macppc G4: 530 unit and 86242 mutation inputs, status=0, from
+Linux cross-built binaries. The first quiet CLI capture failed a string check:
+SSH delivered stderr and stdout separately, interleaving the message and the
+status marker ("weather: http: server returned an error statusstatus=76\n
+ (detail 500)"). Corrected the disposable test driver to merge streams on the
+remote side before SSH. This is a harness correction, not a product change.
+Original output retained in /tmp/weather-causes-hardware-initial.log; the
+initial private remote fixture directory was explicitly cleaned up.
+
+Corrected G4 CLI run: both cases passed. With two attempted sources and with
+a later source skipped for missing contact, -q printed the full HTTP500 cause
+and exited76. Test used an authenticated fail-closed SSH forwarding connection
+to a laptop-only HTTP fixture, no external service. Its private remote files
+and local server were removed. Output /tmp/weather-causes-hardware.log.
