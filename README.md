@@ -4,7 +4,7 @@
 
 *A little weather application for old computers.*
 
-What It Be Like? brings live weather forecasts to classic Macintosh and NetBSD systems.
+What It Be Like? brings live weather forecasts to classic Macintosh and Unix-like systems.
 It connects directly to weather services over HTTPS, displays conditions in native
 interfaces, and can save the last forecast for use when the network is unavailable.
 The programs share a portable C++17 core with separate operating-system interfaces:
@@ -13,8 +13,10 @@ The programs share a portable C++17 core with separate operating-system interfac
 - **xweather** — a CDE-inspired X11 weather window for NetBSD, implemented in plain Xlib.
 - **weather** — a Unix command-line client.
 
-The project is developed and tested on a Power Mac G4 running NetBSD/macppc,
-Mac OS 9.2.2 and Mac OS X 10.4 Tiger's Classic environment.
+The native CLI also builds and runs on Linux and modern macOS, but the project's
+Unix package is currently built for **NetBSD/macppc only**. Development and hardware
+acceptance focus on a Power Mac G4 running NetBSD/macppc, Mac OS 9.2.2 and
+Mac OS X 10.4 Tiger's Classic environment.
 
 **Download:** [v0.0.1 prerelease](https://github.com/jackwillis/weather/releases/tag/v0.0.1)
 ([release notes](docs/release-notes/0.0.1.md)). This early release primarily
@@ -27,7 +29,9 @@ for the remaining acceptance work.
 
 | Platform | Application | Current evidence |
 | --- | --- | --- |
-| NetBSD/macppc on Power Mac G4 | `weather`, `xweather` | Live CLI and X11/Xvfb hardware tests; real-display review of xweather remains open (#70). |
+| NetBSD/macppc on Power Mac G4 | `weather`, `xweather` | Currently packaged Unix target; live CLI and X11/Xvfb hardware tests; real-display review of xweather remains open (#70). |
+| Linux | `weather` (native build); `xweather` when X11 dependencies are available | Builds and runs from source; no Linux distribution package supplied. |
+| Modern macOS | `weather` (native build) | Builds and runs from source; no macOS application package supplied. |
 | Mac OS 9.2.2 (native) | `Weather` | Owner-observed working production application across restart; full native acceptance remains open (#102). |
 | Mac OS 9 under Tiger Classic | `Weather` | Live verified-TLS fetches, window diagnostic and cache-recovery tests passed; remaining lifecycle and Preferences checks are tracked. |
 
