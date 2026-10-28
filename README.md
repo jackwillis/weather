@@ -31,7 +31,7 @@ for the remaining acceptance work.
 | --- | --- | --- |
 | NetBSD/macppc on Power Mac G4 | `weather`, `xweather` | Currently packaged Unix target; live CLI and X11/Xvfb hardware tests; real-display review of xweather remains open (#70). |
 | Linux | `weather` (native build); `xweather` when X11 dependencies are available | Builds and runs from source; no Linux distribution package supplied. |
-| Modern macOS | `weather` (native build) | Builds and runs from source; no macOS application package supplied. |
+| Modern macOS | `weather` (native build); `xweather` prospective via XQuartz | CLI builds and runs from source; X11 GUI build/runtime on XQuartz has **not yet been verified** ([#171](https://github.com/jackwillis/weather/issues/171)). No macOS package supplied. |
 | Mac OS 9.2.2 (native) | `Weather` | Owner-observed working production application across restart; full native acceptance remains open (#102). |
 | Mac OS 9 under Tiger Classic | `Weather` | Live verified-TLS fetches, window diagnostic and cache-recovery tests passed; remaining lifecycle and Preferences checks are tracked. |
 
@@ -68,7 +68,7 @@ For project goals and technical detail, see [docs/PLAN.md](docs/PLAN.md),
 A CDE-look window: menu bar (File: Refresh F5, Location... Ctrl+L, Exit Ctrl+Q; Options: auto-refresh, units and forecast saving; Help: About xweather... > Credits...),
 a picture for the conditions (sun, moon, clouds, rain, snow, storm, fog), temperature, wind, humidity, and a status bar
 ("Updated 5 min ago / Next update in 10 min"; after a failure it keeps showing the last good data, marked as stale).
-It shares `~/.weatherrc` with `weather`. Closing the window during a fetch cancels it. X resources (xrdb):
+It shares `~/.weatherrc` with `weather`. Closing the window during a fetch cancels it. On modern macOS, XQuartz may provide an X11 server and development libraries, but `xweather` compatibility has not yet been verified; see [#171](https://github.com/jackwillis/weather/issues/171). X resources (xrdb):
 `xweather.background`, `.foreground`, `.font`, `.boldFont`, `.bigFont`.
 
 ## Use
