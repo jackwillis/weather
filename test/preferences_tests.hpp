@@ -31,7 +31,7 @@ static void test_preferences()
     CHECK(!strcmp(cfg.providers, "met-no") && prefs.writes == 0);
     strcpy(prefs.text, "latitude=3\n");
     CHECK(load_preferences(prefs.base, legacy.base, cfg).ok() && cfg.lat_e4 == 30000);
-    CHECK(!strcmp(cfg.providers, "open-meteo")); // Preferences is the complete source.
+    CHECK(!strcmp(cfg.providers, "open-meteo,met-no")); // Preferences is the complete source.
     strcpy(prefs.text, "latitude=4\nunits=bad\n");
     CHECK(!load_preferences(prefs.base, legacy.base, cfg).ok() && cfg.lat_e4 == 30000);
     prefs.fail_load = true;

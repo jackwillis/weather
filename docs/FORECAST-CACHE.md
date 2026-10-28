@@ -38,23 +38,22 @@ writes, check file sync/close/rename and flush the parent directory. A failure
 before rename preserves the old entry; a failure after rename leaves a complete
 new entry but reports that persistence failed. Storage failures do not turn a live
 forecast into a failure. This is checked replacement, not a physical power-loss
-or filesystem durability guarantee. Broken/unreadable cache entries never block
-live requests, and no fast retry loop is added.
+or filesystem durability guarantee. Broken entries are cache misses; unreadable cache storage skips MET to avoid discarding unknown expiry, while Open-Meteo live requests remain available, and no fast retry loop is added.
 
-## Record version 2
+## Record version 3
 
 Exactly 224 bytes; integers use big-endian order, never native struct layout:
 
 | Offset | Content |
 |---|---|
-| 0 | Eight bytes `WXFCACH2` |
+| 0 | Eight bytes `WXFCACH3` |
 | 8 | Signed 32-bit latitude and longitude, degrees times 10000 |
 | 16 | Metric flag (0/1), source ID (1 Open-Meteo, 2 MET Norway, 3 NWS), six zero bytes |
 | 24 | Nonnegative signed-range 64-bit Unix fetch time |
 | 32 | Six signed 32-bit fields: temperature tenths, humidity, wind tenths, direction, WMO code, day flag |
 | 56 | 24-byte NUL-terminated, zero-padded printable observation text |
 | 80 | 64-byte NUL-terminated, zero-padded provider selection |
-| 144 | Twelve zero reserved bytes |
+| 144 | Eight-byte UTC expiry, then four zero reserved bytes |
 | 156 | 64-byte NUL-terminated, zero-padded MET Last-Modified value |
 | 220 | IEEE CRC32 of the first 220 bytes |
 
@@ -122,7 +121,7 @@ With saving off, MET is skipped before network access, including when a contact
 is configured. Diagnostics use only an explicitly supplied cache store; a null
 test store disables persistence.
 This slice does not establish complete compliance with every MET traffic rule,
-such as request deferral until Expires.
+including redirects, compression and fleet-wide traffic behavior. Expiry deferral is implemented by #152.
 
 Reference: [MET Norway Terms of Service](https://api.met.no/doc/TermsOfService),
 Traffic and Caching sections, checked 2026-10-27.
@@ -157,3 +156,25 @@ of this run. A read-only volume and physical power-loss durability remain
 unverified. After Jack boots maul into NetBSD, run `make check-maul smoke-maul`
 and `make check-gui-maul` from the laptop, serially; these run cross-built binaries
 on maul and need no privileged install. Keep the logs as current-head evidence.
+
+## v3 server expiry and retained MET response (#152)
+Each canonical record is still 224 bytes. Bytes 144–151 now contain an unsigned big-endian UTC expiry (zero means no future freshness), bytes 152–155 remain reserved. CRC still covers bytes 0–219. v2 records are discarded as cache misses; settings and TLS seeds are unaffected.
+
+The file holds either one record or two (448 bytes): primary is the latest downloaded forecast, secondary is the matching MET response when primary is another source. New successful MET responses replace both. Open-Meteo success preserves matching MET expiry/validator. Ordinary offline display reads primary; conditional MET requests read the MET record. Reusing a server-valid MET forecast does not rewrite its fetch timestamp or extend its expiry. A 304 updates expiry from its response; missing expiry means revalidate next time. Strict bounded IMF-fixdate parsing rejects malformed/duplicate expiry headers.
+
+Owner acceptance is pending. The CacheProbe commands above exercise the two-record File Manager path after this change. NetBSD's unit suite exercises expiry and source switching with a fake network; run `make check-maul smoke-maul` serially after Jack boots NetBSD. For a production CLI test with no MET network request, stage an isolated config and a synthetic, future-expiry fixture on the laptop:
+
+```sh
+mkdir -p /tmp/weather-met152-native
+printf 'providers=met-no\ncache=on\nattempts=1\n' > /tmp/weather-met152-native/rc
+python3 test/cache_fixture.py /tmp/weather-met152-native/rc.cache
+make TARGET=netbsd-macppc all
+maulctl push nb build/netbsd-macppc/weather met152-weather
+maulctl push nb /tmp/weather-met152-native/rc met152-rc
+maulctl push nb /tmp/weather-met152-native/rc.cache met152-rc.cache
+maulctl nb '/tmp/met152-weather -v -c /tmp/met152-rc -1'
+```
+
+Expect exit zero, `MET Norway: using saved forecast until server expiry`, and `[saved; server-valid]` output; this is synthetic diagnostic data, not live weather. Keep logs. Repeat before fixture expiry; the file must remain unchanged. No personal contact is needed. For Classic, run the seed-free CacheProbe first and retain `finished: 0 failures`.
+
+Live 200/304 behavior and native window labels still need a controlled HTTPS acceptance setup and screenshot review. `-H` deliberately disables persistent cache use, so plain HTTP fixtures cannot prove native expiry behavior. No such setup or native run is claimed here. Inspect source, forecast timestamp and saved/server-valid status in both windows, and saving-off/relaunch behavior, once that acceptance is available. Never run overlapping GUI drivers or touch seed/lock files for these checks.

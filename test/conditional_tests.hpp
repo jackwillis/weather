@@ -2,7 +2,17 @@
 // Copyright (c) 2026 Jack Willis
 static void test_conditional_requests()
 {
+    Config defaults;
+    CHECK(sv(defaults.providers)=="open-meteo,met-no");
     constexpr const char *modified="Tue, 27 Oct 2026 12:00:00 GMT";
+    long long expiry=0;
+    CHECK(http_date("Tue, 27 Oct 2026 12:00:00 GMT",&expiry) && expiry==1793102400LL);
+    CHECK(http_date("Thu, 01 Jan 1970 00:00:00 GMT",&expiry) && expiry==0);
+    CHECK(!http_date("Tue, 29 Feb 2026 12:00:00 GMT",&expiry));
+    CHECK(!http_date("Tue, 27 Oct 2026 24:00:00 GMT",&expiry));
+    CHECK(!http_date("Tue, 27 Oct 2026 12:00:00 GMT trailing",&expiry));
+    CHECK(!http_parse("HTTP/1.0 200 OK\r\nExpires: bad\r\n\r\n").st.ok());
+    CHECK(!http_parse("HTTP/1.0 200 OK\r\nExpires: Tue, 27 Oct 2026 12:00:00 GMT\r\nExpires: Tue, 27 Oct 2026 12:00:00 GMT\r\n\r\n").st.ok());
     HttpResponse h=http_parse("HTTP/1.0 200 OK\r\nLast-Modified: Tue, 27 Oct 2026 12:00:00 GMT\r\n\r\n{}");
     CHECK(h.st.ok() && h.last_modified==sv(modified));
     CHECK(!http_parse("HTTP/1.0 200 OK\r\nLast-Modified: a\r\nLast-Modified: b\r\n\r\n").st.ok());
@@ -28,6 +38,13 @@ static void test_conditional_requests()
     Net net=make_net(&f); char buf[8192]; Forecast fresh;
     CHECK(fetch_forecast(net,only,1,q,opts,buf,sizeof buf,&fresh).ok());
     CHECK(!strcmp(fresh.last_modified,modified));
+    opts.contact=nullptr;
+    CHECK(fetch_forecast(net,only,1,q,opts,buf,sizeof buf,&fresh).ok());
+    CHECK(strstr(f.request,"https://github.com/jackwillis/weather")!=nullptr);
+    opts.contact="fixture.invalid";
+    CHECK(fetch_forecast(net,only,1,q,opts,buf,sizeof buf,&fresh).ok());
+    CHECK(strstr(f.request,"contact: fixture.invalid")!=nullptr);
+    CHECK(strstr(f.request,"github.com")==nullptr);
     ConditionalForecast previous{q,fresh}; opts.conditional=&previous;
     f.steps[0].response="HTTP/1.0 304 Not Modified\r\nContent-Length: 999\r\n\r\n";
     Forecast reused;
@@ -66,6 +83,26 @@ static void test_conditional_requests()
     CHECK(fetch_forecast_cached(net,only,1,q,opts,buf,sizeof buf,&reused,&store,cfg.providers).err==Err::HttpStatus);
     CHECK(strstr(f.request,"If-Modified-Since:")==nullptr);
 
+    // An unexpired MET response is reused without opening a socket; at expiry
+    // it revalidates. A 304 replaces expiry instead of extending it locally.
+    opts.force_host=nullptr; opts.conditional=&previous;
+    previous.forecast=fresh; previous.forecast.expires=f.clock+900;
+    int before=f.connects;
+    CHECK(fetch_forecast(net,only,1,q,opts,buf,sizeof buf,&reused).ok());
+    CHECK(f.connects==before && reused.expires==f.clock+900);
+    f.clock+=900;
+    f.steps[0].response="HTTP/1.0 304 Not Modified\r\nExpires: Tue, 27 Oct 2026 12:00:00 GMT\r\n\r\n";
+    CHECK(fetch_forecast(net,only,1,q,opts,buf,sizeof buf,&reused).ok());
+    CHECK(f.connects==before+1 && reused.expires==1793102400LL);
+    previous.query.lat_e4++;
+    CHECK(fetch_forecast(net,only,1,q,opts,buf,sizeof buf,&reused).err==Err::HttpStatus);
+    previous.query=q;
+    previous.forecast.expires=f.clock+86401; previous.fetched_at=f.clock-86401;
+    before=f.connects;
+    CHECK(fetch_forecast(net,only,1,q,opts,buf,sizeof buf,&reused).err==Err::NoSource);
+    CHECK(f.connects==before);
+    previous.fetched_at=-1; opts.force_host="fake";
+
     // Open-Meteo never inherits MET validators, and still parses its normal 200 body.
     const Provider *om[]={&kOpenMeteo}; opts.conditional=&previous;
     snprintf(response,sizeof response,"HTTP/1.0 200 OK\r\nLast-Modified: %s\r\n\r\n%s",modified,fixture(0,"openmeteo-ok.json"));
@@ -75,21 +112,47 @@ static void test_conditional_requests()
     // Saving defaults on; off forbids persistence for every provider.
     strcpy(cfg.providers,"open-meteo,met-no"); strcpy(cfg.contact,"fixture.invalid");
     CHECK(cfg.cache && cache_storage_needed(cfg));
-    struct Writes { unsigned count=0; unsigned char record[kForecastCacheBytes]={}; } writes;
+    struct Writes { unsigned count=0; size_t size=0; unsigned char record[2*kForecastCacheBytes]={}; } writes;
     CacheStore tracked; tracked.ctx=&writes;
     tracked.save=[](CacheStore &s,const unsigned char *bytes,size_t size) {
         auto &state=*static_cast<Writes *>(s.ctx);
-        if(size!=sizeof state.record) return make(Err::Io,"wrong fixture length");
-        memcpy(state.record,bytes,size); ++state.count; return okay();
+        if(size>sizeof state.record) return make(Err::Io,"wrong fixture length");
+        memcpy(state.record,bytes,size); state.size=size; ++state.count; return okay();
+    };
+    tracked.load=[](CacheStore &s,unsigned char *out,size_t cap,size_t *size) {
+        auto &state=*static_cast<Writes *>(s.ctx); *size=state.size;
+        if(cap<*size) return make(Err::Io,"small fixture buffer");
+        memcpy(out,state.record,*size); return okay();
     };
     CHECK(update_forecast_cache(tracked,cache_key(cfg),fresh,f.clock,cfg.cache).ok());
-    CHECK(writes.count==1 && cache_decode(writes.record,sizeof writes.record,cache_key(cfg),f.clock,&decoded));
+    CHECK(writes.count==1 && cache_decode(writes.record,kForecastCacheBytes,cache_key(cfg),f.clock,&decoded));
     CHECK(!strcmp(decoded.forecast.last_modified,modified));
-    Forecast open=fresh; open.source="open-meteo"; open.last_modified[0]=0;
+    fresh.expires=f.clock+3600;
+    CHECK(update_forecast_cache(tracked,cache_key(cfg),fresh,f.clock,cfg.cache).ok());
+    Forecast open=fresh; open.expires=0; open.source="open-meteo"; open.last_modified[0]=0;
     CHECK(update_forecast_cache(tracked,cache_key(cfg),open,f.clock,cfg.cache).ok());
-    CHECK(writes.count==2);
+    CHECK(writes.count==3);
+    // The primary remains the latest OM forecast, with MET retained separately.
+    CHECK(read_cached_met(tracked,cache_key(cfg),f.clock,&decoded).ok());
+    CHECK(decoded.forecast.expires==fresh.expires && writes.size==2*kForecastCacheBytes);
+    bool found=false;
+    CHECK(read_cached_forecast(tracked,cache_key(cfg),f.clock,&decoded,&found).ok() && found);
+    CHECK(sv(decoded.forecast.source)=="open-meteo");
+    opts.save_forecasts=true; opts.force_host=nullptr; opts.conditional=nullptr;
+    before=f.connects;
+    CHECK(fetch_forecast_cached(net,only,1,q,opts,buf,sizeof buf,&reused,&tracked,cfg.providers).ok());
+    CHECK(f.connects==before && reused.saved_valid && reused.expires==fresh.expires);
+    unsigned saved_count=writes.count;
+    CHECK(update_forecast_cache(tracked,cache_key(cfg),reused,f.clock+1,true).ok() && writes.count==saved_count);
+    Model saved_model; CHECK(saved_model.tick(f.clock)); saved_model.finish(f.clock,okay(),&reused);
+    Buf<256> status; saved_model.status_line(status,f.clock);
+    CHECK(find(status.view(),"Saved forecast, server-valid")!=sv::npos);
+    // Saving off skips even an otherwise valid unexpired MET entry.
+    opts.save_forecasts=false;
+    CHECK(fetch_forecast_cached(net,only,1,q,opts,buf,sizeof buf,&reused,&tracked,cfg.providers).err==Err::Config);
+    CHECK(f.connects==before);
     cfg.cache=false;
-    CHECK(update_forecast_cache(tracked,cache_key(cfg),fresh,f.clock,cfg.cache).ok() && writes.count==2);
+    CHECK(update_forecast_cache(tracked,cache_key(cfg),fresh,f.clock,cfg.cache).ok() && writes.count==3);
     cfg.cache=false; cfg.contact[0]=0;
     CHECK(!cache_storage_needed(cfg));
     strcpy(cfg.contact,"fixture.invalid"); strcpy(cfg.providers,"open-meteo");

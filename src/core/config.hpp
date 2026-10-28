@@ -18,7 +18,7 @@ struct Config {
 	bool cache = true;          // save forecasts; off also disables MET Norway
 	int timeout_s = 15;
 	int attempts = 3;
-	char providers[64] = "open-meteo";   // comma separated, in fallback order
+	char providers[64] = "open-meteo,met-no";   // comma separated, in fallback order
 	char contact[80] = "";               // e-mail or URL: sent in the User-Agent, required by some services
 	Level level = LogWarn;
 };

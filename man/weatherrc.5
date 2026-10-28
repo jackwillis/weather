@@ -65,7 +65,7 @@ Comma separated data sources in the order to try them:
 and
 .Ql met-no .
 Default
-.Ql open-meteo .
+.Ql open-meteo,met-no .
 .It Ic contact
 An e-mail address or web address that identifies you, sent in the User-Agent as
 .Ql weather/VERSION (contact: ...) .
@@ -74,10 +74,12 @@ Printable ASCII, up to 79 characters, without
 .Ql \&( 
 or
 .Ql \&) .
-Required by the
-.Ql met-no
-source, whose terms of use ask every client to identify itself; that source is skipped while this is empty.
-Default empty.
+Optional override. When empty, the application uses
+.Lk https://github.com/jackwillis/weather
+as its contact identity. No personal contact setup is required.
+MET Norway requires forecast saving; it is skipped when saving is off.
+Saved MET responses are reused until their server expiry, then revalidated with
+.Ic If-Modified-Since .
 .It Ic log
 Log level:
 .Ql error ,

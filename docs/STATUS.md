@@ -1,5 +1,8 @@
 # Status (2026-10-27)
 
+## Automatic source fallback (#152)
+New installations try Open-Meteo then MET Norway, identifying MET requests with the public project repository URL unless `contact` overrides it. MET responses carry server expiry and are reused before it; a retained MET record survives a later Open-Meteo success. Saving off removes both records and skips MET. Host check/check-san passed (1823 unit checks in each mode, 426598 mutated inputs, 119 CLI checks in each mode, 55 GUI checks); OS 9 diagnostics and NetBSD CLI/X11/unit/robust cross-builds passed. Native execution on NetBSD/macppc or Classic/native OS 9 is not verified for this change. See docs/verification/met-default-fallback-2026-10-27.txt. This does not complete the owner’s provider-terms or hardware acceptance gates.
+
 ## Releases
 **0.0.1 (pre-release), published 2026-10-27:** https://github.com/jackwillis/weather/releases/tag/v0.0.1 (tag at 59b50f0). Built by
 the tag workflow (source tarball and Mac OS 9 `.dsk` on a GitHub runner) with the NetBSD package built on the laptop and maul and
@@ -14,7 +17,7 @@ The tree is back at the unreleased 0.1.0. Still to do for v0.1: #45.
 |---|---|---|
 | `weather` CLI, NetBSD/macppc | works | live fetch on maul; `make check-maul` 226 unit + 74,576 mutated inputs, `make smoke-maul` 10 checks (2026-10-25) |
 | `xweather`, NetBSD/macppc | works in Xvfb on the laptop and on maul | 21-step GUI scenario; ~3 MB RSS, ~0 idle CPU. Not yet judged by a person on maul's real display |
-| Data sources | `open-meteo`, `met-no` (needs `contact`) | both live-verified through BearSSL; fallback and skip-without-contact tested |
+| Data sources | `open-meteo`, `met-no` (project identity by default) | historical live BearSSL checks; current identity/fallback host-tested, native acceptance pending |
 | Host test suite (`make check`) | green | lint, anchors, 461 unit, 186,018 mutated inputs, 78 CLI feature, 21 GUI checks, 2 provisioning tests; `make check-san` (UBSan+ASan) green |
 | NetBSD package | built, staged | `tools/mkpkg-netbsd.sh`; the old build is installed on maul, the rebuilt one (with met-no) is not yet |
 | Mac OS 9, console app | builds; production TLS path verified with managed seed | real storage/failure probes pass; approved seed installation and two live certificate-verified TLS launches with seed advancement passed on maul (2026-10-25) |

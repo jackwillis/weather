@@ -29,7 +29,7 @@ It shares `~/.weatherrc` with `weather`. Closing the window during a fetch cance
 
 ## Use
     weather [-1dhqsSV] [-c file] [-l lat,lon] [-n name] [-p sources] [-t secs] [-u metric|imperial] [-v]
-Data sources: `open-meteo` (default) and `met-no` (MET Norway; needs `contact = ...` in the config because their terms require it, skipped otherwise); sources are tried in the order given by `-p`/`providers`.
+Data sources: Open-Meteo first, then MET Norway automatically if it fails. MET identifies the app using `https://github.com/jackwillis/weather`; an optional `contact` overrides that URL. Existing `providers` settings and `-p` keep their explicit order. MET requires forecast saving; with saving off, it is skipped. Saved MET responses are reused until the service’s `Expires` time, then conditionally revalidated.
 
 Attribution: weather data comes from [Open-Meteo](https://open-meteo.com) and, if enabled, the [MET Norway Locationforecast API](https://api.met.no), both under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the values are converted to your units and summarised, otherwise unchanged. Open-Meteo's free tier is for non-commercial use. See `docs/PROVIDER-TERMS.md`.
 Config: `~/.weatherrc` (`latitude`, `longitude`, `name`, `units`, `timeout`, `attempts`, `providers`, `contact`, `log`, `autorefresh`),
