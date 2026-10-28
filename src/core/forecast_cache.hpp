@@ -4,10 +4,11 @@
 // order are persisted. CRC detects corruption; this is not an authenticated file.
 #pragma once
 #include "provider.hpp"
+#include "http.hpp"
 #include <cstdint>
 
 namespace wx {
-constexpr size_t kForecastCacheBytes = 160;
+constexpr size_t kForecastCacheBytes = 224;
 constexpr long long kForecastCacheAge = 86400;
 struct CacheKey { Query query; sv providers; };
 struct CachedForecast { Forecast forecast; long long fetched_at = 0; };
@@ -71,17 +72,20 @@ inline bool valid(const CacheKey &key,const Forecast &f)
 	if(f.wind_t10!=kUnset && (f.wind_t10<0 || f.wind_t10>5000)) return false;
 	if(f.wind_dir!=kUnset && (f.wind_dir<0 || f.wind_dir>360)) return false;
 	if(f.is_day!=kUnset && f.is_day!=0 && f.is_day!=1) return false;
-	size_t n=0; return bounded_text(f.time,sizeof f.time,&n);
+	size_t n=0;
+	if(!bounded_text(f.last_modified,sizeof f.last_modified,&n)) return false;
+	if(n && sv(f.source)!="met-no") return false;
+	return bounded_text(f.time,sizeof f.time,&n);
 }
 }
 
 // Layout: magic[8], lat/lon[8], metric/source[2], reserved[6], fetched[8],
-// six signed fields[24], observation[24], provider selection[64], reserved[12], CRC[4].
+// six signed fields[24], observation[24], provider selection[64], reserved[12], Last-Modified[64], CRC[4].
 inline bool cache_encode(const CacheKey &key,const Forecast &f,long long at,unsigned char *out)
 {
 	if(at<0 || !cache_detail::valid(key,f)) return false;
 	for(size_t i=0;i<kForecastCacheBytes;i++) out[i]=0;
-	const char magic[]="WXFCACH1";
+	const char magic[]="WXFCACH2";
 	for(size_t i=0;i<8;i++) out[i]=magic[i];
 	cache_detail::put32(out+8,static_cast<uint32_t>(key.query.lat_e4));
 	cache_detail::put32(out+12,static_cast<uint32_t>(key.query.lon_e4));
@@ -92,16 +96,17 @@ inline bool cache_encode(const CacheKey &key,const Forecast &f,long long at,unsi
 	for(size_t i=0;i<6;i++) cache_detail::put32(out+32+4*i,static_cast<uint32_t>(fields[i]));
 	for(size_t i=0;i<sizeof f.time && f.time[i];i++) out[56+i]=static_cast<unsigned char>(f.time[i]);
 	for(size_t i=0;i<key.providers.size();i++) out[80+i]=static_cast<unsigned char>(key.providers[i]);
-	cache_detail::put32(out+156,cache_detail::crc(out,156));
+	for(size_t i=0;i<sizeof f.last_modified && f.last_modified[i];i++) out[156+i]=static_cast<unsigned char>(f.last_modified[i]);
+	cache_detail::put32(out+220,cache_detail::crc(out,220));
 	return true;
 }
 
 inline bool cache_decode(const unsigned char *p,size_t n,const CacheKey &key,long long now,CachedForecast *out)
 {
 	if(n!=kForecastCacheBytes || now<0 || key.providers.empty() || key.providers.size()>=64) return false;
-	const char magic[]="WXFCACH1";
+	const char magic[]="WXFCACH2";
 	for(size_t i=0;i<8;i++) if(p[i]!=static_cast<unsigned char>(magic[i])) return false;
-	if(cache_detail::crc(p,156)!=cache_detail::get32(p+156)) return false;
+	if(cache_detail::crc(p,220)!=cache_detail::get32(p+220)) return false;
 	for(size_t i=18;i<24;i++) if(p[i]) return false;
 	for(size_t i=144;i<156;i++) if(p[i]) return false;
 	if(p[16]>1 || p[17]<1 || p[17]>3) return false;
@@ -126,6 +131,12 @@ inline bool cache_decode(const unsigned char *p,size_t n,const CacheKey &key,lon
 		if(!p[56+i]) ended=true;
 		else if(ended) return false;
 		f.time[i]=static_cast<char>(p[56+i]);
+	}
+	ended=false;
+	for(size_t i=0;i<sizeof f.last_modified;i++) {
+		if(!p[156+i]) ended=true;
+		else if(ended) return false;
+		f.last_modified[i]=static_cast<char>(p[156+i]);
 	}
 	if(!cache_detail::valid(key,f)) return false;
 	*out=decoded;

@@ -11,7 +11,15 @@ namespace wx {
 // Certificates are not checked against a clock earlier than this (2025-01-01).
 constexpr long long kMinSaneTime = 1735689600LL;
 
+struct ConditionalForecast { Query query; Forecast forecast; };
+struct FetchMetadata { int code=0; char last_modified[64]={}; };
+
 struct FetchOpts {
+	bool save_forecasts = true; // MET Norway requires response caching.
+	// Conditional forecast identity is checked before it can authorize a MET 304.
+	const ConditionalForecast *conditional = nullptr;
+	sv if_modified_since;
+	FetchMetadata *metadata = nullptr;
 	int timeout_s = 15;
 	int attempts = 3;            // tries per provider
 	long backoff_ms = 500;       // doubles each retry ...

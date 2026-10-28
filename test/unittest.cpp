@@ -1347,6 +1347,8 @@ static void test_credits()
 	}
 }
 
+#include "conditional_tests.hpp"
+
 int main()
 {
 	log_init(LogError, false, "unittest");   // expected failures are noisy; CHECK reports real ones
@@ -1368,6 +1370,7 @@ int main()
 	test_metno();
 	test_os9_dns();
 	test_seed_pool();
+	test_conditional_requests();
 	test_cache_codec();
 	test_cache_storage();
 	test_cache_model();

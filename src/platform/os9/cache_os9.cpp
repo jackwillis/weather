@@ -22,6 +22,15 @@ OSErr make_spec(short volume,long directory,const char *name,FSSpec &out)
 	unsigned char p[256]; p[0]=static_cast<unsigned char>(n); std::memcpy(p+1,name,n);
 	return FSMakeFSSpec(volume,directory,p,&out);
 }
+Status remove(CacheStore &base)
+{
+    auto &store=*static_cast<Os9Cache *>(base.ctx);
+    FSSpec file=store.file;
+    OSErr err=store.ops->remove(&file);
+    if(err==fnfErr) return okay();
+    if(!err) err=store.ops->flush(store.file.vRefNum);
+    return err ? make(Err::Io,"cannot remove saved forecast",err) : okay();
+}
 Status load(CacheStore &base,unsigned char *out,size_t cap,size_t *n)
 {
 	auto &store=*static_cast<Os9Cache *>(base.ctx); *n=0;
@@ -106,7 +115,7 @@ Status os9_cache_init(Os9Cache *store,const char *path,const Os9CacheFileOps *op
 		err=make_spec(volume,directory,"Weather Forecast Cache",store->file);
 	}
 	if(err && err!=fnfErr) return make(Err::Io,"cannot locate forecast cache",err);
-	store->base.ctx=store; store->base.load=load; store->base.save=save;
+	store->base.ctx=store; store->base.load=load; store->base.save=save; store->base.remove=remove;
 	return okay();
 }
 }

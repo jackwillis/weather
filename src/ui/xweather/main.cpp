@@ -38,12 +38,12 @@ constexpr unsigned kF5 = 0xffc2;       // XK_F5 (named here to keep the includes
 constexpr unsigned kLeftTab = 0xfe20;  // XK_ISO_Left_Tab
 
 enum Mode { Normal, MenuOpen, Location, About };
-enum Cmd { CmdRefresh = 1, CmdLocation, CmdExit, CmdAuto, CmdImperial, CmdMetric, CmdAbout };
+enum Cmd { CmdRefresh = 1, CmdLocation, CmdExit, CmdAuto, CmdCache, CmdImperial, CmdMetric, CmdAbout };
 enum Press { PNone = 0, PRefresh, PLocation, POk, PCancel, PAboutOk, PCredits, PNext, PBack };
 
 struct MenuItem { const char *label, *accel; int cmd; int kind; };   // kind: 0 plain, 1 check, 2 radio
 const MenuItem kFile[] = {{"Refresh", "F5", CmdRefresh, 0}, {"Location...", "Ctrl+L", CmdLocation, 0}, {"Exit", "Ctrl+Q", CmdExit, 0}};
-const MenuItem kOptions[] = {{"Auto-refresh", "", CmdAuto, 1}, {"Imperial (F, mph)", "", CmdImperial, 2}, {"Metric (C, km/h)", "", CmdMetric, 2}};
+const MenuItem kOptions[] = {{"Auto-refresh", "", CmdAuto, 1}, {"Imperial (F, mph)", "", CmdImperial, 2}, {"Metric (C, km/h)", "", CmdMetric, 2}, {"Save forecasts on this computer", "", CmdCache, 1}};
 const MenuItem kHelp[] = {{"About xweather...", "", CmdAbout, 0}};
 struct Menu { const char *title; const MenuItem *items; int n; Rect bar; Rect drop; };
 
@@ -103,6 +103,7 @@ Rect a_credits() { Rect p = a_panel(); return Rect{p.x + 50, p.y + 218, 96, 26};
 bool menu_checked(const MenuItem &m)
 {
 	switch (m.cmd) {
+	case CmdCache: return g.cfg.cache;
 	case CmdAuto: return g.cfg.auto_refresh;
 	case CmdImperial: return !g.cfg.metric;
 	case CmdMetric: return g.cfg.metric;
@@ -113,7 +114,7 @@ bool menu_checked(const MenuItem &m)
 void layout_menus()
 {
 	static const struct { const char *t; const MenuItem *it; int n; } defs[3] = {
-		{"File", kFile, 3}, {"Options", kOptions, 3}, {"Help", kHelp, 1}};
+		{"File", kFile, 3}, {"Options", kOptions, 4}, {"Help", kHelp, 1}};
 	int x = 6;
 	for (int i = 0; i < 3; i++) {
 		Menu &m = g.menus[i];
@@ -382,6 +383,20 @@ void run_command(int cmd)
 	case CmdLocation: open_location(); break;
 	case CmdExit: g.quit = true; break;
 	case CmdAbout: g.mode = About; g.about_page = -1; break;
+    case CmdCache: {
+        bool enabled=!g.cfg.cache;
+        if(!g.have_cache) { set_notice("Forecast storage unavailable"); break; }
+        if(!enabled) {
+            Status removed=remove_cached_forecast(g.cache.base);
+            if(!removed.ok()) { set_notice(removed.msg); break; }
+        }
+        KeyVal kv[]={{"cache",enabled?"on":"off"}};
+        Status saved=settings_save_kv(g.store.base,kv,1);
+        if(!saved.ok()) { set_notice(saved.msg); break; }
+        g.cfg.cache=enabled;
+        set_notice(enabled?"Forecast saving on":"Forecast saving off; saved forecast removed",15);
+        break;
+    }
 	case CmdAuto: {
 		g.cfg.auto_refresh = !g.cfg.auto_refresh;
 		g.model.set_auto_refresh(g.cfg.auto_refresh, now_s());
@@ -590,7 +605,7 @@ bool app_yield(Net &)
 
 void restore_cache()
 {
-	if(!g.have_cache || g.model.has_forecast()) return;
+	if(!g.cfg.cache || !g.have_cache || g.model.has_forecast()) return;
 	CachedForecast previous; bool found=false;
 	Status loaded=read_cached_forecast(g.cache.base,cache_key(g.cfg),now_s(),&previous,&found);
 	if(loaded.ok() && found) {
@@ -608,9 +623,10 @@ void do_fetch()
 	Query q;
 	q.lat_e4 = g.cfg.lat_e4; q.lon_e4 = g.cfg.lon_e4; q.metric = g.cfg.metric;
 	Forecast f;
-	Status s = fetch_forecast(g.net, g.providers, g.nprov, q, g.fo, buf, sizeof buf, &f);
+	g.fo.save_forecasts=g.cfg.cache && (g.have_cache || g.fo.force_host);
+	Status s = fetch_forecast_cached(g.net,g.providers,g.nprov,q,g.fo,buf,sizeof buf,&f,g.have_cache && g.cfg.cache?&g.cache.base:nullptr,g.cfg.providers);
 	if(s.ok() && g.have_cache) {
-		Status saved=write_cached_forecast(g.cache.base,cache_key(g.cfg),f,now_s());
+		Status saved=update_forecast_cache(g.cache.base,cache_key(g.cfg),f,now_s(),g.cfg.cache);
 		if(!saved.ok()) logf(LogWarn,"%s",saved.msg);
 	}
 	g.fetching = false;
@@ -727,12 +743,16 @@ int main(int argc, char **argv)
 	ModelConfig mc;
 	mc.auto_refresh = g.cfg.auto_refresh;
 	g.model = Model(mc, now_s());
-	if(g.cfg.cache && !g.fo.force_host && g.have_store) {
+	if(!g.fo.force_host && g.have_store) {
 		Buf<1024> path; path.add(g.store.path).add(".cache");
 		Status initialized=path.truncated?make(Err::Config,"cache path too long"):posix_cache_init(&g.cache,path.c_str());
 		g.have_cache=initialized.ok();
 		if(!initialized.ok()) logf(LogWarn,"%s",initialized.msg);
 	}
+    if(g.have_cache && !g.cfg.cache) {
+        Status removed=remove_cached_forecast(g.cache.base);
+        if(!removed.ok()) set_notice(removed.msg,30);
+    }
 	restore_cache();
 	logf(LogInfo, "xweather %s: %s, auto-refresh %s", WEATHER_VERSION, g.cfg.name[0] ? g.cfg.name : "(unnamed)", mc.auto_refresh ? "on" : "off");
 

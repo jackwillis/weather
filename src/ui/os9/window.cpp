@@ -209,10 +209,18 @@ void command(WindowAction a) {
     if(a==WindowAction::Location) {
         settings_notice=location.open(cfg,model); draw(); return;
     }
-    if(a==WindowAction::Metric || a==WindowAction::Imperial || a==WindowAction::ToggleAuto) {
+    if(a==WindowAction::Metric || a==WindowAction::Imperial || a==WindowAction::ToggleAuto || a==WindowAction::ToggleCache) {
         if(model.phase()==Phase::Fetching) return;
         Config next=cfg;
-        if(a==WindowAction::ToggleAuto) next.auto_refresh=!cfg.auto_refresh;
+        if(a==WindowAction::ToggleCache) {
+            next.cache=!cfg.cache;
+            if(!active_cache) { settings_notice=make(Err::Io,"forecast storage unavailable"); draw(); return; }
+            if(!next.cache) {
+                settings_notice=remove_cached_forecast(*active_cache);
+                if(!settings_notice.ok()) { draw(); return; }
+            }
+        }
+        else if(a==WindowAction::ToggleAuto) next.auto_refresh=!cfg.auto_refresh;
         else next.metric=a==WindowAction::Metric;
         settings_notice=commit_preferences(*prefs_store,*legacy_store,next,cfg,model,net.now(net));
         if(settings_notice.ok()) settings_committed();
@@ -230,6 +238,7 @@ void menu(long selection)
 	if (id == 130 && item == 2) command(WindowAction::Metric);
 	if (id == 130 && item == 3) command(WindowAction::Imperial);
 	if (id == 130 && item == 5) command(WindowAction::Location);
+	if (id == 130 && item == 6) command(WindowAction::ToggleCache);
 	HiliteMenu(0);
 }
 struct ModalTrackingTime {
@@ -338,10 +347,10 @@ void os9_window_invalidate() { SetPort(window); Rect r=box(0,0,340,kHeight); Inv
 Status os9_window_fetch_live(const Config &c, Net &n, Forecast *f) {
 	static char response[65536];
 	Query q; q.lat_e4=c.lat_e4; q.lon_e4=c.lon_e4; q.metric=c.metric;
-	FetchOpts opts; opts.timeout_s=c.timeout_s; opts.attempts=c.attempts; opts.contact=c.contact;
+	FetchOpts opts; opts.timeout_s=c.timeout_s; opts.attempts=c.attempts; opts.contact=c.contact; opts.save_forecasts=c.cache && active_cache;
 	const Provider *providers[8]; size_t count=0;
 	Status s=resolve_providers(c.providers,kProviders,kNumProviders,providers,8,&count);
-	if(s.ok()) s=fetch_forecast(n,providers,count,q,opts,response,sizeof response,f);
+	if(s.ok()) s=fetch_forecast_cached(n,providers,count,q,opts,response,sizeof response,f,c.cache?active_cache:nullptr,c.providers);
 	return s;
 }
 int run_os9_window(const WindowTestHooks *hooks) {
@@ -376,23 +385,27 @@ int run_os9_window(const WindowTestHooks *hooks) {
 	}
 	AppendMenu(apple, pascal_text("About Weather")); InsertMenu(apple, 0);
 	AppendMenu(file, pascal_text("Refresh/R;(-;Quit/Q")); InsertMenu(file, 0);
-	AppendMenu(options, pascal_text("Automatic updates;Metric;Imperial;(-;Location/L")); InsertMenu(options, 0);
+	AppendMenu(options, pascal_text("Automatic updates;Metric;Imperial;(-;Location/L;Save forecasts on this computer")); InsertMenu(options, 0);
 	DrawMenuBar();
 	os9_net_init(&net); net.yield=pump; tls_net_init(&net); draw();
-	if(cfg.cache) {
-		if(test_hooks && test_hooks->cache_store) active_cache=test_hooks->cache_store;
+	{
+		if(test_hooks) active_cache=test_hooks->cache_store; // null explicitly disables diagnostic persistence
 		else {
 			Status initialized=os9_cache_init(&forecast_cache);
 			if(initialized.ok()) active_cache=&forecast_cache.base;
 			else logf(LogWarn,"%s",initialized.msg);
 		}
 	}
+    if(active_cache && !cfg.cache) {
+        Status removed=remove_cached_forecast(*active_cache);
+        if(!removed.ok()) settings_notice=removed;
+    }
 	while(!actions.quit) {
 		pump(net); if(actions.quit) break;
 		if(test_hooks && test_hooks->idle) test_hooks->idle();
 		if(actions.quit) break;
 		if(!location.visible() && model.tick(net.now(net))) {
-			if(active_cache && !model.has_forecast()) {
+			if(cfg.cache && active_cache && !model.has_forecast()) {
 				CachedForecast previous; bool found=false;
 				Status loaded=read_cached_forecast(*active_cache,cache_key(cfg),net.now(net),&previous,&found);
 				if(loaded.ok() && found) model.restore_cached(previous.forecast,previous.fetched_at,net.now(net));
@@ -402,12 +415,12 @@ int run_os9_window(const WindowTestHooks *hooks) {
 			Status s=startup;
 			if(s.ok()) s=test_hooks && test_hooks->fetch ? test_hooks->fetch(cfg,net,&f) : os9_window_fetch_live(cfg,net,&f);
 			if(s.ok() && active_cache) {
-				Status saved=write_cached_forecast(*active_cache,cache_key(cfg),f,net.now(net));
+				Status saved=update_forecast_cache(*active_cache,cache_key(cfg),f,net.now(net),cfg.cache);
 				if(!saved.ok()) logf(LogWarn,"%s",saved.msg);
 			}
 			model.finish(net.now(net),s,&f); draw();
 		}
-		CheckItem(options,1,cfg.auto_refresh); CheckItem(options,2,cfg.metric); CheckItem(options,3,!cfg.metric);
+		CheckItem(options,1,cfg.auto_refresh); CheckItem(options,2,cfg.metric); CheckItem(options,3,!cfg.metric); CheckItem(options,6,cfg.cache);
 		long finalTicks; Delay(1,&finalTicks);
 	}
 	location.cancel();

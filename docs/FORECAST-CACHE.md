@@ -1,7 +1,17 @@
 # Last-good forecast cache
 
-Set `cache = on` in the config shared by `weather` and `xweather` to enable the
-cache. It is off by default. POSIX storage is a separate `<config path>.cache`
+Forecast saving defaults on. Both window apps offer **Save forecasts on this
+computer** under Options, corresponding to `cache = on` in the config. Turning it
+off removes the saved forecast and prevents subsequent disk reads and writes.
+If deletion fails, the menu setting stays on and shows an error; fix the storage
+problem before trying again. An externally configured `cache = off` still blocks
+reads/writes even when deletion fails, and reports that failure. MET Norway is
+skipped with an explanation because it requires response caching. Open-Meteo
+remains available without saving. The app does not silently change the configured
+provider list. A skipped MET selection does not replace an earlier attempted
+provider failure. In-memory forecasts remain available until quitting.
+
+POSIX storage is a separate `<config path>.cache`
 file, created privately with mode 0600. Contact details and TLS seeds are never
 stored in this file. Plain-HTTP `-H` fixture requests bypass persistent caching.
 
@@ -31,13 +41,13 @@ forecast into a failure. This is checked replacement, not a physical power-loss
 or filesystem durability guarantee. Broken/unreadable cache entries never block
 live requests, and no fast retry loop is added.
 
-## Record version 1
+## Record version 2
 
-Exactly 160 bytes; integers use big-endian order, never native struct layout:
+Exactly 224 bytes; integers use big-endian order, never native struct layout:
 
 | Offset | Content |
 |---|---|
-| 0 | Eight bytes `WXFCACH1` |
+| 0 | Eight bytes `WXFCACH2` |
 | 8 | Signed 32-bit latitude and longitude, degrees times 10000 |
 | 16 | Metric flag (0/1), source ID (1 Open-Meteo, 2 MET Norway, 3 NWS), six zero bytes |
 | 24 | Nonnegative signed-range 64-bit Unix fetch time |
@@ -45,7 +55,8 @@ Exactly 160 bytes; integers use big-endian order, never native struct layout:
 | 56 | 24-byte NUL-terminated, zero-padded printable observation text |
 | 80 | 64-byte NUL-terminated, zero-padded provider selection |
 | 144 | Twelve zero reserved bytes |
-| 156 | IEEE CRC32 of the first 156 bytes |
+| 156 | 64-byte NUL-terminated, zero-padded MET Last-Modified value |
+| 220 | IEEE CRC32 of the first 220 bytes |
 
 The checksum detects corruption; it does not authenticate a file against someone
 who can modify the user's files. The decoder never creates a source pointer into
@@ -77,6 +88,44 @@ building/delivering the diagnostic app, use
 Production startup never reads diagnostic marker files or fixture overrides.
 Initialized platform adapters carry context pointers; keep them at stable addresses
 and do not copy them after initialization.
+
+### Native saving-preference acceptance (pending)
+
+On the owner's OS 9 test setup, start with a successful saved forecast, then
+relaunch and confirm its age is visible during an update. In Options, uncheck
+**Save forecasts on this computer**: the checkmark should clear and the owned
+`Weather Forecast Cache` file should disappear. Quit normally and relaunch;
+confirm the preference remains off and no disk forecast is restored. With MET
+selected, Refresh must explain that forecast saving is required; with Open-Meteo
+selected, a successful update must leave no forecast cache file. Turn saving back
+on, refresh successfully, and relaunch to confirm restoration works again. Do not
+remove or modify any TLS seed or lock file. These steps have not run on hardware.
+
+## MET Norway conditional requests (#128)
+
+The conditional-request branch adds record version 2. Unreleased version-1
+records are rejected and replaced after the next live success. The new field
+contains only a bounded printable Last-Modified header value, never a timestamp
+invented by Weather. Outer HTTP header whitespace is removed; the value itself
+is preserved unchanged. Non-MET records must leave this field empty.
+
+Before a MET request, the shared fetch adapter reads a matching, nonexpired
+cache record and sends its validator as If-Modified-Since. A 304 is accepted only
+with a matching location, units, source and valid prior forecast. It revalidates
+the old conditions as a live success; normal save updates the validation time.
+A 200 replaces the forecast and validator. An unsolicited 304 cannot manufacture
+an empty success. Open-Meteo requests stay unconditional. Plain HTTP fixture
+requests bypass disk validators as well as persistence.
+
+MET response caching follows the same saving preference as every provider.
+With saving off, MET is skipped before network access, including when a contact
+is configured. Diagnostics use only an explicitly supplied cache store; a null
+test store disables persistence.
+This slice does not establish complete compliance with every MET traffic rule,
+such as request deferral until Expires.
+
+Reference: [MET Norway Terms of Service](https://api.met.no/doc/TermsOfService),
+Traffic and Caching sections, checked 2026-10-27.
 
 ## Remaining hardware checks for Jack
 

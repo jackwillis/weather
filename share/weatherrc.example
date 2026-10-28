@@ -12,3 +12,4 @@ units     = imperial       # imperial (F, mph) or metric (C, km/h)
 #contact   = you@example.org   # required by met-no (their terms ask clients to identify themselves)
 #log       = warn          # error, warn, info or debug
 #autorefresh = on          # xweather: refresh every 15 minutes
+#cache = on                # save forecasts; off removes saved data and disables met-no

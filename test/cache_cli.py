@@ -40,17 +40,28 @@ class CacheCLI(unittest.TestCase):
         self.assertIn("met-no", result.stdout)
         self.assertIn("requires 'contact'", result.stderr)
 
-    def test_cache_is_opt_in(self):
+    def test_cache_off_removes_saved_forecast(self):
         self.cache.write_bytes(record())
-        self.rc.write_text("providers=met-no\nattempts=1\n")
+        self.rc.write_text("providers=met-no\ncache=off\nattempts=1\n")
         result = self.run_cli()
         self.assertEqual(result.returncode, 78)
         self.assertEqual(result.stdout, "")
+        self.assertFalse(self.cache.exists())
+        self.assertIn("forecast saving", result.stderr)
+
+    def test_removal_failure_is_reported_and_saving_stays_off(self):
+        self.cache.mkdir()
+        self.rc.write_text("providers=met-no\ncache=off\nattempts=1\n")
+        result = self.run_cli()
+        self.assertEqual(result.stdout, "")
+        self.assertIn("cannot remove saved forecast", result.stderr)
+        self.assertIn("forecast saving", result.stderr)
+        self.assertTrue(self.cache.is_dir())
 
     def test_unusable_entries_never_look_live(self):
         corrupt = record(); corrupt[32] ^= 1
         reserved = record(); reserved[144] = 1
-        struct.pack_into(">I", reserved, 156, zlib.crc32(reserved[:156]))
+        struct.pack_into(">I", reserved, 220, zlib.crc32(reserved[:220]))
         for data in (record(latitude=1), record(metric=True), record(stamp=int(time.time()) - 86401),
                      record(stamp=int(time.time()) + 60), record()[:-1], record() + b"x", corrupt, reserved):
             with self.subTest(data=data[:32]):
