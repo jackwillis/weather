@@ -207,7 +207,7 @@ void draw_body(Drawable d)
 		Buf<32> hum; hum.add("Humidity ").add_int(f.humidity).add("%");
 		cde::text(t, d, t.normal, x0, 172, hum.view(), t.fg);
 	}
-	Buf<48> obs; obs.add("Observed ");
+	Buf<48> obs; obs.add("Forecast for ");
 	for (const char *p = f.time; *p; p++) obs.add(*p == 'T' ? ' ' : *p);
 	obs.add(" UTC");
 	cde::text(t, d, t.normal, x0, 192, obs.view(), t.dim);

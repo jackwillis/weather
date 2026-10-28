@@ -60,13 +60,15 @@ Name of the place, shown in the full output (printable ASCII, no
 Comma separated list of data sources, tried in order until one answers.
 The sources are
 .Ql open-meteo
-(the default) and
+(tried first by default) and
 .Ql met-no
 (MET Norway, worldwide).
-.Ql met-no
-needs a
+The default fallback order is Open-Meteo, then MET Norway.
+MET uses the public project URL as application contact;
 .Ic contact
-in the settings file, because its terms of use require clients to identify themselves; without one it is skipped.
+in the settings file overrides it. MET is skipped when forecast saving is off.
+Before MET's server expiry, a matching saved forecast is reused without a request;
+after expiry it is conditionally revalidated.
 .It Fl q
 Log errors only.
 .It Fl s
@@ -159,7 +161,7 @@ a failed live fetch may print an explicitly stale cached forecast.
 The exit status still describes the live failure; cached data never makes it 0.
 .Pp
 If every source fails, the last attempted source determines the error and exit
-status. A later source skipped for missing contact information does not hide
+status. A later source skipped because forecast saving is disabled does not hide
 that failure. If no source was attempted, the last skip reason is reported.
 The final error remains visible with
 .Fl q .

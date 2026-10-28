@@ -54,7 +54,7 @@ Status load(CacheStore &base,unsigned char *out,size_t cap,size_t *n)
 Status save(CacheStore &base,const unsigned char *data,size_t n)
 {
 	auto &store=*static_cast<Os9Cache *>(base.ctx);
-	if(n!=kForecastCacheBytes) return make(Err::BadData,"invalid forecast cache length");
+	if(n!=kForecastCacheBytes && n!=kForecastStoreBytes) return make(Err::BadData,"invalid forecast cache length");
 	ProcessSerialNumber process;
 	OSErr err=GetCurrentProcess(&process);
 	if(err) return make(Err::Io,"cannot identify cache writer",err);

@@ -11,6 +11,9 @@ constexpr long kUnset = -999999;
 
 struct Forecast {
 	const char *source = "";
+	bool saved_valid = false;   // runtime: reused before MET expiry, no request
+	long long retrieved_at = 0; // runtime: original cache fetch time
+	long long expires = 0;      // MET UTC expiry; zero means revalidate on next fetch
 	char last_modified[64] = {}; // MET Norway response validator, never synthesized
 	char time[24] = {};          // as the provider gave it, e.g. 2026-10-24T04:45
 	bool metric = false;
@@ -78,14 +81,16 @@ constexpr void format_oneline(Buf<N> &o, const Forecast &f)
 	}
 	if (f.humidity != kUnset) o.add(", humidity ").add_int(f.humidity).add('%');
 	o.add(" (").add(f.source).add(' ').add(f.time).add(')');
+	if(f.saved_valid) o.add(" [saved; server-valid]");
 }
 
 template <size_t N>
 constexpr void format_full(Buf<N> &o, const Forecast &f, sv place = sv())
 {
+	if(f.saved_valid) o.add("Saved forecast (valid until service expiry). ");
 	o.add("Weather ");
 	if (!place.empty()) o.add("for ").add(place).add(' ');
-	o.add("from ").add(f.source).add(", observed ").add(f.time).add(" UTC\n  ");
+	o.add("from ").add(f.source).add(", forecast for ").add(f.time).add(" UTC\n  ");
 	o.add_fixed(f.temp_t10, 1).add(f.metric ? " C   " : " F   ").add(wmo_text(f.code));
 	if (f.is_day != kUnset) o.add(f.is_day ? " (day)" : " (night)");
 	o.add('\n');

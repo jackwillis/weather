@@ -16,11 +16,44 @@ constexpr bool http_validator(sv value)
 	return true;
 }
 
+// MET sends IMF-fixdate in UTC. Parse without libc/time_t (32-bit targets).
+// Invalid/obsolete dates fail closed rather than authorizing an early request.
+constexpr bool http_date(sv text,long long *out)
+{
+    if(text.size()!=29 || text[3]!=',' || text[4]!=' ' || text[7]!=' ' || text[11]!=' ' ||
+       text[16]!=' ' || text[19]!=':' || text[22]!=':' || text.substr(25)!=" GMT") return false;
+    int values[5]={};
+    const size_t starts[]={5,12,17,20,23};
+    const size_t widths[]={2,4,2,2,2};
+    for(size_t i=0;i<5;i++) for(size_t j=0;j<widths[i];j++) {
+        char c=text[starts[i]+j]; if(c<'0' || c>'9') return false;
+        values[i]=values[i]*10+c-'0';
+    }
+    int day=values[0],year=values[1],hour=values[2],minute=values[3],second=values[4];
+    if(year<1970 || hour>23 || minute>59 || second>59) return false;
+    constexpr sv months="JanFebMarAprMayJunJulAugSepOctNovDec";
+    int month=0;
+    for(int i=0;i<12;i++) if(text.substr(8,3)==months.substr(3*i,3)) month=i+1;
+    if(!month) return false;
+    constexpr int lengths[]={31,28,31,30,31,30,31,31,30,31,30,31};
+    bool leap=year%4==0 && (year%100!=0 || year%400==0);
+    if(day<1 || day>lengths[month-1]+(month==2 && leap?1:0)) return false;
+    long long y=year-1;
+    long long days=365LL*(year-1970)+(y/4-y/100+y/400)-(1969/4-1969/100+1969/400);
+    for(int i=1;i<month;i++) days+=lengths[i-1]+(i==2 && leap?1:0);
+    days+=day-1;
+    constexpr sv weekdays="SunMonTueWedThuFriSat";
+    if(text.substr(0,3)!=weekdays.substr(static_cast<size_t>((days+4)%7)*3,3)) return false;
+    *out=days*86400+hour*3600+minute*60+second;
+    return true;
+}
+
 struct HttpResponse {
 	Status st;
 	int code = 0;
 	sv body;
 	sv last_modified = {};
+	long long expires = 0;
 };
 
 constexpr HttpResponse http_parse(sv raw)
@@ -46,7 +79,8 @@ constexpr HttpResponse http_parse(sv raw)
 	if (hend == sv::npos) return {make(Err::Truncated, "response cut off in headers"), code, {}};
 
 	size_t clen = 0; bool has_length=false;
-	sv modified; bool have_modified=false;
+	sv modified; bool have_modified=false, have_expires=false;
+	long long expires=0;
 	size_t pos = eol + 2;
 	while (pos < hend + 2) {
 		size_t le = find(raw, "\r\n", pos);
@@ -58,7 +92,10 @@ constexpr HttpResponse http_parse(sv raw)
 			if(eq_nocase(name,"last-modified")) {
 				if(have_modified || !http_validator(val)) return {make(Err::Parse,"invalid Last-Modified"),code,{}};
 				modified=val; have_modified=true;
-			} else if (eq_nocase(name, "content-length")) {
+			} else if(eq_nocase(name,"expires")) {
+                if(have_expires || !http_date(val,&expires)) return {make(Err::Parse,"invalid Expires"),code,{}};
+                have_expires=true;
+            } else if (eq_nocase(name, "content-length")) {
 				if(val.empty()) return {make(Err::Parse,"bad Content-Length"),code,{}};
 				size_t length=0;
 				for(char c:val) {
@@ -79,14 +116,14 @@ constexpr HttpResponse http_parse(sv raw)
 	sv body = raw.substr(hend + 4);
 	if(code==304) {
 		if(!body.empty()) return {make(Err::BadData,"304 response contains a body"),code,{}};
-		return {okay(),code,body,modified};
+		return {okay(),code,body,modified,expires};
 	}
 	if (has_length) {
 		if (body.size() < clen)
 			return {make(Err::Truncated, "body shorter than Content-Length"), code, body};
 		body = body.substr(0,clen);
 	}
-	return {okay(), code, body, modified};
+	return {okay(), code, body, modified, expires};
 }
 
 // Write "GET path HTTP/1.0" into out. False if it does not fit.

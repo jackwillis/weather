@@ -11,8 +11,8 @@ namespace wx {
 // Certificates are not checked against a clock earlier than this (2025-01-01).
 constexpr long long kMinSaneTime = 1735689600LL;
 
-struct ConditionalForecast { Query query; Forecast forecast; };
-struct FetchMetadata { int code=0; char last_modified[64]={}; };
+struct ConditionalForecast { Query query; Forecast forecast; long long fetched_at=-1; };
+struct FetchMetadata { int code=0; long long expires=0; char last_modified[64]={}; };
 
 struct FetchOpts {
 	bool save_forecasts = true; // MET Norway requires response caching.

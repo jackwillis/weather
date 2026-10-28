@@ -71,7 +71,7 @@ static void test_openmeteo()
 
 	Buf<300> full;
 	format_full(full, f, "Madison, WI");
-	constexpr sv head = "Weather for Madison, WI from open-meteo, observed";
+	constexpr sv head = "Weather for Madison, WI from open-meteo, forecast for";
 	CHECK(full.view().substr(0, head.size()) == head);
 
 	Buf<300> one;
@@ -480,7 +480,7 @@ static void test_fallback()
 		Fake f; f.steps[0] = {make(Err::CertUntrusted, "certificate rejected", 62), "", Err::Ok}; f.nsteps = 1;
 		Net n = make_net(&f);
 		Status s = fetch_forecast(n, mixed, 2, q, o, buf, sizeof buf, &out);
-		CHECK(s.err == Err::CertUntrusted && s.detail == 62 && f.connects == 1);
+		CHECK(s.err == Err::CertUntrusted && s.detail == 62 && f.connects == 2);
 	}
 	{ // Cancellation stops fallback and keeps the cancellation status.
 		Fake f; f.steps[0] = {make(Err::Cancelled, "cancelled", 7), "", Err::Ok}; f.nsteps = 1;
@@ -1297,7 +1297,7 @@ static void test_metno()
 		Fake fk; fk.steps[0] = {okay(), kGood, Err::Ok}; fk.nsteps = 1;
 		Net n = make_net(&fk);
 		Status r = fetch_forecast(n, only, 1, lq, o, buf, sizeof buf, &out);
-		CHECK(r.err == Err::Config && fk.connects == 0);
+		CHECK(!r.ok() && r.err != Err::Config && fk.connects == 1);
 	}
 	static char metresp[4096];
 	snprintf(metresp, sizeof metresp, "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n%s", fixture(1, "metno-ok.json"));
@@ -1325,7 +1325,7 @@ static void test_metno()
 		Fake fk; fk.steps[0] = {okay(), omresp, Err::Ok}; fk.nsteps = 1;
 		Net n = make_net(&fk);
 		Status r = fetch_forecast(n, two, 2, lq, o2, buf, sizeof buf, &out);
-		CHECK(r.ok() && !strcmp(out.source, "open-meteo") && fk.connects == 1);
+		CHECK(r.ok() && !strcmp(out.source, "open-meteo") && fk.connects == 2);
 	}
 	// config key
 	Config c;

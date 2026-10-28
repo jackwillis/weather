@@ -130,7 +130,7 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 
 	Buf<160> agent;
 	agent.add("weather/" WEATHER_VERSION);
-	if (o.contact && o.contact[0]) agent.add(" (contact: ").add(o.contact).add(")");
+	agent.add(" (contact: ").add(o.contact && o.contact[0] ? o.contact : "https://github.com/jackwillis/weather").add(")");
 	Buf<640> req;
 	if (!http_request(req, host, path, agent.view(),o.if_modified_since)) {
 		s = make(Err::BadData, "request too long");
@@ -163,6 +163,7 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 	if (!h.st.ok()) return h.st;
 	if(o.metadata) {
 		o.metadata->code=h.code;
+		o.metadata->expires=h.expires;
 		for(size_t i=0;i<h.last_modified.size();i++) o.metadata->last_modified[i]=h.last_modified[i];
 	}
 	if(h.code==304 && !o.if_modified_since.empty() && o.metadata) { *body={}; return okay(); }
@@ -205,12 +206,6 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 			if (!attempted) last = make(Err::BadData, "request path too long");
 			continue;
 		}
-		if (p.needs_contact && !(o.contact && o.contact[0])) {
-			Status skipped = make(Err::Config, "this data source requires 'contact' in the config file (see weatherrc(5))");
-			if (!attempted) last = skipped;
-			logf(LogWarn, "%s skipped: %s", p.name, skipped.msg);
-			continue;
-		}
 		const char *host = o.force_host ? o.force_host : p.host;
 		const char *port = o.force_port ? o.force_port : p.port;
 		bool tls = o.force_host == nullptr;
@@ -223,6 +218,17 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 		    previous->forecast.metric==q.metric && previous->forecast.source && sv(previous->forecast.source)=="met-no" &&
 		    check_fields(previous->forecast,q.metric).ok() &&
 		    plausible_temp_t10(previous->forecast.temp_t10,q.metric);
+        if(matching && net.now && previous->forecast.expires>net.now(net)) {
+            long long now=net.now(net);
+            if(previous->fetched_at>=0 && now-previous->fetched_at>86400) {
+                if(!attempted) last=make(Err::NoSource,"saved MET forecast too old; waiting for server expiry");
+                continue; // honor expiry without presenting old values as fresh
+            }
+            *out=previous->forecast; out->saved_valid=true;
+            out->retrieved_at=previous->fetched_at>=0 ? previous->fetched_at : now;
+            logf(LogInfo,"MET Norway: using saved forecast until server expiry");
+            return okay();
+        }
 		if(matching) {
 			size_t length=0;
 			while(length<sizeof previous->forecast.last_modified && previous->forecast.last_modified[length]) ++length;
@@ -235,8 +241,9 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 			Forecast f;
 			if(metadata.code==304) {
 				// fetch_once only accepts 304 after a nonempty matching validator.
-				f=previous->forecast;
+				f=previous->forecast; f.saved_valid=false; f.retrieved_at=0;
 			} else s = p.parse(body, q, &f);
+			if(s.ok() && sv(p.name)=="met-no") f.expires=metadata.expires;
 			if(s.ok() && sv(p.name)=="met-no" && metadata.last_modified[0])
 				std::memcpy(f.last_modified,metadata.last_modified,sizeof f.last_modified);
 			if (!s.ok())
