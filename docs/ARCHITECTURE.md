@@ -192,4 +192,4 @@ Each platform's configuration, environment and file locations follow that platfo
 
 A setting may exist on only some platforms where a platform has no idiom for it; the core never depends on a platform-only setting. Linux and macOS are recorded here so the design does not close them off; nothing is implemented for them until they are supported.
 
-**Pre-1.0 policy:** no migrations and no compatibility shims. Settings formats, file names, command names and paths may change between 0.x releases without a migration path. Remove old code paths instead of keeping them (for example the OS 9 `weather.conf` fallback and the text-editing instructions in OS9-PREFERENCES.md, which #181 removes). This policy ends at 1.0.
+**Pre-1.0 policy:** no migrations and no compatibility shims. Settings formats, file names, command names and paths may change between 0.x releases without a migration path. Remove old code paths instead of keeping them (for example the OS 9 `weather.conf` fallback and the text-editing instructions in OS9-PREFERENCES.md, which #182 removes). This policy ends at 1.0.
