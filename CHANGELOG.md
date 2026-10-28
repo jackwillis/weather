@@ -1,6 +1,8 @@
 # Changelog
 
 ## 0.0.1 (pre-release)
+- Mac OS 9: Command-period cancels a window fetch without closing the window; native acceptance pending (#168).
+
 - Licence changed from BSD 2-clause to GPL-3.0-or-later (owner decision, 2026-10-26).
 A deliberately rough release to prove the packaging and release pipeline (issue #123). It promises no support
 and is not the v0.1 gate. See `docs/release-notes/0.0.1.md` for what works and the known issues.

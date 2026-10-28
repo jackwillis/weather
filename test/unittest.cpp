@@ -1531,6 +1531,30 @@ static void test_window_actions()
 	model.finish(9, make(Err::Cancelled, "quit"), nullptr);
 	actions.apply(WindowAction::Refresh, cfg, model, 10);
 	CHECK(!model.tick(10)); // Quit is terminal for command dispatch.
+	{ // Command-period cancels only the active fetch, preserving data and schedule semantics.
+		Config c; Model m; WindowActions a; Forecast f=some_forecast(550);
+		CHECK(!a.key('.',true,c,m,0) && a.continuing());
+		CHECK(m.tick(0)); m.finish(1,okay(),&f);
+		m.request_refresh(); CHECK(m.tick(10)); a.begin_fetch();
+		CHECK(!a.key('.',false,c,m,10) && a.continuing());
+		CHECK(!a.key('x',true,c,m,10) && a.continuing());
+		CHECK(a.key('.',true,c,m,10));
+		CHECK(!a.continuing() && !a.quit && m.phase()==Phase::Fetching);
+		m.finish(11,make(Err::Cancelled,"cancelled"),nullptr);
+		CHECK(m.has_forecast() && m.forecast().temp_t10==550 && m.age(11)==10);
+		CHECK(m.phase()==Phase::Ok && m.failures()==0 && !m.tick(12));
+		CHECK(m.next_refresh_at()==911);
+		m.request_refresh(); CHECK(m.tick(20)); a.begin_fetch();
+		CHECK(a.continuing()); // A later fetch is not cancelled by the previous shortcut.
+		m.finish(21,make(Err::Timeout,"offline"),nullptr);
+		m.request_refresh(); CHECK(m.tick(30)); a.begin_fetch();
+		CHECK(a.key('.',true,c,m,30));
+		m.finish(31,make(Err::Cancelled,"cancelled"),nullptr);
+		CHECK(m.stale(31) && m.phase()==Phase::Failed && m.last_error().err==Err::Timeout && m.age(31)==30);
+		a.apply(WindowAction::Quit,c,m,32); a.begin_fetch();
+		CHECK(!a.continuing()); // Clearing cancellation never clears a terminal Quit.
+	}
+
 	CHECK(window_seed_failure(make(Err::Tls,"no source of random numbers"),"locked"));
 	CHECK(!window_seed_failure(make(Err::Dns,"cannot resolve"),"locked"));
 	CHECK(!window_seed_failure(make(Err::Tls,"handshake failed"),"locked"));

@@ -26,7 +26,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
     parser.add_argument("--app", choices=("WeatherUITest", "WeatherCacheUITest"), default="WeatherUITest")
-    parser.add_argument("--capture", nargs="*", type=int, default=list(range(12)),
+    parser.add_argument("--capture", nargs="*", type=int, default=list(range(13)),
                         help="stages to capture (all by default); assertions always run")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -35,7 +35,7 @@ def main():
            f"{REMOTE}/weather-ui.pumps {REMOTE}/weather-ui.live-go "
            f"{REMOTE}/weather-ui-test.log; open {REMOTE}/{args.app}")
     names = ["clear-day", "clear-night", "cloud", "rain", "snow", "storm",
-             "fog", "about", "metric", "stale-error", "yielding-fetch", "live"]
+             "fog", "about", "metric", "stale-error", "yielding-fetch", "live", "cancelled"]
     for stage, name in enumerate(names):
         if stage == 11:
             remote("osascript -e 'tell application \"Finder\" to activate'")

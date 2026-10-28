@@ -116,6 +116,7 @@ void idle() {
 #endif
 		if(stage==9) check(m.phase()==Phase::Failed && m.has_forecast() && m.stale(0),"failed update retains stale forecast");
 		if(stage==8) check(m.has_forecast() && m.forecast().metric,"unit change refetched metric values");
+		if(stage==12) check(m.has_forecast() && m.phase()==Phase::Ok,"window remains open with previous forecast after cancel");
 		if(stage==11) check(m.phase()==Phase::Ok && m.has_forecast(),"live certificate-verified fetch succeeded");
 		FILE *ready=std::fopen("weather-ui.ready","w");
 		if(!ready) { check(false,"write ready marker"); os9_window_action(WindowAction::Quit); return; }
@@ -141,11 +142,21 @@ wx::Status fetch(const Config &cfg,Net &net,Forecast *f) {
 #ifdef WEATHER_CACHE_UI_TEST
 	if(stage==0) return make(Err::Timeout,"simulated initial outage");
 #endif
-	if(stage==12) {
+	if(stage==13) {
 		os9_window_menu_selection((129L<<16)|3); // File > Quit command, while fetching.
 		check(!net.yield(net),"quit cancels a yielding fetch");
 		wx::Status s=os9_window_fetch_live(cfg,net,f);
 		check(s.err==Err::Cancelled,"quit propagates through production fetch without retry/fallback");
+		return s;
+	}
+	if(stage==12) {
+		Forecast previous=os9_window_model().forecast();
+		os9_window_key('.',true); // Same dispatch as a native keyDown with cmdKey.
+		check(!net.yield(net),"Command-period cancels a yielding fetch without quitting");
+		wx::Status s=os9_window_fetch_live(cfg,net,f);
+		check(s.err==Err::Cancelled,"shortcut propagates through production fetch without retry/fallback");
+		check(os9_window_model().has_forecast() && os9_window_model().forecast().temp_t10==previous.temp_t10,
+		      "cancel preserves previous forecast during unwind");
 		return s;
 	}
 	if(stage==11) {
@@ -207,7 +218,7 @@ int main() {
 	hooks.cache_store=&test_cache.base;
 #endif
 	int rc=run_os9_window(&hooks);
-	check(stage==12 && fetches==12,"all stages completed with exactly twelve fetches");
+	check(stage==13 && fetches==13,"all stages completed with exactly thirteen fetches");
 #ifdef WEATHER_CACHE_UI_TEST
 	if(cache_owned) {
 		FSSpec primary;

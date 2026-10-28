@@ -18,6 +18,7 @@ struct WindowTestHooks {
 };
 int run_os9_window(const WindowTestHooks *hooks = nullptr);
 void os9_window_action(WindowAction action);
+void os9_window_key(char key, bool command_key);
 const Model &os9_window_model();
 void os9_window_invalidate();
 bool os9_window_location_visible();

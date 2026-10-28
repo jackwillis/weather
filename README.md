@@ -48,8 +48,9 @@ Stand-alone first-run entropy collection is planned for v0.1 (#120), but remains
 dependent on the measurements and review in #121. Do not treat ordinary mouse
 movement as proven cryptographic entropy.
 
-In the OS 9 window app, Command-period does **not** yet cancel an in-progress fetch
-(#168), and system-requested quit can block logout or Classic shutdown (#169).
+In the OS 9 window app, Command-period cancels an in-progress fetch and keeps
+previous weather visible; a later refresh can run normally. Native confirmation
+of this shortcut is pending (#168). System-requested quit remains an open issue (#169).
 Use File > Quit or Command-Q to quit manually. See the release notes for limitations
 of the published prerelease; these issue links describe ongoing development.
 

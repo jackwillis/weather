@@ -280,10 +280,7 @@ bool pump(Net &)
 			}
 		}
 		else if (e.what == keyDown) {
-			char ch = e.message & charCodeMask;
-			if (e.modifiers & cmdKey) menu(MenuKey(ch));
-			else if (ch == 13 && actions.about && about_page + 1 < kAboutPages) { ++about_page; draw(); }
-			else if (ch == 13 || ch == 27) command(WindowAction::DismissAbout);
+			os9_window_key(e.message & charCodeMask, (e.modifiers & cmdKey) != 0);
 		} else if (e.what == mouseDown) {
 			WindowPtr w = nullptr;
 			short part = FindWindow(e.where, &w);
@@ -313,11 +310,18 @@ bool pump(Net &)
         location.event(idle,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice);
     }
 	if (!actions.quit && net.now(net) != painted_at) draw();
-	return !actions.quit;
+	return actions.continuing();
 }
 }
 namespace wx {
 void os9_window_action(WindowAction a) { command(a); }
+void os9_window_key(char ch, bool command_key) {
+	if(actions.quit) return;
+	if(actions.key(ch,command_key,cfg,model,net.now(net))) return;
+	if(command_key) menu(MenuKey(ch));
+	else if(ch==13 && actions.about && about_page+1<kAboutPages) { ++about_page; draw(); }
+	else if(ch==13 || ch==27) command(WindowAction::DismissAbout);
+}
 bool os9_window_location_visible() { return location.visible(); }
 void os9_window_location_field(int f,sv text) { if(!actions.quit) location.set_field(f,text); }
 void os9_window_location_item(int item) {
@@ -411,6 +415,7 @@ int run_os9_window(const WindowTestHooks *hooks) {
 				if(loaded.ok() && found) model.restore_cached(previous.forecast,previous.fetched_at,net.now(net));
 				else if(!loaded.ok()) logf(LogWarn,"%s",loaded.msg);
 			}
+			actions.begin_fetch();
 			draw(); Forecast f;
 			Status s=startup;
 			if(s.ok()) s=test_hooks && test_hooks->fetch ? test_hooks->fetch(cfg,net,&f) : os9_window_fetch_live(cfg,net,&f);
