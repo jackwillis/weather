@@ -11,6 +11,7 @@ constexpr long kUnset = -999999;
 
 struct Forecast {
 	const char *source = "";
+	char last_modified[64] = {}; // MET Norway response validator, never synthesized
 	char time[24] = {};          // as the provider gave it, e.g. 2026-10-24T04:45
 	bool metric = false;
 	long temp_t10 = kUnset;      // tenths of C or F

@@ -81,6 +81,8 @@ python3 -B test/tls_server.py "$T/ports" "$T/requests" \
 	"good:$T/good.pem:$T/good.key" "wronghost:$T/wronghost.pem:$T/wronghost.key" \
 	"expired:$T/good.pem:$T/good.key" "notyet:$T/good.pem:$T/good.key" \
 	"untrusted:$T/untrusted.pem:$T/untrusted.key" "nonca:$T/viainter_chain.pem:$T/viainter.key" \
+    "abrupt:$T/good.pem:$T/good.key" "abruptcut:$T/good.pem:$T/good.key" "cleanclose:$T/good.pem:$T/good.key" \
+    "legacy:$T/good.pem:$T/good.key" "cbc:$T/good.pem:$T/good.key" \
 	"proxied:$T/good.pem:$T/good.key" &
 SRV=$!
 i=0; while [ ! -s "$T/ports" ] && [ $i -lt 20 ] && kill -0 $SRV 2>/dev/null; do sleep 1; i=$((i+1)); done
@@ -98,7 +100,9 @@ NOW=$(date +%s)
 # check NAME CLOCK WANT_ERR WANT_DETAIL WANT_REQUESTS_SEEN_BY_SERVER
 check() {
 	port=$(sed -n "s/^$1 //p" "${PF:-$T/ports}")
-	OUT=$("$T/harness" localhost "$port" "$2" $DEADLINE 2>&1)
+	if [ -n "$6" ]; then OUT=$("$T/harness" localhost "$port" "$2" --attempts "$6" 2>&1)
+	elif [ -n "$DEADLINE" ]; then OUT=$("$T/harness" localhost "$port" "$2" "$DEADLINE" 2>&1)
+	else OUT=$("$T/harness" localhost "$port" "$2" 2>&1); fi
 	want="RESULT err=$3 detail=$4"
 	if [ "$OUT" = "$want" ]; then ok; else bad "$1: got '$OUT', wanted '$want'"; fi
 	seen=$(grep -c "^${SERVER:-$1}\$" "$T/requests")
@@ -116,6 +120,20 @@ check nonca     "$NOW"                    cert NOT_CA          0    # leaf signe
 # only between reads would not stop a trickling HTTPS server. Deadline 2 s; the trickle would need minutes.
 PF="$T/proxyports" SERVER=proxied DEADLINE=2 check paced   "$NOW" ok      0 1    # control: same relay at full speed
 PF="$T/proxyports" SERVER=proxied DEADLINE=2 check trickle "$NOW" timeout ETIMEDOUT 1    # one byte per 0.3 s: given up on, not waited for
+
+check cleanclose "$NOW" ok 0 1
+check abrupt "$NOW" truncated 0 1
+check abruptcut "$NOW" truncated 0 1
+check abrupt "$NOW" truncated 0 4 3  # retry the abrupt close three times
+
+# Real peers offering only retired protocol/cipher choices must be refused.
+for name in legacy cbc; do
+    port=$(awk -v n="$name" '$1==n {print $2}' "$T/ports")
+    OUT=$("$T/harness" localhost "$port" "$NOW" 2>&1)
+    case "$OUT" in "RESULT err=tls "*) ok;; *) bad "$name accepted: $OUT";; esac
+    seen=$(grep -c "^$name\$" "$T/requests")
+    [ "$seen" = 0 ] && ok || bad "$name received a request"
+done
 
 echo "tls tests: $pass passed, $fail failed"
 [ "$fail" = 0 ]

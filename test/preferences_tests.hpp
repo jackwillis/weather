@@ -71,6 +71,10 @@ static void test_preferences()
     CHECK(!editor.visible && !editor.committed && cfg.lat_e4 == 100000 && prefs.writes == writes && model.has_forecast());
     Config restart;
     CHECK(load_preferences(prefs.base, legacy.base, restart).ok() && restart.lat_e4 == cfg.lat_e4 && restart.metric && !restart.auto_refresh);
+    Config saving=cfg; saving.cache=false;
+    CHECK(commit_preferences(prefs.base,legacy.base,saving,cfg,model,5).ok());
+    CHECK(load_preferences(prefs.base,legacy.base,restart).ok() && !restart.cache);
+    CHECK(model.has_forecast()); // Preference does not erase the current in-memory forecast.
     Config renamed = cfg; strcpy(renamed.name, "Renamed");
     CHECK(commit_preferences(prefs.base, legacy.base, renamed, cfg, model, 5).ok() && model.has_forecast() && !model.tick(5));
     // A newly edited unrelated setting/comment is retained on save (no stale text snapshot).

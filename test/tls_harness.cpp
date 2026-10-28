@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 Jack Willis
-// Harness for test/tls_local.sh: tls_harness HOST PORT CLOCK_UNIX_SECONDS [DEADLINE_S]
-// One HTTPS fetch of https://HOST:PORT/ through the real fetch_once and the real tls.cpp (built by the script with a
-// throwaway trust anchor, see WEATHER_TEST_ANCHORS), with a clock that starts at the given time. Prints one line: RESULT err=NAME detail=NAME|N
+// Harness: tls_harness HOST PORT CLOCK_UNIX_SECONDS [DEADLINE_S | --attempts N]
+// HTTPS fetch/retry of https://HOST:PORT/ through the real fetch_once and the real tls.cpp (built by the script with a
+// throwaway trust anchor, see WEATHER_TEST_ANCHORS), with a fixed clock. Prints one line: RESULT err=NAME detail=NAME|N
 #include "core/fetch.hpp"
 #include "core/log.hpp"
 #include "platform/posix/net_posix.hpp"
@@ -11,16 +11,14 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
-#include <ctime>
 #include <unistd.h>
+#include <cstring>
 
 using namespace wx;
 
-// The clock starts at the requested time and then runs in real time, so certificate checks see the chosen date while the
-// fetch deadline sees time pass.
+// Certificate fixtures choose UTC; deadlines use Net::monotonic_ms.
 static long long g_clock;
-static time_t g_started;
-static long long fixed_now(Net &) { return g_clock + static_cast<long long>(time(nullptr) - g_started); }
+static long long fixed_now(Net &) { return g_clock; }
 
 static const char *x509_name(int d)
 {
@@ -36,22 +34,22 @@ static const char *x509_name(int d)
 
 int main(int argc, char **argv)
 {
-	if (argc != 4 && argc != 5) { fprintf(stderr, "usage: tls_harness HOST PORT CLOCK_UNIX_SECONDS [DEADLINE_S]\n"); return 2; }
-	alarm(40);                      // safety net: a hang fails the test (no RESULT line) instead of stalling it
+	if (argc != 4 && argc != 5 && !(argc == 6 && !strcmp(argv[4],"--attempts"))) { fprintf(stderr, "usage: tls_harness HOST PORT CLOCK_UNIX_SECONDS [DEADLINE_S | --attempts 1..3]\n"); return 2; }
+	alarm(40); // A stuck local fixture must fail instead of hanging the suite.
 	log_init(LogError, false, "tls_harness");
 	g_clock = atoll(argv[3]);
-	g_started = time(nullptr);
 	Net net;
 	posix_net_init(&net);
 	tls_net_init(&net);
 	net.now = fixed_now;
 	FetchOpts o;
 	o.timeout_s = 5;
-	o.attempts = 1;
-	if (argc == 5) o.deadline_s = atoi(argv[4]);
+	o.attempts = argc==6?atoi(argv[5]):1;
+	if(o.attempts<1 || o.attempts>3) return 2;
+	if(argc==5) { o.deadline_s=atoi(argv[4]); if(o.deadline_s<1 || o.deadline_s>30) return 2; }
 	static char buf[4096];
 	sv body;
-	Status s = fetch_once(net, argv[1], argv[2], true, "/", o, buf, sizeof buf, &body);
+	Status s = fetch_retry(net, argv[1], argv[2], true, "/", o, buf, sizeof buf, &body);
 	const char *dn = s.err == Err::Timeout && s.detail == ETIMEDOUT ? "ETIMEDOUT" : x509_name(s.detail);
 	if (dn) printf("RESULT err=%s detail=%s\n", err_name(s.err), dn);
 	else printf("RESULT err=%s detail=%d\n", err_name(s.err), s.detail);

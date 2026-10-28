@@ -1,0 +1,31 @@
+Issue #58: fixture startup and parallel-check isolation
+
+Red: fixture_startup.py failed because a MODE/port-0 server did not announce its
+bound port (AssertionError: fixture did not announce its bound port).
+Green: all 3 startup/isolation/fail-closed regressions pass.
+
+Two simultaneous full make checks in independent copies of the final source:
+  each: 517 unit / 230242 mutation / 106 CLI / 12 TLS / 21 GUI checks, no failures;
+  each also passes fixture startup3, provisioning2, flags6, anchors and lint.
+  Distinct automatically allocated X displays (:1 and :2). Separate object and
+  output trees; no concurrent compiler access to shared objects. Logs:
+  /tmp/weather-concurrent-final-a.log and -b.log.
+ASan+UBSan: 517 unit / 230242 mutation / 106 CLI, no failures.
+
+Actual NetBSD/macppc G4 GUI: 21 checks pass with ephemeral fixture ports and
+fail-closed reverse forwarding, private remote workspace and serial display :77.
+Compilation was on Linux. The first hardware run failed to open :77 immediately
+after readiness; repeated X-server reset messages were observed. -noreset fixes
+this startup lifetime race; final host/concurrent/hardware runs pass. Failed
+hardware evidence remains /tmp/wx-gui.NsjNqWNX and locally in
+/tmp/weather-fixtures-maul-gui.log. Final log:
+/tmp/weather-fixtures-maul-gui-final.log.
+
+No OS9/Tiger or macOS-host run. No privileged changes. The GUI startup argument
+change does not affect the already-passed sanitizer CLI suite; full final host GUI
+checks were rerun after it. Remote forwarding/workspace validation was verified
+on the final hardware run. No new native ABI code.
+
+Owner subsequently restated GUI serialization on 2026-10-26. The concurrent full
+runs above preceded that instruction; do not repeat GUI overlap. Future validation
+uses concurrent non-GUI checks and serialized GUI checks even with private displays.

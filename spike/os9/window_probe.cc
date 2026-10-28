@@ -6,6 +6,11 @@
 #include "platform/os9/config_os9.hpp"
 #include "platform/os9/net_os9.hpp"
 #include "app/config_load.hpp"
+#ifdef WEATHER_CACHE_UI_TEST
+#include "platform/os9/cache_os9.hpp"
+#include "platform/os9/toolbox_extra.h"
+#include "platform/os9/portable.hpp"
+#endif
 #include <OSUtils.h>
 #include <cstdio>
 #include <cstring>
@@ -30,6 +35,16 @@ bool announced=false, waiting_fetch=true;
 unsigned long started=0, last_fetch_ticks=0;
 FILE *logfile=nullptr;
 Config *test_cfg=nullptr;
+#ifdef WEATHER_CACHE_UI_TEST
+Os9Cache test_cache;
+FSSpec cache_dir;
+char cache_path[256];
+bool cache_owned=false;
+OSErr cache_spec(const char *path,FSSpec &out) {
+	unsigned char p[256]; size_t n=std::strlen(path); if(n>255) return paramErr;
+	p[0]=static_cast<unsigned char>(n); std::memcpy(p+1,path,n); return FSMakeFSSpec(0,0,p,&out);
+}
+#endif
 void check(bool ok,const char *what) {
 	std::fprintf(logfile,"%s stage=%d %s\n",ok?"ok":"FAIL",stage,what);
 	if(!ok) ++failures;
@@ -49,6 +64,24 @@ bool advance() {
 void setup(Config &cfg) {
 	test_cfg=&cfg; cfg=Config{}; std::strcpy(cfg.name,"UI test - simulated weather");
 	started=TickCount();
+#ifdef WEATHER_CACHE_UI_TEST
+	char folder[180]; long directory=0;
+	std::snprintf(folder,sizeof folder,"MacOS9Lives:weather-dev:cache-ui-%lu",static_cast<unsigned long>(TickCount()));
+	cache_owned=cache_spec(folder,cache_dir)==fnfErr && FSpDirCreate(&cache_dir,0,&directory)==noErr;
+	check(cache_owned,"create private cache UI directory");
+	if(cache_owned) {
+		std::snprintf(cache_path,sizeof cache_path,"%s:forecast",folder);
+		wx::Status initialized=os9_cache_init(&test_cache,cache_path);
+		check(initialized.ok(),"initialize isolated cache UI store");
+		if(initialized.ok()) {
+			Forecast f; f.source="open-meteo"; f.temp_t10=650; f.code=0; f.is_day=1;
+			std::strcpy(f.time,"2026-10-25T12:00");
+			UInt32 mac; GetDateTime(&mac); MachineLocation loc; ReadLocation(&loc);
+			wx::Status saved=write_cached_forecast(test_cache.base,cache_key(cfg),f,os9::mac_to_unix(mac,loc.u.gmtDelta));
+			check(saved.ok(),"write explicit synthetic cache fixture"); cfg.cache=saved.ok();
+		}
+	}
+#endif
 	SettingsStore store=os9_config_store("weather-ui-test.conf");
 	FILE *f=std::fopen("weather-ui-test.conf","w");
 	if(f) { std::fputs("units=metric\nlatitude=1\n",f); std::fclose(f); }
@@ -77,6 +110,10 @@ void idle() {
 	if(!announced) {
 		const Model &m=os9_window_model();
 		if(stage==0) check(os9_window_buffered(),"offscreen drawing buffer allocated");
+#ifdef WEATHER_CACHE_UI_TEST
+		if(stage==0) check(m.cached() && m.has_forecast() && m.forecast().temp_t10==650,"initial failure displays restored stale cache");
+		if(stage==1) check(!m.cached() && m.phase()==Phase::Ok,"successful update clears cached label");
+#endif
 		if(stage==9) check(m.phase()==Phase::Failed && m.has_forecast() && m.stale(0),"failed update retains stale forecast");
 		if(stage==8) check(m.has_forecast() && m.forecast().metric,"unit change refetched metric values");
 		if(stage==11) check(m.phase()==Phase::Ok && m.has_forecast(),"live certificate-verified fetch succeeded");
@@ -101,6 +138,9 @@ void idle() {
 wx::Status fetch(const Config &cfg,Net &net,Forecast *f) {
 	last_fetch_ticks=TickCount();
 	++fetches; waiting_fetch=false;
+#ifdef WEATHER_CACHE_UI_TEST
+	if(stage==0) return make(Err::Timeout,"simulated initial outage");
+#endif
 	if(stage==12) {
 		os9_window_menu_selection((129L<<16)|3); // File > Quit command, while fetching.
 		check(!net.yield(net),"quit cancels a yielding fetch");
@@ -126,6 +166,9 @@ wx::Status fetch(const Config &cfg,Net &net,Forecast *f) {
 	*f=Forecast{}; f->metric=cfg.metric;
 	f->temp_t10=cfg.metric?185:653; f->wind_t10=cfg.metric?129:80; f->humidity=67;
 	f->wind_dir=225; f->source="UI fixture (simulated)";
+#ifdef WEATHER_CACHE_UI_TEST
+	f->source="open-meteo"; // Place label explicitly says simulated; cache schema uses known IDs.
+#endif
 	std::strcpy(f->time,"2026-10-25T12:00");
 	static const int codes[]={0,0,2,65,75,95,45};
 	f->code=stage<7?codes[stage]:2; f->is_day=stage!=1;
@@ -160,8 +203,18 @@ int main() {
 	logfile=std::fopen("weather-ui-test.log","w"); if(!logfile) return 2;
 	init_store();
 	WindowTestHooks hooks{setup,idle,fetch,&isolated_store,&isolated_store};
+#ifdef WEATHER_CACHE_UI_TEST
+	hooks.cache_store=&test_cache.base;
+#endif
 	int rc=run_os9_window(&hooks);
 	check(stage==12 && fetches==12,"all stages completed with exactly twelve fetches");
+#ifdef WEATHER_CACHE_UI_TEST
+	if(cache_owned) {
+		FSSpec primary;
+		check(cache_spec(cache_path,primary)==noErr && FSpDelete(&primary)==noErr,"remove private cache UI record");
+		check(FSpDelete(&cache_dir)==noErr,"remove empty cache UI directory");
+	}
+#endif
 	std::fprintf(logfile,"finished: %d failures; rc=%d\n",failures,rc);
 	std::fclose(logfile); return failures || rc ? 1:0;
 }

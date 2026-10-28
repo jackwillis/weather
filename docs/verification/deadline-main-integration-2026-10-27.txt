@@ -37,3 +37,47 @@ make check: 1115 unit, 34 backend-budget, 299308 mutated inputs, 114 CLI,
 make REQUIRE_ASAN=1 check-san: ASan+UBSan enabled, 1115 unit, 34 backend-budget,
 299308 mutation inputs and 114 CLI checks; all passed.
 Repository policy and diff whitespace checks pass for the feature diff.
+
+Post-auto-merge integration (2026-10-27): merged main 6d5d518, including cache
+#15, conditional MET/saving policy #146, TLS policy #145, HTTP framing #81,
+complete dumps/provider errors #83, UI bounds/gestures #84/#90, OT ABI checks
+#43 and agent conventions #149. GitHub/owner performed those PR merges.
+
+Resolved Makefile, status docs, FetchOpts, TLS mapper and TLS fixture conflicts.
+Kept deadline_s together with all conditional/cache fields. TLS preserves both
+raw timeout/clock messages and main's abrupt-EOF truncation/retry mapping. The
+harness combines positional test deadlines with --attempts, a fixed certificate
+UTC clock, real monotonic deadlines and its alarm watchdog. All modern-suite,
+certificate, abrupt-close/retry and paced/trickling relay cases remain. Budget
+tests now run in both production and explicit test-hook builds. Model/UI code
+matches merged main exactly; the approved saving policy is unchanged.
+
+make check passed: 1791 unit checks and 34 backend-budget checks in each build
+mode, 396036 mutation inputs, 119 CLI checks in each mode, 5 cache CLI,
+28 TLS, 54 GUI, 95 CDE text, 19 field checks, 3 fixture-startup, 14 anchors,
+3 provisioning and 6 flags, plus linked-artifact production/test isolation.
+ASan+UBSan passed both unit/budget/CLI modes, mutation/cache suites, 95 CDE and
+19 field checks. OS 9 production/diagnostics and NetBSD CLI/X11/unit/robustness/
+budget cross-builds passed. Retro68 PowerPC and m68k portable probes passed.
+Existing NetBSD cabs/cabsf sysroot linker warnings remain. Policy and feature-diff
+whitespace checks passed. No failed tests in this integration run; earlier red
+regressions are recorded above. No native runtime, delivery or live HTTP request.
+
+Remaining limits are unchanged: POSIX libc getaddrinfo blocks until return,
+although elapsed time is charged; OS 9 TCP/stream waits do not internally consume
+the borrowed budget. Core pre-operation checks cannot interrupt arbitrary backend
+calls. Native menu-hold/DNS-stall/slow-TLS acceptance remains unverified (#72/#14).
+
+Owner hardware steps (Linux performs every compilation): with maul in NetBSD,
+run make check-maul smoke-maul and then make check-gui-maul serially from the
+laptop. check-maul includes the 34 backend-budget cases; retain complete output.
+With Tiger/Classic and the owner logged in at the console, quit existing Weather
+apps normally, build diagnostics (README) and use:
+  maulctl push osx tools/deliver-os9.sh deliver-os9.sh
+  maulctl push osx build/os9/WeatherUITest.dsk WeatherUITest.dsk
+  maulctl osx 'sh /tmp/deliver-os9.sh /tmp/WeatherUITest.dsk WeatherUITest'
+  python3 tools/check-os9-window.py /tmp/weather-deadline-shots --app WeatherUITest
+Inspect screenshots and logs for yielding/background execution and cancellation.
+This generic window run is NOT a stalled-DNS, strict TCP-budget or slow-TLS/menu
+acceptance result; those remain #72/#14 work. A remote peer may close while menus
+pause local active-time accounting. Do not change seed files or remove a live lock.

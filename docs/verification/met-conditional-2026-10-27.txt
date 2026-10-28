@@ -1,0 +1,123 @@
+Issue #128, stacked on PR #15 at 3aedf92, 2026-10-27
+
+Bounded Last-Modified headers are preserved in cache record v2 (224 bytes),
+echoed as If-Modified-Since only for matching MET forecasts, and used to accept
+304 as revalidation. Location, units, source and usable prior conditions must
+match. Unsolicited 304 remains an error. Open-Meteo stays unconditional. Shared
+cache-aware fetching is wired into CLI, X11, OS 9 console and OS 9 window.
+
+Red: first test build failed for missing metadata/conditional APIs. Linking the
+completed tests against the old fetch implementation then ran 1676 checks with
+7 failures: no retained header, no conditional request, no accepted revalidation,
+and no validator after a persisted restart. Correct implementation: all pass.
+
+make check passed: 1676 unit/storage, 373194 mutated inputs, 111 CLI, 4 cache
+CLI, 12 TLS, 31 GUI, 14 anchors, 3 provisioning and 6 flags checks.
+After adding explicit Last-Modified and 304 mutation seeds, standalone robustness
+passed 396036 inputs. ASan+UBSan check-san uses that expanded corpus and passed
+1676 unit/storage, 396036 inputs, 111 CLI and 4 cache CLI checks.
+
+NetBSD CLI/X11/unit/robustness cross-build and OS 9 production/diagnostic build
+passed. Retro68 portable probes pass for PowerPC and m68k (GCC 16.1.0).
+No hardware run or live HTTP service call on this head. Fixture contact strings
+are test-only and never sent to a service. No source data/seed material logged.
+
+Policy follow-up: MET response caching is automatic when MET and contact are
+configured; cache=off still disables disk restoration after a failed request.
+An Open-Meteo success in this mode does not overwrite the retained MET record.
+Diagnostic windows use only supplied cache stores, never production fallback.
+New persistence-policy tests failed compilation without the helper APIs; with
+the implementation they pass (1685 unit checks). Final complete-suite results
+for this follow-up are recorded below and on the PR.
+
+Draft / remaining gates: parent #15 and native runtime acceptance. No full MET
+terms-compliance claim: Expires deferral remains outside this slice.
+
+Final automatic-MET policy verification:
+make check: 1685 unit/storage, 396036 mutation inputs, 111 CLI, 4 cache CLI,
+12 TLS, 31 GUI, 14 anchors, 3 provisioning and 6 flags checks; all passed.
+make REQUIRE_ASAN=1 check-san: ASan+UBSan, 1685 unit/storage, 396036 inputs,
+111 CLI and 4 cache CLI checks; all passed. OS 9 production/diagnostics and
+NetBSD CLI/X11/unit cross-builds passed. groff -mdoc -ww reported no warnings.
+No hardware run or live API request was performed for this follow-up.
+
+Owner-approved product contract, 2026-10-27 (supersedes automatic-MET policy above):
+Saving defaults on for every provider. Both window apps expose the persisted
+"Save forecasts on this computer" Options item. Off deletes the primary saved
+forecast and prevents reads/writes. MET is skipped before any request even with
+contact configured; Open-Meteo remains usable, including fallback after MET.
+Menu deletion/save failures remain visible without claiming the setting changed.
+In-memory data survives the preference change until normal process exit.
+An externally configured off setting prevents reads/writes even if deletion fails.
+
+Red: make build/host/unittest failed with:
+test/conditional_tests.hpp:95:10: error: 'struct wx::FetchOpts' has no member named 'save_forecasts'
+A preliminary restricted-sandbox unit run also reported:
+FAIL test/unittest.cpp:419: ls >= 0
+Rerunning with fixture sockets allowed passed; final results below.
+
+make check: 1701 unit/storage/preferences, 396036 mutation inputs, 111 CLI,
+5 cache CLI, 12 TLS, 39 GUI, 14 anchors, 3 provisioning and 6 flags checks;
+all passed. GUI checks include default-on restore, off deletion, skipped MET,
+off after relaunch, and persistent re-enable. Screenshots inspected: the full
+setting fits the menu and the MET explanation is readable without truncation.
+
+OS 9 production and diagnostics cross-build passed. CacheProbe includes removal
+failure, repeated removal, and re-enable acceptance checks, cross-built only.
+NetBSD CLI/X11/unit cross-build passed; existing sysroot cabs/cabsf compatibility
+linker warnings remain. Policy, whitespace and groff -mdoc -ww checks passed.
+No native hardware run or live HTTP API request. Native acceptance steps are in
+docs/FORECAST-CACHE.md. Nothing merged; parent #15/native gates remain.
+make REQUIRE_ASAN=1 check-san: ASan+UBSan passed 1701 unit/storage/preferences,
+396036 mutation inputs, 111 CLI and 5 cache CLI checks for the approved contract.
+
+Evening parent integration, 2026-10-27:
+Updated #15 is b44b76f, incorporating main 3cb287f (#80/#81). #146 merges that
+parent without rewriting history. HTTP conflicts retain #81's strict unsigned
+Content-Length parsing/overflow checks, duplicate-length agreement and rejection
+of every transfer coding, plus #146's bounded Last-Modified and body-free 304
+revalidation. Both HTTP mutation invariants are retained. Documentation keeps
+both native preference acceptance and exact parent hardware commands.
+
+Red reproduction against the pre-integration #146 HTTP header:
+FAIL: malformed 304 length accepted
+Input: HTTP/1.0 304 Not Modified followed by Content-Length: -1 and no body.
+The combined implementation reports:
+PASS: malformed 304 length rejected
+Three unit regressions cover negative length, conflicting lengths and unsupported
+transfer coding on 304. A valid 304 with a representation Content-Length still
+revalidates the matching saved forecast. No product policy change: saving stays
+on by default; off removes saved data, disables MET and retains Open-Meteo.
+Evening integration results: make check passed 1708 unit/storage/preferences,
+396036 mutation inputs, 111 CLI, 5 cache CLI, 20 TLS, 39 GUI, 3 fixture-startup,
+14 anchors, 3 provisioning and 6 flags checks. ASan+UBSan check-san passed
+1708 unit/storage/preferences, 396036 mutation inputs, 111 CLI and 5 cache CLI.
+OS 9 production/diagnostic and NetBSD CLI/X11/unit cross-builds passed; existing
+sysroot cabs/cabsf linker warnings remain. Policy and whitespace checks passed.
+No failing tests remain. No hardware run, delivery or live HTTP API request.
+
+Auto-merge batch integration (2026-10-27): parent #15 is 80e9f99, incorporating
+main 435a711 (#145 TLS production/test isolation, #83 complete debug dumps and
+last-attempted-provider errors, #84 UI gestures/CDE bounds, #43 OT ABI checks).
+GitHub performed those main merges; no manual PR merge by Codex. #146 remains
+stacked on #15 and draft. Kept both cache-preference and interrupted-gesture GUI
+scenarios, both status sections, strict HTTP/conditional behavior and test modes.
+
+The automatically merged MET-off skip initially overwrote an earlier attempted
+provider's DNS failure. Red regression output:
+FAIL test/conditional_tests.hpp:118: fetch_forecast(net,attempt_then_skip,2,q,opts,buf,sizeof buf,&reused).err==Err::Dns
+1722 checks, 1 failed
+Corrected the skip to replace the result only if no provider was attempted;
+the MET explanation is still logged. The regression and all suites now pass.
+
+Final serial verification: make check passed 1722 unit/storage/preferences in
+both production and explicit test-hook builds, 396036 mutation inputs, 116 CLI
+checks in each build, 5 cache CLI, 24 TLS, 48 GUI, 95 CDE text, 3 fixture-startup,
+14 anchors, 3 provisioning, 6 flags and linked-artifact build isolation.
+ASan+UBSan passed both unit/CLI build modes, mutation/cache suites and 95 CDE checks.
+OS 9 production/diagnostic and NetBSD CLI/X11/unit cross-builds passed. Existing
+NetBSD cabs/cabsf sysroot linker warnings remain. Policy and feature-diff whitespace
+checks passed. The imported OT RFC's intentional Markdown hard break is unchanged.
+No hardware run, delivery or live HTTP request. Jack's default-on saving and true
+off/MET-skip decision is unchanged. GitHub required checks must pass; drafts have
+no auto-merge request. Hardware steps remain in docs/FORECAST-CACHE.md.

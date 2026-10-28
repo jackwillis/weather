@@ -35,7 +35,17 @@ Attribution: weather data comes from [Open-Meteo](https://open-meteo.com) and, i
 Config: `~/.weatherrc` (`latitude`, `longitude`, `name`, `units`, `timeout`, `attempts`, `providers`, `contact`, `log`, `autorefresh`),
 flags override it. The default location is Madison, WI 53703 (Capitol Square 43.0747,-89.3841); set `name`, `latitude`, `longitude` or use -l/-n. Exit codes follow BSD sysexits
 (68 dns, 69 connect/no source, 74 io, 75 timeout, 76 http/tls/cert, 65 bad data, 64 usage, 78 config).
+When all sources fail, the last attempted source supplies the error and exit code, including with `-q`; later skipped sources do not hide it.
 `-S` saves location, name and units into the config file (comments and other settings are kept; the write is atomic) and exits. Ctrl-C or SIGTERM during a fetch cancels cleanly (exit 130). Diagnostics go to stderr (or syslog with -s); stdout carries only the result. `-d` dumps the traffic.
+
+Forecast saving is on by default. Both window apps offer **Save forecasts on this
+computer** in Options. Saved forecasts appear clearly dated while an update is
+attempted; CLI fallback remains explicitly stale and retains the live failure exit
+code. Turning saving off (`cache = off`) removes the saved forecast and prevents
+further forecast storage. MET Norway requires saving; choose Open-Meteo to use
+Weather without persistent forecasts.
+Plain-HTTP test requests bypass caching. See
+[cache behavior and format](docs/FORECAST-CACHE.md). OS 9 cache storage and UI wiring are cross-built; native acceptance is pending.
 
 ## Build and test
 GNU make is required (`gmake` on BSD and under Homebrew; Apple's make 3.81 works too). One fragment per target in `mk/`.
