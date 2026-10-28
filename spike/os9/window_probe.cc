@@ -80,8 +80,8 @@ bool advance() {
 	return ack.ok && ack.v==stage;
 }
 void setup(Config &cfg) {
-	FILE *mode=std::fopen("weather-ui.quit-mode","r");
-	if(mode) { char value[16]={}; std::fgets(value,sizeof value,mode); std::fclose(mode); quit_idle=std::strcmp(value,"idle\n")==0; }
+	FILE *mode=std::fopen("weather-ui.quit-idle","r");
+	quit_idle=mode!=nullptr; if(mode) std::fclose(mode);
 	test_cfg=&cfg; cfg=Config{}; std::strcpy(cfg.name,"UI test - simulated weather");
 	started=TickCount();
 #ifdef WEATHER_CACHE_UI_TEST

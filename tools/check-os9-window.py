@@ -33,10 +33,12 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     # Only diagnostic-owned markers/logs. Never touch production config or seeds.
+    quit_marker = f"{REMOTE}/weather-ui.quit-idle"
+    quit_setup = f"touch {quit_marker}" if args.quit_mode == "idle" else f"rm -f {quit_marker}"
     remote(f"rm -f {REMOTE}/weather-ui.ready {REMOTE}/weather-ui.advance "
            f"{REMOTE}/weather-ui.pumps {REMOTE}/weather-ui.live-go "
            f"{REMOTE}/weather-ui-test.log; "
-           f"printf '{args.quit_mode}\\n' > {REMOTE}/weather-ui.quit-mode; open {REMOTE}/{args.app}")
+           f"{quit_setup}; open {REMOTE}/{args.app}")
     names = ["clear-day", "clear-night", "cloud", "rain", "snow", "storm",
              "fog", "about", "metric", "stale-error", "yielding-fetch", "live", "cancelled"]
     for stage, name in enumerate(names):

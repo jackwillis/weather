@@ -34,3 +34,8 @@ Not run: actual Apple Event delivery, Tiger logout, Classic/native OS 9 shutdown
 physical dialogs or hardware lock-release verification. maulctl status: NetBSD
 name resolution failed; Tiger address reported No route to host. No hardware
 configuration, reboot, deployment, provisioning or privileged operation attempted.
+
+Final diagnostic-only follow-up: idle mode uses presence of a diagnostic-owned
+weather-ui.quit-idle marker, not parsed text. Both affected UI diagnostic apps
+rebuilt successfully after this simplification; Python syntax and whitespace pass.
+Production and the host-tested handler code are unchanged by that follow-up.
