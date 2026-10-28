@@ -1,7 +1,7 @@
 # Status (2026-10-27)
 
 ## Automatic source fallback (#152)
-New installations try Open-Meteo then MET Norway, identifying MET requests with the public project repository URL unless `contact` overrides it. MET responses carry server expiry and are reused before it; a retained MET record survives a later Open-Meteo success. Saving off removes both records and skips MET. Host verification is being recorded in the PR; this behavior has not yet been verified on NetBSD/macppc or Classic/native OS 9. This does not complete the owner’s provider-terms or hardware acceptance gates.
+New installations try Open-Meteo then MET Norway, identifying MET requests with the public project repository URL unless `contact` overrides it. MET responses carry server expiry and are reused before it; a retained MET record survives a later Open-Meteo success. Saving off removes both records and skips MET. Host check/check-san passed (1823 unit checks in each mode, 426598 mutated inputs, 119 CLI checks in each mode, 55 GUI checks); OS 9 diagnostics and NetBSD CLI/X11/unit/robust cross-builds passed. Native execution on NetBSD/macppc or Classic/native OS 9 is not verified for this change. See docs/verification/met-default-fallback-2026-10-27.txt. This does not complete the owner’s provider-terms or hardware acceptance gates.
 
 ## Releases
 **0.0.1 (pre-release), published 2026-10-27:** https://github.com/jackwillis/weather/releases/tag/v0.0.1 (tag at 59b50f0). Built by
