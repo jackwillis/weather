@@ -56,6 +56,6 @@ size_t field_start(XFontStruct *font, sv text, size_t cursor, int width);
 size_t field_position(XFontStruct *font, sv text, size_t cursor, int width, int x);
 void field(Theme &t, Drawable w, Rect r, const char *s, size_t n, size_t cur, bool focus);
 // The framed picture: sky, then the weather for a WMO code.
-void weather_icon(Theme &t, Drawable w, Rect area, long code, bool night);
+void weather_icon(Theme &t, Drawable w, Rect area, long code, bool night, bool faded = false);
 
 } // namespace cde

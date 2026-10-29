@@ -921,6 +921,33 @@ static void test_art_bounds()
 	}
 }
 
+struct ArtColors {
+	Rgb seen{-1, -1, -1};
+	void rect(int, int, int, int, Rgb c) { seen = c; }
+	void disc(int, int, int, Rgb c) { seen = c; }
+	void line(int, int, int, int, int, Rgb c) { seen = c; }
+	void poly(const ArtPt *, int, Rgb c) { seen = c; }
+};
+static void test_art_dim()
+{
+	ArtColors base;
+	art::DimCanvas<ArtColors> dim{base, Rgb{200, 200, 200}, 50};
+	dim.rect(0, 0, 1, 1, Rgb{0, 100, 255});
+	CHECK(base.seen.r == 100 && base.seen.g == 150 && base.seen.b == 228);   // halfway to the ground, truncating toward zero
+	dim.disc(0, 0, 1, Rgb{200, 200, 200});
+	CHECK(base.seen.r == 200 && base.seen.g == 200 && base.seen.b == 200);   // the ground colour is a fixed point
+	ArtPt tri[3] = {{0, 0}, {4, 0}, {0, 4}};
+	dim.poly(tri, 3, Rgb{10, 20, 30});
+	CHECK(base.seen.r == 105 && base.seen.g == 110 && base.seen.b == 115);
+	art::DimCanvas<ArtColors> none{base, Rgb{200, 200, 200}, 0};
+	none.line(0, 0, 3, 3, 2, Rgb{7, 8, 9});
+	CHECK(base.seen.r == 7 && base.seen.g == 8 && base.seen.b == 9);          // 0 percent changes nothing
+	ArtBounds bounds{ArtRect{0, 0, 60, 60}};
+	art::DimCanvas<ArtBounds> through{bounds, Rgb{200, 200, 200}, 55};
+	art::picture(through, ArtRect{0, 0, 60, 60}, 61, false);                  // a whole scene draws through the adapter
+	CHECK(bounds.valid && bounds.calls > 0);
+}
+
 static void test_model()
 {
 	{ // Rounding at the minute/hour boundary must not produce "60 min".
@@ -1612,6 +1639,7 @@ int main()
 	test_settings_store();
 	test_model();
 	test_art_bounds();
+	test_art_dim();
 	test_credits();
 	test_window_actions();
 	test_config_load();
