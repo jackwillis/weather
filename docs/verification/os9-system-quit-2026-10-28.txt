@@ -1,0 +1,120 @@
+OS 9 system-requested quit (#169), 2026-10-28
+Stacked on the Command-period fix (#184).
+
+Red: host core-event lifecycle test against an unimplemented SystemEvents returned
+exit 1: FAIL OS 9 core-event lifecycle.
+Green: the same test passes registration order, open/document/print/quit dispatch,
+partial-install rollback at each of four positions, allocation failure and
+explicit/destructor teardown. It runs in make check and under ASan/UBSan in
+make check-san, against the actual production handler header with host API stubs.
+
+make check and make check-san passed: 1839 unit checks in each production/test-hook
+mode; 426598 mutation inputs; 119 CLI checks per mode; 34 connection-budget checks;
+28 TLS checks; 95 CDE text checks; 19 field checks; 55 serialized host GUI checks
+(full make check). Repository policy, Python driver syntax and diff whitespace pass.
+
+Retro68 cross-build on Linux: production Weather/WeatherConsole and all diagnostics
+passed. First resource build failed with:
+/src/os9/weather.r:16:2: error: Identifier "highleveleventaware" is not defined.
+The installed open Multiversal resource definition spells it isHighLevelEventAware;
+correcting that flag and new enum warnings produced a successful rebuild. The
+pre-existing net_os9.cpp enum/non-enum conditional warning remains.
+
+Read the generated MacBinary resource forks: console SIZE flags 0x5080, window
+SIZE flags 0x50c0; XOR 0x0040 is solely the high-level-event-aware bit.
+Production Weather.pef has no weather-ui.ready marker; WeatherUITest.pef is the
+positive control and contains it. No Apple SDK material was copied into the tree.
+
+The diagnostic sends a real quit Apple Event to itself at the final stage, either
+while fetching (default) or idle (--quit-mode idle). After normal window return it
+acquires/releases only the managed lock to check availability, never reads seed
+contents or removes an existing lock. Run the two variants serially.
+
+Not run: actual Apple Event delivery, Tiger logout, Classic/native OS 9 shutdown,
+physical dialogs or hardware lock-release verification. maulctl status: NetBSD
+name resolution failed; Tiger address reported No route to host. No hardware
+configuration, reboot, deployment, provisioning or privileged operation attempted.
+
+Final diagnostic-only follow-up: idle mode uses presence of a diagnostic-owned
+weather-ui.quit-idle marker, not parsed text. Both affected UI diagnostic apps
+rebuilt successfully after this simplification; Python syntax and whitespace pass.
+Production and the host-tested handler code are unchanged by that follow-up.
+
+Hardware attempt, 2026-10-28 (Tiger/Classic, NOT native OS 9)
+----------------------------------------------------------------
+Source 1a23dc68; Mac OS X 10.4.11 build 8S165, claude console login.
+Delivered only WeatherUITest; data-fork MD5 840b875341b96e24dc68095e02979005
+matches local APPL. Production Weather was not replaced. Classic started normally.
+
+Original run passed config/load/delete bounds, simulated modal-clock exclusions,
+offscreen allocation, unit change, stale retention, bounded background pumping,
+refresh non-reentrancy, redraw and native suspend/resume assertions through stage 10.
+The last assertion was:
+ok stage=11 production live fetch starts in background
+
+Driver exited 1 with:
+RuntimeError: UI stage 11 did not become ready; see saved log
+No stage-12 cancellation or stage-13 system-quit/lock result was reached.
+The app was subsequently absent from Finder's process list; no crash dialog or
+crash report has been confirmed, and owner interaction has not yet been ruled out.
+Do not call this a passed lifecycle run or a proven TLS root cause.
+
+A normal re-open started a new diagnostic, replacing the remote log. The original
+log had already been saved locally by the driver. That new run reported:
+FAIL stage=0 remove diagnostic config
+FAIL stage=0 missing native config uses existing defaults
+It later displayed stage 0. A normal quit request via Tiger osascript failed with:
+64:65: syntax error: No user interaction allowed. (-1713)
+The owner was asked to quit the diagnostic with Command-Q and report any dialog.
+No force kill, lock deletion, provisioning, reboot or privileged change attempted.
+
+Original driver log: /tmp/weather-hardware-fetch-driver.log
+Original assertions/screenshots: /tmp/weather-hardware-2026-10-28/fetch/
+Additional observations: /tmp/weather-live-stall-remote.txt and
+/tmp/weather-live-reopen-remote.txt. The appended weather.log tail was historical
+and cannot establish a new DNS/TLS error for this attempt.
+
+Offline follow-up: definite Retro68 weak mutable storage overlap
+----------------------------------------------------------------
+Read the original native XCOFF with the cross nm -n -C. It reports BOTH:
+00053e90 b (anonymous namespace)::test_cfg
+00053e90 b wx::SystemEvents::quit_
+00053e90 W wx::SystemEvents::quit_
+
+The callback was an inline static mutable pointer in the new handler header.
+Setting it therefore overwrote the diagnostic's Config pointer, which stage 11
+uses to update the displayed name. This is a concrete build bug and plausibly
+explains the live-stage disappearance; the corrected build has NOT run on maul.
+It is the same class of Retro68 weak-workspace overlap already avoided by the
+compiled Preferences writer. Host/ASan tests cannot reproduce this native link bug.
+
+Red: new test/os9-event-layout.sh against the original linked diagnostic exits 1:
+FAIL OS 9 event storage: callback=00053e90, diagnostic=00053e90, weak=1
+
+Fix: declare the callback in the header, define it exactly once in
+src/ui/os9/system_events.cpp, and link that source into every window target and
+the host lifecycle tests. The native checker now runs automatically after linking
+WeatherUITest and rejects weak/missing/overlapping callback storage.
+Green: rebuilt production and every diagnostic OS 9 target on Linux. Native nm:
+00043b88 B wx::SystemEvents::quit_
+00053e90 b (anonymous namespace)::test_cfg
+OS 9 event storage: distinct strong callback and diagnostic globals
+
+Also assert the actual live fetch Status is success, rather than accepting only
+an Ok model phase (which cancellation can retain from an older forecast).
+
+Fresh full make check and ASan/UBSan make check-san exit zero: 1839 unit checks
+per mode, 426598 mutations, 119 CLI per mode, 28 TLS, 95 CDE text, 19 field and
+55 serialized GUI checks (make check), plus host lifecycle/policy/auxiliary checks.
+Logs: /tmp/weather-quit-storage-{check,san,os9}.log.
+New WeatherUITest.dsk SHA256:
+f030f1db43db310158cc54973b3bd284038be1a4e39fd5c05929b3316257927a
+Native source/artifact copy remains /tmp/weather-quit-work/build/os9.
+No runtime parser path added. No Apple SDK material copied.
+
+Jack is away and cannot do acceptance now. One final read-only Mac status check
+at 20:33 UTC showed the relaunched diagnostic still listed at stage 0. No further
+Mac call, restart, deployment, forced termination or lock action was performed
+while doing the safety refresh and offline correction. Corrected callback build
+is NOT deployed. PR #185 remains draft; actual idle/fetch quit, physical shortcut,
+Classic/native shutdown and real lock-release acceptance remain open.

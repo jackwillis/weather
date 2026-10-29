@@ -12,12 +12,15 @@
 #include "platform/os9/portable.hpp"
 #endif
 #include <OSUtils.h>
+#include <AppleEvents.h>
+#include <Processes.h>
 #include <cstdio>
 #include <cstring>
 
 using namespace wx;
 namespace {
 int stage=0, fetches=0, failures=0;
+bool quit_idle=false;
 char isolated_preferences[4096]={};
 SettingsStore isolated_store;
 void init_store() {
@@ -50,6 +53,21 @@ void check(bool ok,const char *what) {
 	if(!ok) ++failures;
 	std::fflush(logfile);
 }
+bool send_quit() {
+	ProcessSerialNumber psn;
+	if(GetCurrentProcess(&psn)!=noErr) return false;
+	AEAddressDesc address;
+	OSErr err=AECreateDesc(typeProcessSerialNumber,&psn,sizeof psn,&address);
+	if(err!=noErr) return false;
+	AppleEvent event,reply;
+	err=AECreateAppleEvent(kCoreEventClass,kAEQuitApplication,&address,
+	                       kAutoGenerateReturnID,kAnyTransactionID,&event);
+	AEDisposeDesc(&address);
+	if(err!=noErr) return false;
+	err=AESend(&event,&reply,static_cast<AESendMode>(kAENoReply)|static_cast<AESendMode>(kAENeverInteract),kAENormalPriority,kAEDefaultTimeout,nullptr,nullptr);
+	AEDisposeDesc(&event);
+	return err==noErr;
+}
 bool advance() {
 	FILE *f=std::fopen("weather-ui.advance","r");
 	if(!f) return false;
@@ -62,6 +80,8 @@ bool advance() {
 	return ack.ok && ack.v==stage;
 }
 void setup(Config &cfg) {
+	FILE *mode=std::fopen("weather-ui.quit-idle","r");
+	quit_idle=mode!=nullptr; if(mode) std::fclose(mode);
 	test_cfg=&cfg; cfg=Config{}; std::strcpy(cfg.name,"UI test - simulated weather");
 	started=TickCount();
 #ifdef WEATHER_CACHE_UI_TEST
@@ -126,7 +146,12 @@ void idle() {
 	if(static_cast<unsigned long>(TickCount()-last_fetch_ticks)<300) return;
 	if(!advance()) return;
 	++stage; announced=false;
-	if(stage==7) os9_window_action(WindowAction::About);
+	if(stage==13 && quit_idle) {
+		check(os9_window_model().phase()!=Phase::Fetching,"system quit requested while idle");
+		check(send_quit(),"send real core quit Apple Event while idle");
+		waiting_fetch=true; // Do not request another fetch before the queued event is dispatched.
+	}
+	else if(stage==7) os9_window_action(WindowAction::About);
 	else if(stage==8) {
 		os9_window_action(WindowAction::DismissAbout);
 		os9_window_action(WindowAction::ToggleAuto);
@@ -143,10 +168,10 @@ wx::Status fetch(const Config &cfg,Net &net,Forecast *f) {
 	if(stage==0) return make(Err::Timeout,"simulated initial outage");
 #endif
 	if(stage==13) {
-		os9_window_menu_selection((129L<<16)|3); // File > Quit command, while fetching.
-		check(!net.yield(net),"quit cancels a yielding fetch");
+		check(send_quit(),"send real core quit Apple Event while fetching");
+		check(!net.yield(net),"system quit cancels a yielding fetch");
 		wx::Status s=os9_window_fetch_live(cfg,net,f);
-		check(s.err==Err::Cancelled,"quit propagates through production fetch without retry/fallback");
+		check(s.err==Err::Cancelled,"system quit propagates through production fetch without retry/fallback");
 		return s;
 	}
 	if(stage==12) {
@@ -170,6 +195,7 @@ wx::Status fetch(const Config &cfg,Net &net,Forecast *f) {
 		}
 		check(!os9_window_foreground(),"production live fetch starts in background");
 		wx::Status s=os9_window_fetch_live(cfg,net,f);
+		check(s.ok(),"production live fetch returned success");
 		check(!os9_window_foreground(),"production live fetch completes in background");
 		return s;
 	}
@@ -218,7 +244,11 @@ int main() {
 	hooks.cache_store=&test_cache.base;
 #endif
 	int rc=run_os9_window(&hooks);
-	check(stage==13 && fetches==13,"all stages completed with exactly thirteen fetches");
+	Os9SeedStore released_lock;
+	bool acquired=released_lock.acquire();
+	check(acquired,"managed seed lock released after system quit");
+	if(acquired) check(released_lock.release(),"release diagnostic lock check");
+	check(stage==13 && fetches==(quit_idle?12:13),"all stages completed with expected fetch count");
 #ifdef WEATHER_CACHE_UI_TEST
 	if(cache_owned) {
 		FSSpec primary;

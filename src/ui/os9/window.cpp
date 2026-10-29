@@ -4,6 +4,7 @@
 #include "window.hpp"
 #include "app/config_load.hpp"
 #include "location.hpp"
+#include "system_events.hpp"
 #include "place_search.hpp"
 #include "platform/os9/settings_os9.hpp"
 #include "platform/os9/config_os9.hpp"
@@ -296,7 +297,9 @@ bool pump(Net &)
 	}
 	EventRecord e;
 	for (int i = 0; i < 8 && !actions.quit && WaitNextEvent(everyEvent, &e, 0, nullptr); i++) {
-		if (e.what == updateEvt) {
+		if(e.what==kHighLevelEvent) {
+			AEProcessAppleEvent(&e);
+		} else if (e.what == updateEvt) {
 			WindowPtr w = reinterpret_cast<WindowPtr>(e.message);
 			BeginUpdate(w);
 			if (w == window) { ++update_count; draw(); }
@@ -422,6 +425,9 @@ int run_os9_window(const WindowTestHooks *hooks) {
 	model=Model(ModelConfig{cfg.auto_refresh,900,60});
 	log_init(cfg.level,false,"weather");
 	InitGraf(&qd.thePort); InitFonts(); InitWindows(); InitMenus(); TEInit(); InitDialogs(nullptr); InitCursor();
+	SystemEvents system_events;
+	OSErr event_error=system_events.start([] { command(WindowAction::Quit); });
+	if(event_error!=noErr) { logf(LogError,"cannot install application events: %d",static_cast<int>(event_error)); return 1; }
 	Rect bounds=box(80,60,340,kHeight);
 	window=NewCWindow(nullptr,&bounds,pascal_text("Weather"),true,documentProc,reinterpret_cast<WindowPtr>(-1L),true,0);
 	if(!window) return 1;
@@ -484,6 +490,7 @@ int run_os9_window(const WindowTestHooks *hooks) {
 	}
     place.cancel();
 	location.cancel();
+	system_events.stop();
 	os9_net_shutdown();
 	DeleteMenu(128); DeleteMenu(129); DeleteMenu(130);
 	DisposeMenu(apple); DisposeMenu(file); DisposeMenu(options);

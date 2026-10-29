@@ -12,7 +12,11 @@ resource 'SIZE' (-1) {
 	dontGetFrontClicks,
 	ignoreChildDiedEvents,
 	is32BitCompatible,
+#ifdef WEATHER_WINDOW_EVENTS
+	isHighLevelEventAware,
+#else
 	notHighLevelEventAware,
+#endif
 	onlyLocalHLEvents,
 	notStationeryAware,
 	dontUseTextEditServices,
