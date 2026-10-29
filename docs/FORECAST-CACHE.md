@@ -137,11 +137,11 @@ Retro68 build with `WEATHER_BUILD_DIAGNOSTICS=ON` (README), then build with
 maulctl push osx tools/deliver-os9.sh deliver-os9.sh
 maulctl push osx build/os9/CacheProbe.dsk CacheProbe.dsk
 maulctl osx 'sh /tmp/deliver-os9.sh /tmp/CacheProbe.dsk CacheProbe'
-maulctl osx 'open /Volumes/MacOS9Lives/belike-dev/CacheProbe'
+maulctl osx 'open /Volumes/MacOS9Lives/weather-dev/CacheProbe'
 ```
 
 Wait for `cache-probe.log` to end with `finished: 0 failures`, then read it with
-`maulctl osx 'cat /Volumes/MacOS9Lives/belike-dev/cache-probe.log'`. Retain any
+`maulctl osx 'cat /Volumes/MacOS9Lives/weather-dev/cache-probe.log'`. Retain any
 failure output. Next deliver and run the isolated window diagnostic:
 
 ```sh
