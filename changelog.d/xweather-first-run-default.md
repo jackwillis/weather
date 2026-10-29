@@ -1,0 +1,1 @@
+- xweather no longer forces a location dialog on first launch: missing or empty settings show and fetch the default location (Madison, WI), and Location... (Ctrl-L) changes it; invalid settings are reported and never replaced (#198; supersedes the automatic picker from #106).

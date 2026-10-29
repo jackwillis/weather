@@ -1,23 +1,60 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Jack Willis
-# Runs ON the Mac (OS X 10.4): copy an app out of a Retro68 .dsk image into MacOS9Lives:weather-dev with its resource fork.
-# usage: sh deliver-os9.sh /tmp/App.dsk AppName      (writes /tmp/deliver.done when finished, log in /tmp/deliver.log)
-# Weather is the native window; WeatherConsole is the console diagnostic.
-# WeatherUITest is a separate optional self-running test app. Quit an old copy
-# normally before replacing it; force-quitting can leave a managed TLS seed lock.
-# Notes: plain `hdiutil attach` hung/failed here ("Device not configured") while a stale hdiutil was running; attaching with
-# -nomount and mounting through diskutil is the reliable path. Run it in the FOREGROUND over ssh: under nohup/& the attach fails. A stuck `hdiutil attach` needs kill -9.
-dsk=$1 app=$2 dest=/Volumes/MacOS9Lives/weather-dev
-rm -f /tmp/deliver.done
+# Run in the FOREGROUND on Mac OS X 10.4. Copies a Retro68 disk image's APPL
+# with its resource fork. deliver.done indicates success, not merely termination.
+# usage: sh deliver-os9.sh /tmp/App.dsk AppName
+# Weather is the native window; WeatherConsole is the console diagnostic. WeatherUITest is a separate optional test app.
+# Quit an old copy normally before replacing it; force-quitting can leave a managed TLS seed lock.
+# Defaults: /Volumes/MacOS9Lives/weather-dev and /tmp/deliver.{log,done}.
+# WEATHER_DELIVER_DEST / WEATHER_DELIVER_STATE override them for isolated tests.
+set -eu
+dest=${WEATHER_DELIVER_DEST:-/Volumes/MacOS9Lives/weather-dev}
+state=${WEATHER_DELIVER_STATE:-/tmp}
+log=$state/deliver.log
+done_file=$state/deliver.done
+rm -f "$done_file"
+dsk=${1:?disk image required}
+app=${2:?application name required}
+case $app in .|..|*/*) echo 'application name must be a single file name' >&2; exit 1;; esac
+[ -d "$dest" ] || { echo "destination directory missing: $dest" >&2; exit 1; }
+work=$(mktemp -d "$state/weather-deliver.XXXXXXXX")
+stage=
+dev=
+cleanup() {
+    status=$?
+    if [ -n "$dev" ]; then hdiutil detach "$dev" >> "$log" 2>&1 || :; fi
+    [ -z "$stage" ] || rm -rf "$stage"
+    rm -rf "$work"
+    trap - 0
+    exit "$status"
+}
+trap cleanup 0
+trap 'exit 1' 1 2 3 15
+read_device() { awk '$1 ~ /^\/dev\/disk[0-9]+(s[0-9]+)?$/ { print $1; exit }' "$work/attach"; }
 {
-  dev=$(hdiutil attach "$dsk" -imagekey diskimage-class=CRawDiskImage -nomount | awk '{print $1; exit}')
-  echo "device=$dev"
-  diskutil mount "$dev"
-  vol=$(diskutil info "$dev" | sed -n 's/^ *Mount Point: *//p')
-  echo "volume=$vol"
-  if [ -f "$vol/$app" ]; then ditto -rsrc "$vol/$app" "$dest/$app"; else echo "source $vol/$app missing; destination left untouched"; fi
-  hdiutil detach "$dev"
-  ls -l "$dest"
-} > /tmp/deliver.log 2>&1
-touch /tmp/deliver.done
+    if hdiutil attach "$dsk" -imagekey diskimage-class=CRawDiskImage -nomount > "$work/attach"; then
+        dev=$(read_device)
+    else
+        dev=$(read_device)
+        echo 'disk image attachment failed'
+        exit 1
+    fi
+    [ -n "$dev" ] || { echo 'no attached disk device reported'; exit 1; }
+    echo "device=$dev"
+    diskutil mount "$dev"
+    diskutil info "$dev" > "$work/info"
+    vol=$(sed -n 's/^ *Mount Point: *//p' "$work/info")
+    case $vol in /*) ;; *) echo 'mounted volume path missing'; exit 1;; esac
+    echo "volume=$vol"
+    [ -f "$vol/$app" ] || { echo "source $vol/$app missing; destination left untouched"; exit 1; }
+    [ ! -d "$dest/$app" ] || { echo 'destination application is a directory'; exit 1; }
+    stage=$(mktemp -d "$dest/.weather-deliver.XXXXXXXX")
+    ditto -rsrc "$vol/$app" "$stage/$app"
+    hdiutil detach "$dev"
+    dev=
+    mv -f "$stage/$app" "$dest/$app"
+    ls -l "$dest/$app"
+    : > "$work/done"
+    mv -f "$work/done" "$done_file"
+} > "$log" 2>&1

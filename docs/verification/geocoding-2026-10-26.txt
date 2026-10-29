@@ -1,0 +1,45 @@
+Geocoding portable foundation verification, 2026-10-26 UTC
+
+No CLI/UI integration or new OS 9 runtime acceptance is claimed.
+Full check/sanitizer/PowerPC run initially had 635 unit checks; six extra
+boundary cases were then run in all three unit configurations (641 total).
+Parser and runtime code did not change between those runs.
+
+check:
+anchors tests: 14 passed, 0 failed
+635 checks, 0 failed
+robust: 231002 inputs, 0 failed
+feature tests: 99 passed, 0 failed
+flags tests: 6 passed, 0 failed
+--- 21 checks passed, 0 failed
+gui scenario passed
+
+san:
+check-san: with AddressSanitizer
+635 checks, 0 failed
+robust: 231002 inputs, 0 failed
+feature tests: 99 passed, 0 failed
+
+maul:
+635 checks, 0 failed
+robust: 87002 inputs, 0 failed
+
+portable:
+ok   powerpc: portable core + compile-time tests compile (powerpc-apple-macos-g++ (GCC) 16.1.0)
+ok   m68k: portable core + compile-time tests compile (m68k-apple-macos-g++ (GCC) 16.1.0)
+
+live:
+TLS geocoding: 4 bounded results
+Madison, Wisconsin US: 430731,-894012 (e4)
+Madison Park, Wisconsin US: 430209,-880431 (e4)
+Madison Park, Wisconsin US: 431025,-880329 (e4)
+Madison Mobile Home Park, Wisconsin US: 430394,-893869 (e4)
+
+Final host and ASan/UBSan unit reruns:
+641 checks, 0 failed
+641 checks, 0 failed
+
+Final real NetBSD/macppc run:
+641 checks, 0 failed
+robust: 87002 inputs, 0 failed
+status=0

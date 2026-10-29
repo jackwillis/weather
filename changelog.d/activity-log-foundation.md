@@ -1,0 +1,1 @@
+- Add the bounded shared session activity foundation for upcoming native Activity Log windows (#160), with canonical messages and explicit clock trust. Production event wiring and viewers remain pending.

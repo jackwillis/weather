@@ -16,6 +16,60 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  os9:
+    name: Mac OS 9 cross-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      # Keep in sync with release.yml; update deliberately.
+      RETRO68_IMAGE: ghcr.io/autc04/retro68@sha256:2c2ec5ca764c98b7460522be7327426e3b4d039a317c22d6ccdcc64e5247f21a
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install container runner
+        timeout-minutes: 12
+        run: |
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends podman make
+      - name: Cross-build production applications and check Open Transport layout
+        run: make os9 check-ot-layout CONTAINER=podman RETRO68_IMAGE="$RETRO68_IMAGE"
+
+  linux-ppc:
+    name: Big-endian Linux/PPC runtime
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install distribution cross compiler and user-mode emulator
+        timeout-minutes: 12
+        run: |
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends g++-powerpc-linux-gnu qemu-user make
+      - name: Record toolchain provenance
+        run: |
+          powerpc-linux-gnu-g++ --version
+          qemu-ppc --version
+          dpkg-query -W g++-powerpc-linux-gnu gcc-13-powerpc-linux-gnu qemu-user libc6-powerpc-cross
+      - name: Execute ABI, unit and mutation checks with UBSan traps
+        run: |
+          if make -j2 TARGET=linux-ppc check > build-ppc.log 2>&1; then
+            cat build-ppc.log
+          else
+            cat build-ppc.log
+            exit 1
+          fi
+      - name: Save PowerPC build and runtime diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-ppc-diagnostics
+          path: build-ppc.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   host:
     name: Host, GUI and sanitizers
     runs-on: ubuntu-24.04

@@ -1,0 +1,22 @@
+Provider attribution, 2026-10-29, main baseline 4a5d70c
+
+Read current Open-Meteo terms, MET terms, NWS API policy and NWS disclaimer.
+Exact URLs and scope/remaining acceptance: docs/PROVIDER-TERMS.md.
+
+Red: added shared-credit assertions for CC BY address, National Weather Service,
+public-domain and endorsement. Permission-enabled unit run:
+FAIL test/unittest.cpp:1631: credits_mention(what) (four occurrences)
+2623 checks, 4 failed
+An earlier sandboxed invocation also failed ls >= 0 because local sockets were
+not permitted; that environment failure is not an attribution regression.
+
+Green after changing shared credits:
+2631 checks, 0 failed
+Existing assertions enforce <=9 lines per page and <=46 characters per line.
+Full make check passed, including 88 serialized host GUI assertions.
+Sanitizer/cross-build results are recorded on the PR when complete.
+
+Source checks: CLI and both About renderers consume the same shared pages.
+README and weather(1) now distinguish NWS public-domain observations from CC BY.
+No claim of full MET protocol-policy compliance: redirects/gzip are unsupported.
+No hardware, real-display layout, package-install or final owner acceptance.

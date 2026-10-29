@@ -13,6 +13,7 @@ inline constexpr const char *kCreditsShort[] = {
 	"Copyright (c) 2026 Jack Willis",
 	"License GPL-3.0-or-later, NO WARRANTY.",
 	"Data: Open-Meteo.com, MET Norway (CC BY 4.0)",
+	"NWS (NOAA): U.S. public-domain data",
 };
 
 struct CreditPage { const char *title; const char *const *lines; size_t n; };
@@ -29,10 +30,19 @@ inline constexpr const char *kCreditsWeather[] = {
 inline constexpr const char *kCreditsData[] = {
 	"Open-Meteo.com (CC BY 4.0)",
 	"MET Norway Locationforecast (CC BY 4.0)",
+	"Search: Open-Meteo / GeoNames (CC BY 4.0)",
+	"creativecommons.org/licenses/by/4.0/",
 	"Values are converted to your units",
 	"and summarised.",
 	"Weather stays free software, with no",
 	"ads or subscriptions.",
+};
+inline constexpr const char *kCreditsNws[] = {
+	"National Weather Service (NOAA)",
+	"U.S. public-domain observations.",
+	"weather.gov/disclaimer",
+	"Values are converted and summarised.",
+	"No NOAA/NWS endorsement or affiliation.",
 };
 inline constexpr const char *kCreditsSoftware[] = {
 	"BearSSL by Thomas Pornin (MIT): TLS",
@@ -46,6 +56,7 @@ inline constexpr const char *kCreditsSoftware[] = {
 inline constexpr CreditPage kCreditPages[] = {
 	{"Weather", kCreditsWeather, sizeof kCreditsWeather / sizeof *kCreditsWeather},
 	{"Weather data", kCreditsData, sizeof kCreditsData / sizeof *kCreditsData},
+	{"NWS observations", kCreditsNws, sizeof kCreditsNws / sizeof *kCreditsNws},
 	{"Software", kCreditsSoftware, sizeof kCreditsSoftware / sizeof *kCreditsSoftware},
 };
 inline constexpr size_t kCreditPageCount = sizeof kCreditPages / sizeof *kCreditPages;

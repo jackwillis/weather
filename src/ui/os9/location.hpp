@@ -9,6 +9,7 @@ class LocationDialog {
     GrafPtr prior_ = nullptr;
     LocationEditor editor_;
     int focus_ = 0;
+    bool search_requested_=false;
     void message(const char *);
     bool read();
 public:
@@ -22,6 +23,8 @@ public:
     bool item(int,SettingsStore &,SettingsStore &,Config &,Model &,long long,Status *);
     // Direct UI operations are also used by the separately linked native probe.
     void set_field(int,sv);
+    bool take_search_request() { bool value=search_requested_; search_requested_=false; return value; }
+    void notice(const char *text) { if(dialog_) message(text); }
     int focus() const { return focus_; }
 };
 }

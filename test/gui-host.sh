@@ -8,8 +8,10 @@ IM=convert; command -v magick >/dev/null 2>&1 && IM=magick
 command -v Xvfb >/dev/null 2>&1 || { echo "gui-host: Xvfb not installed, skipping"; exit 0; }
 . test/gui-lib.sh
 OUT=build/gui-host; rm -rf $OUT; mkdir -p $OUT/run
-cp build/host/xweather build/host/xdrive test/gui/scenario.sh $OUT/run/
+BIN_DIR=${WX_BUILD:-build/host}
+cp "$BIN_DIR/xweather" "$BIN_DIR/xweather-search-test" "$BIN_DIR/xweather-stale-test" "$BIN_DIR/xdrive" test/gui/scenario.sh $OUT/run/
 python3 test/cache_fixture.py $OUT/run/rcCache.cache
+python3 test/cache_fixture.py $OUT/run/rcStale.cache 10800
 XPID=
 cleanup() {
     fixture_cleanup

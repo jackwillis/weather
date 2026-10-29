@@ -10,6 +10,7 @@ VERSION=$(sed -n 's/^VERSION *= *//p' Makefile)
 PKGNAME=weather-$VERSION
 PREFIX=/usr/pkg                         # pkgsrc's prefix on NetBSD
 T=netbsd-macppc
+XC=${WEATHER_CROSS_PREFIX:-$HOME/scratch/netbsd-xc/tools2/bin/powerpc--netbsd-}
 OUT=build/pkg
 rm -rf "$OUT"; mkdir -p "$OUT/stage"
 
@@ -32,13 +33,18 @@ EOC
 # shared libraries the binaries need (all part of the base system), as pkgsrc's REQUIRES lines
 XT=build/$T
 req() { # NEEDED names -> absolute paths
-	~/scratch/netbsd-xc/tools2/bin/powerpc--netbsd-readelf -d "$@" | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p' | sort -u | while read -r lib; do
+	"${XC}readelf" -d "$@" > "$OUT/needed.raw" || return 1
+	sed -n 's/.*Shared library: \[\(.*\)\]/\1/p' "$OUT/needed.raw" > "$OUT/needed.names" || return 1
+	sort -u "$OUT/needed.names" > "$OUT/needed.sorted" || return 1
+	while IFS= read -r lib; do
 		case $lib in
 		libX11*|libxcb*|libXau*|libXdmcp*) echo "REQUIRES=/usr/X11R7/lib/$lib" ;;
 		*) echo "REQUIRES=/usr/lib/$lib" ;;
 		esac
-	done
+	done < "$OUT/needed.sorted"
 }
+"${XC}gcc" --version > "$OUT/compiler.txt"
+CC_VERSION=$(sed -n '1{s/.*) //;s/^/gcc-/;p;}' "$OUT/compiler.txt")
 {
 	echo "CATEGORIES=misc"
 	echo "OPSYS=NetBSD"
@@ -49,19 +55,34 @@ req() { # NEEDED names -> absolute paths
 	echo "LICENSE=gnu-gpl-v3"
 	echo "BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S +0000')"
 	echo "BUILD_HOST=cross-built on Linux x86_64"
-	echo "CC_VERSION=$(~/scratch/netbsd-xc/tools2/bin/powerpc--netbsd-gcc --version | head -n 1 | sed 's/.*) //;s/^/gcc-/')"
+	echo "CC_VERSION=$CC_VERSION"
 	echo "LOCALBASE=$PREFIX"
 	echo "PKGMANDIR=man"
 	req "$XT/weather" "$XT/xweather"
 } > "$OUT/BUILD_INFO"
-sz=$(find "$OUT/stage" -type f -exec wc -c {} + | awk 'END{print $1}')
+find "$OUT/stage" -type f > "$OUT/stage-files"
+sz=0
+while IFS= read -r file; do
+    bytes=$(wc -c < "$file")
+    sz=$((sz + bytes))
+done < "$OUT/stage-files"
 echo "$sz" > "$OUT/SIZE"
 
-# ship the staged tree and metadata to maul and package it there
-maulctl nb "rm -rf /tmp/wxpkg; mkdir -p /tmp/wxpkg/stage"
-tar -C "$OUT/stage" -cf - . | maulctl nb 'tar -C /tmp/wxpkg/stage -xf -'
-for f in PLIST COMMENT DESCR BUILD_INFO SIZE; do maulctl push nb "$OUT/$f" "wxpkg/$f" >/dev/null; done
-maulctl nb "cd /tmp/wxpkg && /usr/sbin/pkg_create -v -B BUILD_INFO -c COMMENT -d DESCR -f PLIST -I $PREFIX -p stage$PREFIX \
+# Check each producer and consumer separately: POSIX sh has no pipefail.
+tar -C "$OUT/stage" -cf "$OUT/stage.tar" .
+remote=$(maulctl nb 'mktemp -d /tmp/weather-pkg.XXXXXXXX')
+case "$remote" in /tmp/weather-pkg.????????) ;; *) echo 'invalid remote package directory' >&2; exit 1;; esac
+name=${remote#/tmp/}
+case "$name" in *[!a-zA-Z0-9.-]*) echo 'invalid remote directory characters' >&2; exit 1;; esac
+maulctl nb "mkdir '$remote/stage'"
+maulctl push nb "$OUT/stage.tar" "$name/stage.tar" >/dev/null
+maulctl nb "tar -C '$remote/stage' -xf '$remote/stage.tar' && rm -f '$remote/stage.tar'"
+for f in PLIST COMMENT DESCR BUILD_INFO SIZE; do maulctl push nb "$OUT/$f" "$name/$f" >/dev/null; done
+maulctl nb "cd '$remote' && /usr/sbin/pkg_create -v -B BUILD_INFO -c COMMENT -d DESCR -f PLIST -I $PREFIX -p stage$PREFIX \
     -S SIZE -s SIZE -u root -g wheel $PKGNAME.tgz && ls -l $PKGNAME.tgz"
-maulctl nb "cat /tmp/wxpkg/$PKGNAME.tgz" > "$OUT/$PKGNAME.tgz"
+maulctl nb "cat '$remote/$PKGNAME.tgz'" > "$OUT/$PKGNAME.tgz.part"
+tar -tzf "$OUT/$PKGNAME.tgz.part" > "$OUT/package-files"
+mv "$OUT/$PKGNAME.tgz.part" "$OUT/$PKGNAME.tgz"
+rm -f "$OUT/stage.tar"
+maulctl nb "rm -rf '$remote'"
 echo "package: $OUT/$PKGNAME.tgz ($(wc -c < "$OUT/$PKGNAME.tgz") bytes)"

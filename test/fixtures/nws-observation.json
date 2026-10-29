@@ -1,0 +1,1 @@
+{"properties":{"timestamp":"2026-10-25T23:53:00+00:00","temperature":{"unitCode":"wmoUnit:degC","value":12.5},"windSpeed":{"unitCode":"wmoUnit:km_h-1","value":18.0},"windDirection":{"unitCode":"wmoUnit:degree_(angle)","value":270},"relativeHumidity":{"unitCode":"wmoUnit:percent","value":72.401374699018},"presentWeather":[],"cloudLayers":[{"amount":"BKN"}]}}

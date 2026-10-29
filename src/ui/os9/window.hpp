@@ -5,6 +5,7 @@
 #include "app/cache_store.hpp"
 #include "core/net.hpp"
 #include "core/settings.hpp"
+#include "core/geocoding.hpp"
 namespace wx {
 // The diagnostic executable supplies these callbacks. Production passes nullptr
 // and does not link any marker-file reader or fixture generator.
@@ -14,6 +15,8 @@ struct WindowTestHooks {
 	Status (*fetch)(const Config &, Net &, Forecast *) = nullptr;
 	SettingsStore *preferences = nullptr;
 	SettingsStore *legacy = nullptr;
+	bool first_run = false; // Explicit diagnostic scenario; production detects empty settings.
+	Status (*search)(Net &,sv,PlaceResults *) = nullptr;
 	CacheStore *cache_store = nullptr;
 };
 int run_os9_window(const WindowTestHooks *hooks = nullptr);
@@ -25,6 +28,12 @@ bool os9_window_location_visible();
 void os9_window_location_field(int,sv);
 void os9_window_location_item(int);
 int os9_window_location_focus();
+bool os9_window_place_visible();
+void os9_window_place_query(sv);
+void os9_window_place_item(int);
+void os9_window_place_key(char,bool command=false);
+size_t os9_window_place_count();
+int os9_window_place_selected();
 void os9_window_location_key(char,bool shift=false);
 const Config &os9_window_config();
 Status os9_window_settings_status();

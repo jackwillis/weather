@@ -1,0 +1,139 @@
+Issue #60, E5 only: keep a completed DNS answer after failed resolver cleanup.
+
+The production DnsResolver already validates completion, callback cookie,
+query status and a nonempty address before closing its provider. A failed
+close previously discarded the answer. Now it preserves the lookup result,
+records cleanup_status separately and keeps the existing quarantine. Every
+later request still fails before another open, so callback-owned storage is
+never reset or reused after uncertain cleanup. The OS9 caller warns that it is
+using the completed answer and later lookups require a restart.
+
+Regression first: changed success-after-failed-close expectation and added
+failed-query, timeout and abandoned-open cleanup cases. Original implementation:
+FAIL test/unittest.cpp:1008: r.resolve("h", 60).ok()
+524 checks, 1 failed
+Final suite also checks separately retained cleanup code. Query errors retain
+original detail; timeout remains timeout; failure closing a drained abandoned
+open cannot start the next query. No parser input path added.
+
+Partial issue #60 only. Exit-handler order (E6), clock wrap integration (E7)
+and client record assertion (E10) remain separate work on existing branches.
+No OS9 runtime fault injection claimed while Tiger is parked. Host and NetBSD
+G4 test the exact production controller with a deterministic backend; native
+OS9 warning integration is cross-built only. No private seed or owner data.
+
+Final checks: host525unit /230242mutation /106CLI /12localTLS /21serializedGUI;
+explicit ASan+UBSan525/230242/106 (log confirms with AddressSanitizer);
+actual NetBSD/macppc G4525unit /86242mutation, status0. Retro68 portable probes
+for PowerPC and68k and full OS9 application/diagnostic cross-build passed.
+The architecture probes are generic portable gates; full backend instantiation
+is exercised by the PowerPC OS9 build. No native runtime claim. Logs retained
+in /tmp/weather-dns-close-{red,check,san,maul,probe,os9}.log.
+
+E6 shutdown-order follow-up
+
+os9_net_init registers seed/network cleanup before the first lazy OT init.
+The glue then registers its own atexit callback later, so LIFO previously closed
+OT first. The backend's subsequent OTCloseProvider ran after transport shutdown.
+New internal weather_ot_before_close hook registers process-lifetime endpoint
+cleanup in net_init. Both explicit and exit OT close invoke it before the
+private close call. The open flag clears before invoking the hook, so a
+reentrant close cannot recursively close OT twice. Explicit network shutdown
+uses the same idempotent endpoint cleanup. Seed cleanup registration remains
+early, before acquisition; no seed-store behavior changed.
+
+The test compiles actual ot_glue.cc against test-owned MacTypes/Gestalt stand-ins
+and fake OT entry points. These are NOT SDK files or ABI/layout verification.
+It uses libc's real atexit path and registers an older callback as net_init does.
+Before hook invocation was wired, test aborted with exit134 because OT closed
+while an endpoint remained live. Three cases check explicit repeated/reentrant
+close, process exit with older handler, and failed OT init (no close). The test
+requires provider close while OT is active and exact endpoint-before-transport
+output. It runs in make check and check-san using project compiler/link flags.
+-Wno-address only suppresses the existing dead weak-import check, tracked by
+E10/#43; the production check is unchanged here. No new production test switch.
+
+This also addresses E6 at source/host-test level. Native OS9 shutdown acceptance
+remains pending Tiger. E7 (window clock), E10 (#43) and the original unchecked
+glue atexit registration remain separate limits; no claim of fixing all #60.
+Final E6 follow-up: host525unit/230242mutation/106CLI/12TLS/21serializedGUI plus
+3glue shutdown cases; explicit ASan+UBSan525/230242/106 plus3glue cases. Actual
+NetBSD G4 runs all3glue cases with libc's exit path; readelf shows libc.so.12
+only, no libstdc++. Earlier E5 head G4525/86242 remains controller verification;
+controller unchanged by E6. Full Retro68 PowerPC OS9 app/diagnostics build passed.
+All compilation on Linux. Private G4 test files removed, no owner config read.
+Logs /tmp/weather-ot-shutdown-{red,check,san,os9,maul,cross}.log.
+
+Exit-registration failure follow-up (supersedes unchecked-registration limit)
+
+InitOpenTransport now checks atexit registration. On failure it closes the
+newly initialized OT client and returns an error; it never reports success
+without owning its exit cleanup. A subsequent init can succeed and register
+normally. The actual-source regression substitutes only the std qualification
+of atexit in the included glue source with a test namespace wrapper; existing
+headers are included first, no namespace std additions or production test hook.
+The wrapper normally forwards to real libc atexit; one mode injects failure.
+That new case aborted134 against the old unchecked implementation. It now
+requires failed init, inactive OT/no endpoint, successful retry and ordered
+cleanup. The prior three real-LIFO cases remain. Test stand-ins make no ABI
+claim; actual production glue is still independently cross-built for OS9.
+Registration follow-up final: host525unit/230242mutation/106CLI/12TLS/
+21serializedGUI +4actual-glue cases; explicit ASan+UBSan525/230242/106
++4glue cases. Actual NetBSD G4 all4glue cases, libc.so.12 only. Full OS9
+PowerPC cross-build passed. Native OS9 exit/failure injection remains pending.
+No private config read; disposable G4 test files cleaned. All builds Linux.
+Logs /tmp/weather-ot-registration-{red,check,san,os9,maul,cross}.log.
+
+Native layout/shutdown-test integration
+
+Carried #43's identical pointer32/record40/offset guards and ineffective-address-
+check removal into this branch. Host test initially failed its build with the
+expected64bit pointer/offset assertions. The guard now selects __powerpc__ or
+__POWERPC__: the actual supported target retains every assertion; non-PPC host
+stand-ins test lifecycle only. PPC64 still fails the pointer32 assertion.
+No native ABI assertions are suppressed inside the test or replaced by mocks.
+The repeatable make check-ot-layout probe is carried identically from43. It
+requires the actual Retro68 compiler to reject both bad record-size and flag-
+offset copies, so an accidentally disabled native guard cannot appear green.
+The G4 lifecycle test compiles with PowerPC layout assertions enabled as well.
+Combined verification: full host525/230242/106CLI/12TLS/21serializedGUI plus4
+lifecycle cases; explicit ASan+UBSan525/230242/106 plus4lifecycle cases. Actual
+G4 all4cases with PowerPC assertions active, libc only. Full PowerPC OS9 build
+and native size/offset rejection probe pass. No native OS9 runtime claim.
+Logs /tmp/weather-ot-integration-{red,check,san,os9,layout,maul,cross}.log.
+
+2026-10-28 integration refresh
+
+Merged main 8c2d5bce50a3eab646d44690788f5f8f19ffc4dd without rewriting
+the existing PR history. Resolved Makefile conflicts by keeping both the
+actual-glue lifecycle test and main's connection-budget, production/test-hook,
+cache, entropy and GUI checks. DnsResolver retains cleanup_status alongside
+the borrowed Net/attempt budget parameter; timeout/cancellation still precede
+completion. Architecture text retains both lifecycle and deadline guarantees.
+No production behavior beyond the existing PR was added during this refresh.
+
+E7 is now present through main's ModalClock: DNS ticks and monotonic milliseconds
+use the shared active clock. Existing tests cover TickCount wrap, modal credit
+across wrap, credit-counter wrap, and excluding modal time from DNS ticks.
+This establishes source/host coverage, not a new native hardware result. E10's
+native layout assertions are already in main; retain its negative cross-compiler
+probe. E5/E6 native failed-close/process-exit acceptance remains outstanding.
+
+Initial make check could not open the TLS fixture socket in the filesystem
+sandbox: PermissionError: [Errno 1] Operation not permitted;
+FAIL: the test server did not start; tls tests: 0 passed, 1 failed.
+Reran with local networking permitted; final results follow below.
+
+Then incorporated main ef25f333e7d0e2b0ac35da3d362852120e0c33c1
+(Claude merged #154) and reran the combined host/sanitizer suites:
+1876 unit checks in each production/test-hook mode, 426598 mutation inputs,
+129 CLI checks in each mode, 34 connection-budget checks, 4 actual-glue
+shutdown cases, 28 local TLS checks, 95 CDE text and 19 field checks,
+55 serialized GUI checks; all passed. ASan explicitly enabled. Repository
+policy and diff whitespace checks relative to main passed. Full native OS 9
+application/diagnostic cross-build and OT layout negative checks passed before
+this tests-only main update; production/native sources are unchanged by #154.
+Existing net_os9 enum/non-enum warning remains in the cross-build log.
+No native execution for the refresh; no maul calls were made.
+Logs: /tmp/weather-pr91-{refresh,combined}-{check,san,os9,layout}.log
+(only applicable combinations exist).

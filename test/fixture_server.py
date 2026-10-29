@@ -46,6 +46,15 @@ class H(socketserver.StreamRequestHandler):
             w(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n' % len(body) + body)
         elif mode == 'imperial':    # ignores the unit parameters
             w(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n' % len(FIX) + FIX)
+        elif mode == 'nws':
+            names = {'/gridpoints/MKX/38,46/stations?limit=1': 'nws-stations.json',
+                     '/stations/KMSN/observations/latest': 'nws-observation.json'}
+            name = 'nws-points.json' if path.startswith('/points/') else names.get(path)
+            if name:
+                body = open(FIXDIR + name, 'rb').read()
+                w(b'HTTP/1.0 200 OK\r\nContent-Length: %d\r\n\r\n' % len(body) + body)
+            else:
+                w(b'HTTP/1.0 404 Not Found\r\n\r\n')
         elif mode == 'metno':
             w(b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n' % len(MET) + MET)
         elif mode == 'fallback':    # Open-Meteo's path is broken, MET Norway's works

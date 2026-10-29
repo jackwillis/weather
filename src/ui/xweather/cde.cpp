@@ -282,10 +282,13 @@ struct XCanvas {
 };
 }
 
-void weather_icon(Theme &t, Drawable w, Rect a, long code, bool night)
+void weather_icon(Theme &t, Drawable w, Rect a, long code, bool night, bool faded)
 {
 	XCanvas canvas{t, w};
-	wx::art::picture(canvas, wx::ArtRect{a.x, a.y, a.w, a.h}, code, night);
+	if (faded) {   // old data: fade toward the CDE panel grey, as the text dims (#62)
+		wx::art::DimCanvas<XCanvas> dim{canvas, wx::Rgb{174, 178, 195}, 55};
+		wx::art::picture(dim, wx::ArtRect{a.x, a.y, a.w, a.h}, code, night);
+	} else wx::art::picture(canvas, wx::ArtRect{a.x, a.y, a.w, a.h}, code, night);
 	shadow(t, w, a, 1, false);
 }
 

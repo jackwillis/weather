@@ -1,0 +1,60 @@
+Changelog fragments: #77, stacked on #78 project-management branch bffb887
+
+New changes use individual changelog.d/<pr-or-slug>.md files. Existing open PRs
+may retain legacy CHANGELOG edits and need no duplicate fragment. No new required
+fragment CI gate is introduced. PROJECT-MANAGEMENT.md and the PR template now
+explain this transition. CHANGELOG.md itself is unchanged.
+
+The release preview tool is standalone POSIX sh/awk, with no added dependencies.
+It outputs a version section in C-locale lexical filename order, normalizes CRLF
+and leading/trailing blank lines, preserves internal Markdown and ignores README.
+It validates all fragments into a private temp preview before emitting stdout;
+invalid/empty/symlink/nonregular files fail without a partial release section.
+It never changes the changelog or deletes fragments. At release time the owner
+reviews output, combines it with the existing legacy section and removes only
+consumed fragments. Empty directories output a heading only.
+
+Tests use private disposable files: stable ordering/repeated output, unchanged
+input, empty directory, invalid/empty files and names, symlink/directory refusal,
+missing directory, version/argument validation and default-directory resolution
+when invoked from elsewhere.14 checks. Integrated into make check.
+Red before implementation:
+sh: /home/jack/code/weather/tools/changelog.sh: No such file or directory
+/tmp/weather-changelog-red.log. Focused green:14 checks pass.
+
+No release or changelog rewrite was performed. No existing PR branch was
+rewritten. This is a child of #78 so it can update the guide/template without
+creating conflicting duplicates of those files on main. Parent must merge first
+with owner's authorization, then this PR can be retargeted. No merge occurred.
+
+Green final verification
+make check: 517 unit checks, 230242 mutation inputs, 106 CLI checks, 12 local
+real-TLS checks, 14 changelog checks, 21 serialized GUI checks and existing
+lint/anchors/provisioning/flags pass. /tmp/weather-changelog-check.log.
+make check-san explicitly enabled ASan with UBSan: 517 unit checks, 230242
+mutation inputs and 106 CLI checks pass. /tmp/weather-changelog-san.log.
+Actual G4 NetBSD native sh/BSD awk: all14 changelog checks pass, using private
+temp files only. Own remote helper files/directory removed on success. No compile
+or privileged step on maul. /tmp/weather-changelog-hardware.log; driver:
+/tmp/weather-changelog-hardware.sh. No macOS-host, Tiger or OS9 runtime claim.
+No core parser changed; shell-file/argument validation is covered by its own
+portable test suite. Generated preview inspected; it contains only the new
+fragment and no legacy changelog rewrite. No release was published.
+
+2026-10-28 refresh against main ef25f333
+
+Preserved the existing fragment tool and 14 dedicated cases unchanged. Resolved
+the Makefile conflict by retaining both changelog and entropy-analysis checks,
+including all current production/test-hook, cache and connection-budget checks.
+Dedicated shell tests, POSIX syntax and repository policy passed. Earlier native
+NetBSD sh/BSD awk evidence above applies to the unchanged tool/test sources;
+no new native execution or macOS host acceptance is claimed. Full current host
+and sanitizer results follow below. No release section was published or consumed.
+
+Full refreshed host non-GUI, serialized GUI and ASan/UBSan checks passed:
+1868 unit checks per production/test-hook mode, 426598 mutation inputs,
+129 CLI checks per mode, 34 connection-budget checks, 28 local TLS checks,
+95 CDE text, 19 field and 55 GUI checks; all 14 fragment checks passed.
+Logs: /tmp/weather-pr87-{host-check,gui,san}.log. Claude subsequently merged
+#87 as b7ba3e0 and #19 as ef544ed. Combined-main verification is recorded
+separately; this note preserves the additional local refresh evidence only.
