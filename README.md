@@ -27,6 +27,17 @@ for the remaining acceptance work.
 
 ## Platforms and readiness
 
+For v0.1 the supported release targets are **NetBSD/macppc** (one combined CLI/X11
+package) and **PowerPC Mac OS 9.2.2**. Tiger Classic is an additional validation
+environment. Linux and modern macOS are development hosts; this is not a promise
+of native Tiger, Linux or macOS release packages. Final hardware acceptance is
+tracked in [#204](https://github.com/jackwillis/weather/issues/204).
+
+The approved Unix rename to `belike`, `xbelike` and `~/.belikerc` is pending
+[#135](https://github.com/jackwillis/weather/issues/135); commands below describe
+the current source. There will be no old-name alias or rc migration. Native OS 9
+`Weather`, its Preferences and TLS seed/lock names stay unchanged.
+
 | Platform | Application | Current evidence |
 | --- | --- | --- |
 | NetBSD/macppc on Power Mac G4 | `weather`, `xweather` | Currently packaged Unix target; live CLI and X11/Xvfb hardware tests; real-display review of xweather remains open (#70). |
@@ -71,7 +82,7 @@ GeoNames; its public endpoint is for non-commercial use. With missing or empty
 settings, the window shows the default location (Madison, WI) and fetches it;
 Location... (Ctrl-L) changes it. The CLI remains non-interactive. See
 [search behavior and privacy](docs/GEOCODING.md). X11 Location has Find... (Ctrl-F) with explicit result selection; OK saves
-separately. OS 9 search controls are still in progress.
+separately. OS 9 search controls are integrated; native/Classic acceptance remains in #204.
 
 ## xweather
     xweather [-dhqvV] [-c file] [-display name]

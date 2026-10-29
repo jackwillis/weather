@@ -1,32 +1,39 @@
-# Status (2026-10-28)
+# Status (2026-10-29)
 
 ## Current release and integration state
 
 The live release gate is [#45](https://github.com/jackwillis/weather/issues/45).
-PRs #11/#12 (window/Preferences), #15 (cache), #41 (deadlines), #145 (TLS policy),
-#146 (MET revalidation), #147 (diagnostic entropy probe) and #163 (automatic
-fallback) have merged. Their implementation and remaining acceptance are separate.
-The latest hosted main Checks run at e0dc35e passed on 2026-10-28; this is not a
-new local or hardware test run. Test counts below belong to the dated evidence.
+This summary was refreshed on 2026-10-29 against main `4a5d70c`.
+Main now includes NWS (#16), place search (#17), shell/delivery safety (#85),
+PowerPC Linux CI (#19), changelog fragments (#87), shared session activity data
+(#154), DNS acceptance work (#14), OS 9 DNS/shutdown fixes (#91), the Madison
+X11 default (#198/#201), age-first stale status (#191), fading of every old
+value/picture (#203), and the entropy source audit (#200).
 
-Initial Classic and native OS 9 timing captures exist (#121); source assessment,
-restart/repeated sampling, credited entropy and a justified threshold do not.
-The analyzer still credits zero bits and production still requires provisioning.
-On October 27 Jack observed production Weather across a native OS 9 restart;
-this is owner evidence, not a complete native acceptance suite. Classic window
-and cache diagnostics also ran; #45/#102/#128 record their scope. Command-period
-cancellation (#168) and system-requested quit/Tiger logout (#169) are known open
-window defects. Native MET/cache-saving and real-display NetBSD acceptance remain.
+Merged code is not runtime acceptance. Hardware checks are collected in
+[#204](https://github.com/jackwillis/weather/issues/204) and belong to Jack;
+none is marked complete by this documentation update. #184 (Command-period)
+and stacked #185 (system quit) still need integration with current place-search
+state and current-main CI. #192 (X11 Activity Log) remains a v0.2 draft for after
+the v0.1 tag; the shared activity foundation does not ship that viewer.
 
-As of this audit, PR #154 is non-draft and mergeable; #14 is draft and mergeable.
-Draft PRs #16/#17/#19/#85/#87/#91 conflict with current main despite green recorded
-checks. Refresh and combined checks are required before review readiness.
+OS 9 still requires a separately provisioned managed seed. Claude owns the #193
+pilot and #120 collector; their design/implementation and hardware measurements
+remain the first-run TLS release dependency. Initial Classic/native captures and
+the zero-credit exploratory analyzer are historical evidence, not proof of an
+implemented or accepted collector. No entropy instructions are changed here.
 
-Roadmap: v0.2 covers resilience, sources/search and native Preferences (#182);
-hourly/daily data (#117), pins (#118) and window states (#176) are v0.3; CLI/docs
-revision (#178/#179) is v0.4. #181 records platform configuration idioms and the
-pre-1.0 no-migration policy. Existing text Preferences remain implemented until
-#182 lands. GitHub milestones supersede historical tier/roadmap descriptions.
+The v0.1 supported release targets are NetBSD/macppc (one combined CLI/X11
+package) and native PowerPC Mac OS 9.2.2, with Tiger Classic as additional
+validation. Linux and modern macOS are development hosts, not packaged release
+targets; XQuartz acceptance is still #171. The broader platform RFC is not an
+expanded support promise. The approved Unix names belike/xbelike and ~/.belikerc
+remain pending #135; current source still uses weather/xweather/~/.weatherrc.
+OS 9 Weather and its seed/lock names stay unchanged. #158 and #182 stay v0.2.
+
+Draft v0.1 notes are in `docs/release-notes/0.1.0.md`. Provider conclusions (#73),
+licence sign-off (#65), artifact/package acceptance (#67) and the tag/publication
+remain separate gates. Earlier test counts below describe their dated heads.
 
 ## Automatic source fallback (#152)
 New installations try Open-Meteo then MET Norway, identifying MET requests with the public project repository URL unless `contact` overrides it. MET responses carry server expiry and are reused before it; a retained MET record survives a later Open-Meteo success. Saving off removes both records and skips MET. Host check/check-san passed (1823 unit checks in each mode, 426598 mutated inputs, 119 CLI checks in each mode, 55 GUI checks); OS 9 diagnostics and NetBSD CLI/X11/unit/robust cross-builds passed. Native execution on NetBSD/macppc or Classic/native OS 9 is not verified for this change. See docs/verification/met-default-fallback-2026-10-27.txt. This does not complete the owner’s provider-terms or hardware acceptance gates.
