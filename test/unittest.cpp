@@ -46,6 +46,7 @@ static int g_fail = 0, g_run = 0;
 #include "seed_tests.hpp"
 #include "cache_tests.hpp"
 #include "os9_helper_tests.hpp"
+#include "activity_tests.hpp"
 
 static char g_fixbuf[2][8192];
 static const char *fixture(int slot, const char *name)
@@ -1606,6 +1607,7 @@ int main()
 	test_cache_storage();
 	test_cache_model();
 	test_os9_helpers();
+	test_activity();
 	printf("%d checks, %d failed\n", g_run, g_fail);
 	return g_fail ? 1 : 0;
 }

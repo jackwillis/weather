@@ -1,0 +1,46 @@
+Refs #160: portable bounded history and canonical event mapping only.
+
+Tests were written first. Initial compile failed:
+test/activity_tests.hpp:3:10: fatal error: app/activity.hpp: No such file or directory
+No new parser input path is introduced.
+
+Coverage: empty/out-of-range reads; three complete wraps plus additional entries;
+chronological retention; clear/reuse; entry and total storage budgets; every event
+and error kind; unknown event; no copied private Status message or numeric detail;
+canonical one-line messages; small/empty output buffers and canaries; explicit
+clock trust; epoch, leap day, 2038, non-leap century and last supported date;
+extreme/untrusted timestamps and TIME-UNKNOWN. UTC reference vectors independently
+checked with Python datetime. Two additional single-byte buffer assertions were
+added after the first complete ordinary host unit run; final focused unit reruns
+and sanitizer results are recorded below.
+
+An early scratch clone selected an older local main e3b5a87. Its test run was
+interrupted and is not final evidence. Updated from GitHub to ef544ed, reattached
+the activity test include/call after patch-context changes, and restarted full
+validation. A sandboxed preliminary unit run could not open the existing socket
+fixture: FAIL test/unittest.cpp:419: ls >= 0; 1512 checks, 1 failed. Subsequent
+verification permits local fixture networking. No failed run is counted as green.
+
+The isolated Retro68 compile instantiates record, indexed access and UTC formatting
+against the actual header, with C++17, -fno-exceptions -fno-rtti and -Werror.
+Native object undefined symbols are only __divdi3, __moddi3, memcpy and memset;
+no heap or libstdc++ references. Both entry/total size assertions are active.
+This is compile/link-dependency evidence, not native execution or app RSS testing.
+Logs/source: /tmp/weather-activity-native{.log,/}.
+
+Full host and sanitizer checks use /tmp/weather-activity-work, separate from all
+other active source/build trees. GUI checks run serially. Production event wiring,
+duplicate-status suppression, local-time viewers, fetch redraw/reentrancy and
+physical PowerMac memory/behavior acceptance remain open under #160. This change
+is not linked into production applications and changes no logging sinks.
+
+Final current-main verification passed: ordinary make check (2336 units per
+production/test-hook mode before two added buffer assertions; 426598 mutations,
+129 CLI checks per mode, 28 TLS, 34 connection-budget, 95 CDE text, 19 field,
+14 changelog and 55 serialized GUI checks). make check-san passed with ASan,
+2338 units per mode, the same mutation/CLI/connection-budget/CDE coverage.
+Final focused ordinary unit reruns pass all 2338 checks in both modes. Policy,
+freestanding lint and diff whitespace checks pass. The final integration base
+0a8f65d adds only the already-verified documentation PR #186 to ef544ed; runtime
+sources are unchanged by that main update. Logs:
+/tmp/weather-activity-current-{check,san}.log; /tmp/weather-activity-{red,green}.log.
