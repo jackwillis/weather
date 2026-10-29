@@ -204,3 +204,10 @@ no silent combination/replacement or live-lock removal is allowed. Cloning,
 rollback, compromise recovery and physical power-loss durability stay explicit
 limits. A human-approved source model, conditioner vectors, health tests,
 mutation tests and unchanged seed-store fault tests precede production wiring.
+
+## Source/API audit
+
+The [2026-10-29 source audit](OS9-ENTROPY-SOURCE-AUDIT.md) records pinned
+macTLS, MacSSL and historical OpenSSL comparisons, licensing boundaries and a
+compile-only Retro68 timer experiment. It recommends our own minimal diagnostic
+adapter, preserves the #193 symbol rules and supplies no entropy credit.
