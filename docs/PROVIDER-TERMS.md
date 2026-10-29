@@ -1,6 +1,6 @@
 # Data-provider terms and attribution (issue #73)
 
-Read on 2026-10-26 from the providers' published terms. Re-read before every release; terms change. This is a
+Re-read on 2026-10-29 from the providers' published terms. Re-read before every release; terms change. This is a
 summary for planning, not legal advice, and the providers' own pages govern.
 
 ## Open-Meteo (default source) — https://open-meteo.com/en/terms
@@ -37,16 +37,57 @@ Read through a summarising fetch tool, so the wording below is paraphrased; re-r
 
 ## Attribution used by Weather
 The README credits both sources and licences. Every forecast already names its source and timestamp in the output
-(`(open-meteo 2026-10-24T05:00)`). Shared credits already appear in X11 (Help > About > Credits) and OS 9 About; see `src/app/credits.hpp`. The NWS provider is still in an unmerged PR, so its separate public-domain attribution is not yet included. Check shipped packages as well as current source.
+(`(open-meteo 2026-10-24T05:00)`). Shared credits already appear in X11 (Help > About > Credits) and OS 9 About; see `src/app/credits.hpp`. NWS is integrated. This review adds its distinct public-domain notice and the CC BY licence URL to the shared credits. Check shipped packages as well as current source.
 
 ## NWS (api.weather.gov)
-Not in scope for 0.0.1 (PR #16 unmerged). NWS weather data is U.S. public-domain government information. Credit National Weather Service (NOAA), avoid implying endorsement, and verify final terms when integrating #16 (#73, #105).
+Re-read the [API policy](https://www.weather.gov/documentation/services-web-api) and [disclaimer](https://www.weather.gov/disclaimer) on 2026-10-29. NWS information is public domain unless otherwise noted. Identify NOAA/NWS data separately; do not claim ownership, imply endorsement or present modified values as official government material. The API requires an identifying User-Agent; contact is optional. Rate limits are unpublished. Existing request-chain/retry limits are documented in NWS.md; no fleet-scale or blanket terms compliance is claimed.
 
 ## Open items
 - [ ] Verify the existing About/Credits pages in shipped X11 and OS 9 builds, including licence wording and native layout. NWS must be added when its provider ships, clearly distinguished as U.S. public-domain government data rather than CC BY 4.0.
-- [ ] `man/weather.1` mentions the CC BY 4.0 credit.
+- [x] `man/weather.1` names the CC BY sources, links the licence, describes conversion and separately credits NWS.
 - [x] Conditional requests (`If-Modified-Since`) for MET Norway: #146. Expiry implementation: #152; native verification remains open.
 - [ ] Jack accepts this summary (the issue is labelled `needs-owner`).
 
 ### Implementation limits and release review (#152)
 The above describes successful 200/304 forecast reuse, not a blanket provider-terms acceptance. Re-read [the official terms](https://api.met.no/doc/TermsOfService) before release. The current terms also discuss redirects, gzip, traffic spreading and aggregate application traffic; this change does not implement a redirect/decompression client or establish fleet-scale compliance. Native behavior and owner acceptance remain release gates. Cache deletion, corruption, a query/provider-selection change, or concurrent independent writers can discard the saved metadata; the cache is not a cross-process traffic coordinator.
+
+## Source audit, 2026-10-29 (#73)
+
+Baseline main `4a5d70c` already ships NWS and place search. Earlier statements
+that those PRs were unmerged were stale. Source inspection found:
+
+| Surface | Before this correction | Correction / remaining acceptance |
+| --- | --- | --- |
+| CLI `-V` / `--credits` | Shared Open-Meteo/MET credits; no NWS notice or CC BY URL | Shared NWS public-domain page, licence URL and geocoding credit added. |
+| X11 Help > About > Credits | Same shared data strings | Same correction; host page bounds tested. Released-package discovery/layout remains #204. |
+| OS 9 About pages | Same shared data strings | Same correction; native screenshot acceptance remains #204. |
+| README | CC BY link and changes; NWS merely linked | Explicit NWS public-domain/no-endorsement statement added. |
+| weather(1) | CC BY names and changes; no licence URL or NWS | Both added. |
+
+Open-Meteo's [current terms](https://open-meteo.com/en/terms) retain CC BY 4.0
+and a non-commercial free endpoint, with 600/minute, 5,000/hour, 10,000/day and
+300,000/month limits. FOSS licensing alone does not make every downstream use
+non-commercial; commercial operators must arrange suitable service access.
+
+MET's [current terms](https://api.met.no/doc/TermsOfService) retain identifying
+User-Agent/contact, attribution, four-decimal coordinates, expiry/conditional
+requests and aggregate limits. They also require redirect and gzip support;
+Weather does not implement those. Traffic spreading and aggregate traffic remain
+review items. Therefore **do not mark full terms compliance accepted** merely
+because attribution and 200/304 cache reuse work. Jack must decide the remaining
+release treatment with the provider; no external contact is invented or sent.
+
+Persistent cache source IDs include Open-Meteo, MET and NWS (`src/core/forecast_cache.hpp`).
+Source inspection and host checks are not target runtime or legal acceptance.
+
+### Additional display-link review
+
+The [Open-Meteo licence page](https://open-meteo.com/en/licence), re-read on
+2026-10-29, also asks for an Open-Meteo link beside displayed data. Main's forecast
+line uses a source identifier; the detailed URL/credit lives in About/--credits
+and README rather than beside every value. This correction improves credits but
+**does not establish that indirect placement satisfies that provider request**.
+Jack must accept a concrete native/CLI placement or obtain clarification before
+checking off complete attribution. The geocoding documentation credits GeoNames;
+Open-Meteo's licence page lists its location database under CC BY 4.0. No icons
+from the provider site are copied into this project.

@@ -1,0 +1,1 @@
+- Credits now include NWS public-domain observations, Open-Meteo/GeoNames search and the CC BY 4.0 licence address; README and weather(1) distinguish NWS data from CC BY sources (#73).
