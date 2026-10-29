@@ -232,6 +232,10 @@ ifeq ($(TEST_HOOKS),0)
 	$(MAKE) TARGET=$(TARGET) check-test-hooks
 endif
 	python3 test/seed_provision.py
+	python3 test/session_edits.py
+	python3 test/package_safety.py
+	python3 test/delivery_safety.py
+	sh test/session_edits.sh
 	python3 test/entropy_analysis.py
 	sh test/changelog.sh
 	sh test/flags.sh "$(MAKE)"
