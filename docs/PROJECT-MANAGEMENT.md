@@ -65,7 +65,10 @@ text so merging closes the issue. Delete the branch after it merges.
 4. A review comes from the other agent or from Jack. Reviews state the head SHA they cover, and say what was run and what was only read.
 5. **The owner decides what merges.** Agents do not merge unless Jack has said so for that batch. When several PRs are merged together, each is
    merged on top of the previous result and the full checks are re-run on the combination.
-6. Until #77 (changelog fragments) lands, each PR adds a line to `CHANGELOG.md`. Expect conflicts there when several PRs merge together; keep both entries.
+6. New changes add their own `changelog.d/<pr-or-slug>.md` fragment; see [fragment instructions](../changelog.d/README.md).
+   Older open PRs may retain direct `CHANGELOG.md` edits without a duplicate fragment. There is no required fragment gate.
+   At release time, preview with `sh tools/changelog.sh VERSION`, combine the reviewed output with existing legacy entries,
+   and remove consumed fragments in the release commit. The preview tool never edits the changelog or deletes fragments.
 
 ## Releasing
 

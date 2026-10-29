@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jack Willis
 #pragma once
 #include "app/window_actions.hpp"
+#include "app/cache_store.hpp"
 #include "core/net.hpp"
 #include "core/settings.hpp"
 #include "core/geocoding.hpp"
@@ -16,6 +17,7 @@ struct WindowTestHooks {
 	SettingsStore *legacy = nullptr;
 	bool first_run = false; // Explicit diagnostic scenario; production detects empty settings.
 	Status (*search)(Net &,sv,PlaceResults *) = nullptr;
+	CacheStore *cache_store = nullptr;
 };
 int run_os9_window(const WindowTestHooks *hooks = nullptr);
 void os9_window_action(WindowAction action);

@@ -37,7 +37,7 @@ static void test_preferences()
     CHECK(!strcmp(cfg.providers, "met-no") && prefs.writes == 0);
     strcpy(prefs.text, "latitude=3\n");
     CHECK(load_preferences(prefs.base, legacy.base, cfg).ok() && cfg.lat_e4 == 30000);
-    CHECK(!strcmp(cfg.providers, "open-meteo")); // Preferences is the complete source.
+    CHECK(!strcmp(cfg.providers, "open-meteo,met-no")); // Preferences is the complete source.
     strcpy(prefs.text, "latitude=4\nunits=bad\n");
     CHECK(!load_preferences(prefs.base, legacy.base, cfg).ok() && cfg.lat_e4 == 30000);
     prefs.fail_load = true;
@@ -77,6 +77,10 @@ static void test_preferences()
     CHECK(!editor.visible && !editor.committed && cfg.lat_e4 == 100000 && prefs.writes == writes && model.has_forecast());
     Config restart;
     CHECK(load_preferences(prefs.base, legacy.base, restart).ok() && restart.lat_e4 == cfg.lat_e4 && restart.metric && !restart.auto_refresh);
+    Config saving=cfg; saving.cache=false;
+    CHECK(commit_preferences(prefs.base,legacy.base,saving,cfg,model,5).ok());
+    CHECK(load_preferences(prefs.base,legacy.base,restart).ok() && !restart.cache);
+    CHECK(model.has_forecast()); // Preference does not erase the current in-memory forecast.
     Config renamed = cfg; strcpy(renamed.name, "Renamed");
     CHECK(commit_preferences(prefs.base, legacy.base, renamed, cfg, model, 5).ok() && model.has_forecast() && !model.tick(5));
     // A newly edited unrelated setting/comment is retained on save (no stale text snapshot).
@@ -96,4 +100,65 @@ static void test_preferences()
     CHECK(recover_preferences(prefs.base,legacy.base,broken,repaired_model,10).ok());
     CHECK(!strcmp(broken.providers,"met-no") && broken.lat_e4==100000);
     CHECK(repaired_model.tick(10) && !repaired_model.tick(11));
+}
+
+// What a saved edit does to the Model. test_preferences() changes latitude, longitude and units together, so it cannot
+// tell which of them triggers the refetch; and it never reads the schedule, so a Model that was not told about
+// auto-refresh would pass. These cases change one thing at a time and look at the Model.
+static void test_preference_effects()
+{
+    PrefMemory prefs, legacy;
+    Config base_cfg;                     // defaults: Madison, imperial, auto-refresh on
+    Forecast f = some_forecast(550);
+    // A model with a forecast, whose next automatic refresh is at 901 (15 minutes after the fetch finished at 1).
+    auto loaded = [&](Model &m) { CHECK(m.tick(0)); m.finish(1, okay(), &f); CHECK(m.has_forecast() && !m.tick(2)); };
+
+    { // latitude alone
+        Model m; loaded(m); Config cfg = base_cfg, next = cfg; next.lat_e4 += 10000;
+        CHECK(commit_preferences(prefs.base, legacy.base, next, cfg, m, 2).ok());
+        CHECK(!m.has_forecast() && m.tick(2));
+    }
+    { // longitude alone
+        Model m; loaded(m); Config cfg = base_cfg, next = cfg; next.lon_e4 += 10000;
+        CHECK(commit_preferences(prefs.base, legacy.base, next, cfg, m, 2).ok());
+        CHECK(!m.has_forecast() && m.tick(2));
+    }
+    { // units alone: the old forecast is in the wrong units
+        Model m; loaded(m); Config cfg = base_cfg, next = cfg; next.metric = !next.metric;
+        CHECK(commit_preferences(prefs.base, legacy.base, next, cfg, m, 2).ok());
+        CHECK(!m.has_forecast() && m.tick(2));
+    }
+    { // the name is a label: the forecast stays and nothing is fetched
+        Model m; loaded(m); Config cfg = base_cfg, next = cfg; strcpy(next.name, "Home");
+        CHECK(commit_preferences(prefs.base, legacy.base, next, cfg, m, 2).ok());
+        CHECK(m.has_forecast() && !m.tick(2) && !strcmp(cfg.name, "Home"));
+    }
+    { // switching automatic refresh off and on moves neither the data nor the pending deadline
+        Model m; loaded(m); Config cfg = base_cfg, next = cfg; next.auto_refresh = false;
+        CHECK(commit_preferences(prefs.base, legacy.base, next, cfg, m, 2).ok());
+        CHECK(m.has_forecast() && !cfg.auto_refresh);
+        CHECK(m.seconds_until_refresh(2) == -1);            // the Model was told: no countdown while off
+        CHECK(!m.tick(902));                                 // past the old deadline, and still no fetch
+        next.auto_refresh = true;
+        CHECK(commit_preferences(prefs.base, legacy.base, next, cfg, m, 903).ok());
+        CHECK(m.seconds_until_refresh(903) == 0 && m.tick(903));   // the deadline passed while it was off: fetch now
+    }
+    { // switched on before the deadline: the countdown resumes and nothing is fetched early
+        Model m; loaded(m); Config cfg = base_cfg, next = cfg; next.auto_refresh = false;
+        CHECK(commit_preferences(prefs.base, legacy.base, next, cfg, m, 2).ok());
+        next.auto_refresh = true;
+        CHECK(commit_preferences(prefs.base, legacy.base, next, cfg, m, 100).ok());
+        CHECK(m.seconds_until_refresh(100) == 801 && !m.tick(100) && !m.tick(900) && m.tick(901));
+    }
+    { // The editor starts from the current configuration: the fields it does not show survive an edit.
+        Config cfg = base_cfg; Model m; loaded(m);
+        strcpy(cfg.providers, "met-no,open-meteo"); strcpy(cfg.contact, "https://example.invalid/test");
+        cfg.timeout_s = 7; cfg.attempts = 2; cfg.level = LogInfo;
+        LocationEditor editor;
+        CHECK(editor.open(cfg, m)); editor.form.lat.set("10");
+        CHECK(editor.apply(prefs.base, legacy.base, cfg, m, 2).ok());
+        CHECK(cfg.lat_e4 == 100000);
+        CHECK(!strcmp(cfg.providers, "met-no,open-meteo") && !strcmp(cfg.contact, "https://example.invalid/test"));
+        CHECK(cfg.timeout_s == 7 && cfg.attempts == 2 && cfg.level == LogInfo);
+    }
 }

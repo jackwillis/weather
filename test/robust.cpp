@@ -6,10 +6,12 @@
 // says OK the answer is sane"; build it with -fsanitize=address,undefined (make check-san) and the
 // sanitizers do the watching. usage: robust [random-iterations] (default 20000)
 #include "app/textedit.hpp"
+#include "app/cache_store.hpp"
 #include "app/config_load.hpp"
 #include "app/preferences.hpp"
 #include "core/config.hpp"
 #include "core/geocoding.hpp"
+#include "core/forecast_cache.hpp"
 #include "core/http.hpp"
 #include "core/json.hpp"
 #include "core/metno.hpp"
@@ -71,6 +73,38 @@ static void exercise(const char *p, size_t n)
         EXPECT(sv(search_path).substr(0,16)=="/v1/search?name=");
         for(char c:sv(search_path)) EXPECT(c>=33 && c<=126);
     }
+	CacheKey cache_key{Query{},"open-meteo"};
+	for(sv provider:{sv("open-meteo"),sv("nws"),sv("met-no")}) {
+	cache_key.providers=provider;
+	auto check_cache=[&](const unsigned char *bytes,size_t size) {
+		CachedForecast decoded; decoded.fetched_at=-1;
+		if(cache_decode(bytes,size,cache_key,1792950000LL,&decoded)) {
+			unsigned char canonical[kForecastCacheBytes];
+			EXPECT(cache_encode(cache_key,decoded.forecast,decoded.fetched_at,canonical));
+			EXPECT(size==sizeof canonical && !memcmp(bytes,canonical,size));
+			EXPECT(plausible_temp_t10(decoded.forecast.temp_t10,false));
+		} else EXPECT(decoded.fetched_at==-1);
+	};
+	check_cache(reinterpret_cast<const unsigned char *>(p),n);
+	if(n==kForecastCacheBytes) {
+		unsigned char checked[kForecastCacheBytes]; memcpy(checked,p,n);
+		// Reach field validation as well as CRC rejection on mutated records.
+		cache_detail::put32(checked+220,cache_detail::crc(checked,220));
+		check_cache(checked,n);
+	}
+	}
+    CacheStore forecast_store; forecast_store.ctx=&in;
+    forecast_store.load=[](CacheStore &store,unsigned char *out,size_t cap,size_t *size) {
+        sv bytes=*static_cast<sv *>(store.ctx); *size=bytes.size();
+        if(bytes.size()>cap) return make(Err::BadData,"fixture too large");
+        memcpy(out,bytes.data(),bytes.size()); return okay();
+    };
+    CachedForecast saved; bool found=false;
+    CacheKey mixed{Query{},"open-meteo,met-no"};
+    Status met=read_cached_met(forecast_store,mixed,1792950000LL,&saved);
+    if(met.ok()) EXPECT(sv(saved.forecast.source)=="met-no");
+    Status primary=read_cached_forecast(forecast_store,mixed,1792950000LL,&saved,&found);
+    if(found) EXPECT(primary.ok());
 	SettingsStore config_store; config_store.ctx=&in;
 	config_store.load=[](SettingsStore &store,char *out,size_t cap,size_t *size) {
 		sv value=*static_cast<sv *>(store.ctx);
@@ -82,7 +116,7 @@ static void exercise(const char *p, size_t n)
 	Status config_status=load_config(config_store,loaded);
 	if(!config_status.ok()) {
 		EXPECT(loaded.lat_e4==430747 && loaded.lon_e4==-893841);
-		EXPECT(!loaded.metric && loaded.auto_refresh && !strcmp(loaded.name,"Madison, WI"));
+		EXPECT(!loaded.metric && loaded.cache && loaded.auto_refresh && !strcmp(loaded.name,"Madison, WI"));
 	}
 	// Format adapter: bounded output, failure empties it, deterministic prefix.
 	char full[257], small[18];
@@ -108,13 +142,36 @@ static void exercise(const char *p, size_t n)
 	EXPECT(!strcmp(decimal, expected));
 	unsigned char seed_out[32], encoded[kSeedRecordSize];
 	if (seed_decode(reinterpret_cast<const unsigned char *>(p), n, seed_out)) {
+		unsigned nonzero = 0;
+		for (unsigned char c : seed_out) nonzero |= c;
+		EXPECT(nonzero != 0);
 		seed_encode(seed_out, encoded);
 		EXPECT(n == kSeedRecordSize && std::memcmp(p, encoded, n) == 0);
 	}
 
 	// HTTP
 	HttpResponse h = http_parse(in);
-	if (h.st.ok()) { EXPECT(inside(in, h.body)); EXPECT(h.code >= 0 && h.code <= 999); }
+	Buf<256> conditional;
+	bool accepted=http_request(conditional,"fixture.invalid","/","fixture",in);
+	if(accepted) EXPECT(http_validator(in));
+	if(h.st.ok()) { EXPECT(http_validator(h.last_modified)); EXPECT(h.expires>=0 && h.expires<=253402300799LL); }
+    if (h.st.ok()) {
+        EXPECT(inside(in,h.body) && h.code>=0 && h.code<=999);
+        size_t at=find(in,"\r\n")+2, end=find(in,"\r\n\r\n");
+        while(at<end+2) {
+            size_t next=find(in,"\r\n",at); sv line=in.substr(at,next-at);
+            size_t colon=find(line,":");
+            if(colon!=sv::npos) {
+                sv name=line.substr(0,colon),value=trim(line.substr(colon+1));
+                EXPECT(!eq_nocase(name,"transfer-encoding"));
+                if(eq_nocase(name,"content-length")) {
+                    EXPECT(!value.empty());
+                    for(char c:value) EXPECT(c>='0' && c<='9');
+                }
+            }
+            at=next+2;
+        }
+    }
 
 	// JSON navigation
 	static const char *keys[] = {"current", "temperature_2m", "error", "a", ""};
@@ -298,19 +355,42 @@ int main(int argc, char **argv)
 	static char http[9000];
 	snprintf(path, sizeof path, "%s/openmeteo-ok.json", FIXTURE_DIR);
 	slurp(path, seed, sizeof seed, &n);
-	int hl = snprintf(http, sizeof http, "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Length: %zu\r\n\r\n", n);
+	int hl = snprintf(http, sizeof http, "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nLast-Modified: Tue, 27 Oct 2026 12:00:00 GMT\r\nExpires: Tue, 27 Oct 2026 13:00:00 GMT\r\nContent-Length: %zu\r\n\r\n", n);
 	memcpy(http + hl, seed, n);
 	mutate_all(http, static_cast<size_t>(hl) + n, iterations, rng);
+	constexpr char not_modified[]="HTTP/1.0 304 Not Modified\r\nLast-Modified: Tue, 27 Oct 2026 12:00:00 GMT\r\nExpires: Tue, 27 Oct 2026 13:00:00 GMT\r\nContent-Length: 999\r\n\r\n";
+	mutate_all(not_modified,sizeof not_modified-1,iterations,rng);
 	static const char cfg[] = "# my weather\nlatitude = 43.0747  # home\nlongitude=-89.3841\nname = Madison, WI\nunits = metric\n"
-	    "timeout = 15\nattempts = 3\nproviders = open-meteo\nlog = info\nautorefresh = off\n";
+	    "timeout = 15\nattempts = 3\nproviders = open-meteo\nlog = info\nautorefresh = off\ncache = on\n";
 	mutate_all(cfg, sizeof cfg - 1, iterations, rng);
 	static char crcfg[sizeof cfg];                                          // the same file with classic Mac line endings
 	for (size_t i = 0; i < sizeof cfg - 1; i++) crcfg[i] = cfg[i] == '\n' ? '\r' : cfg[i];
 	mutate_all(crcfg, sizeof cfg - 1, iterations, rng);
 	static const char formats[] = "%zu %%zu %08zu %.*zu %lld %s %ld %.2f %%";
 	mutate_all(formats, sizeof formats - 1, iterations, rng);
+	Forecast cached; cached.source="open-meteo"; cached.temp_t10=650; cached.code=0;
+	unsigned char cache_record[kForecastCacheBytes];
+	if(!cache_encode(CacheKey{Query{},"open-meteo"},cached,1792950000LL,cache_record)) return 1;
+	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);
+	cached.source="met-no";
+	cached.expires=1793106000LL;
+	strcpy(cached.last_modified,"Tue, 27 Oct 2026 12:00:00 GMT");
+	if(!cache_encode(CacheKey{Query{},"met-no"},cached,1792950000LL,cache_record)) return 1;
+	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);
+    unsigned char bundle[2*kForecastCacheBytes];
+    if(!cache_encode(CacheKey{Query{},"open-meteo,met-no"},cached,1792950000LL,bundle+kForecastCacheBytes)) return 1;
+    Forecast open=cached; open.source="open-meteo"; open.expires=0; open.last_modified[0]=0;
+    if(!cache_encode(CacheKey{Query{},"open-meteo,met-no"},open,1792950000LL,bundle)) return 1;
+    mutate_all(reinterpret_cast<const char *>(bundle),sizeof bundle,iterations,rng);
+	cached.last_modified[0]=0; cached.expires=0;
+	cached.source="nws"; cached.code=-1;
+	if(!cache_encode(CacheKey{Query{},"nws"},cached,1792950000LL,cache_record)) return 1;
+	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);
 	unsigned char synthetic_seed[32], record[kSeedRecordSize];
 	for (size_t i = 0; i < sizeof synthetic_seed; ++i) synthetic_seed[i] = static_cast<unsigned char>(i + 1);
+	seed_encode(synthetic_seed, record);
+	mutate_all(reinterpret_cast<const char *>(record), sizeof record, iterations, rng);
+	memset(synthetic_seed, 0, sizeof synthetic_seed);
 	seed_encode(synthetic_seed, record);
 	mutate_all(reinterpret_cast<const char *>(record), sizeof record, iterations, rng);
 

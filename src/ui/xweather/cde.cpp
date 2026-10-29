@@ -203,18 +203,46 @@ void toggle(Theme &t, Drawable w, Rect r, sv label, bool on, bool radio)
 	text(t, w, t.normal, r.x + 24, r.y + (r.h + t.normal->ascent - t.normal->descent) / 2, label, t.fg);
 }
 
+size_t field_start(XFontStruct *font, sv value, size_t cursor, int width)
+{
+	if (cursor > value.size()) cursor = value.size();
+	size_t first = 0;
+	while (first < cursor && text_width(font, value.substr(first, cursor - first)) >= width) first++;
+	return first;
+}
+
+size_t field_position(XFontStruct *font, sv value, size_t cursor, int width, int x)
+{
+	size_t first = field_start(font, value, cursor, width);
+	if (width <= 0) return first;
+	if (x < 0) x = 0;
+	if (x >= width) x = width - 1;
+	size_t pos = first;
+	while (pos < value.size() && text_width(font, value.substr(first, pos + 1 - first)) -
+	    text_width(font, value.substr(pos, 1)) / 2 < x) pos++;
+	return pos;
+}
+
 void field(Theme &t, Drawable w, Rect r, const char *s, size_t n, size_t cur, bool focus)
 {
+	if (r.w <= 6 || r.h <= 6) return;
+	if (cur > n) cur = n;
 	fill(t, w, r, t.field);
 	shadow(t, w, r, 2, false);
 	int base = r.y + (r.h + t.normal->ascent - t.normal->descent) / 2;
-	text(t, w, t.normal, r.x + 6, base, sv(s, n), t.fg);
+	sv value(s, n);
+	size_t first = field_start(t.normal, value, cur, r.w - 12);
+	XRectangle clip{static_cast<short>(r.x + 3), static_cast<short>(r.y + 3),
+	    static_cast<unsigned short>(r.w - 6), static_cast<unsigned short>(r.h - 6)};
+	XSetClipRectangles(t.dpy, t.gc, 0, 0, &clip, 1, Unsorted);
+	text(t, w, t.normal, r.x + 6, base, value.substr(first), t.fg);
 	if (focus) {
-		int cx = r.x + 6 + text_width(t.normal, sv(s, cur));
+		int cx = r.x + 6 + text_width(t.normal, value.substr(first, cur - first));
 		XSetForeground(t.dpy, t.gc, t.fg);
 		XDrawLine(t.dpy, w, t.gc, cx, r.y + 4, cx, r.y + r.h - 5);
-		XDrawRectangle(t.dpy, w, t.gc, r.x - 2, r.y - 2, static_cast<unsigned>(r.w + 3), static_cast<unsigned>(r.h + 3));
 	}
+	XSetClipMask(t.dpy, t.gc, None);
+	if (focus) XDrawRectangle(t.dpy, w, t.gc, r.x - 2, r.y - 2, static_cast<unsigned>(r.w + 3), static_cast<unsigned>(r.h + 3));
 }
 
 // ---------------------------------------------------------------- weather art

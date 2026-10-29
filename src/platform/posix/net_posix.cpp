@@ -5,6 +5,7 @@
 #include "net_posix.hpp"
 #include "core/log.hpp"
 #include <cerrno>
+#include <climits>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -24,27 +25,48 @@ static Sock g_sock;   // one connection at a time (a CLI/window app)
 static long long mono_ms()
 {
 	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return -1;
 	return static_cast<long long>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
 }
 
-enum { WaitReady = 1, WaitTimeout = 0, WaitError = -1, WaitCancelled = -2 };
+static long long net_mono(Net *net)
+{
+	return net && net->monotonic_ms ? net->monotonic_ms(*net) : mono_ms();
+}
+
+enum { WaitReady = 1, WaitTimeout = 0, WaitError = -1, WaitCancelled = -2, WaitClock = -3 };
 
 // Wait for fd; slices only when there is a yield hook to run.
 static int wait_fd(Net *net, int fd, short ev, int timeout_ms)
 {
-	long long end = mono_ms() + timeout_ms;
+	long long start = net_mono(net);
+	if (start < 0) return WaitClock;
 	for (;;) {
-		long long left = end - mono_ms();
-		if (left < 0) left = 0;
+		long long now = net_mono(net);
+		if (now < start) return WaitClock;
+		long long left = timeout_ms - (now - start);
+		if (net && net->budget) {
+			long long remaining = net->budget->remaining(now);
+			if (remaining < 0) return WaitClock;
+			if (remaining < left) left = remaining;
+		}
+		if (left <= 0) return WaitTimeout;
 		bool slicing = net && net->yield;
 		int slice = (slicing && left > kSliceMs) ? kSliceMs : static_cast<int>(left);
 		struct pollfd p = { fd, ev, 0 };
 		int r = poll(&p, 1, slice);
+		int poll_error = errno;
+		if (r <= 0 && slicing && !net->yield(*net)) return WaitCancelled;
+		now = net_mono(net);
+		if (now < start) return WaitClock;
+		if (net && net->budget) {
+			long long remaining = net->budget->remaining(now);
+			if (remaining < 0) return WaitClock;
+			if (remaining == 0) return WaitTimeout;
+		}
 		if (r > 0) return WaitReady;
-		if (r < 0 && errno != EINTR) return WaitError;
-		if (slicing && !net->yield(*net)) return WaitCancelled;
-		if (mono_ms() >= end) return WaitTimeout;
+		if (r < 0 && poll_error != EINTR) { errno = poll_error; return WaitError; }
+		if (now - start >= timeout_ms) return WaitTimeout;
 	}
 }
 
@@ -52,6 +74,7 @@ static void fail_wait(Io &io, int w)
 {
 	if (w == WaitTimeout) { io.err = Err::Timeout; io.detail = ETIMEDOUT; io.msg = "timed out waiting for the server"; }
 	else if (w == WaitCancelled) { io.err = Err::Cancelled; io.detail = 0; io.msg = "cancelled"; }
+	else if (w == WaitClock) { io.err = Err::Clock; io.detail = 0; io.msg = "monotonic clock unavailable or moved backwards"; }
 	else { io.err = Err::Io; io.detail = errno; io.msg = "network I/O error"; }
 }
 
@@ -84,31 +107,87 @@ static long sock_write(Io &io, const void *buf, size_t len)
 	return static_cast<long>(done);
 }
 
+// One budget for lookup elapsed time and every address, without adding a
+// deadline to a timestamp or overflowing a 32-bit millisecond count.
+static int connect_left(Net &net, long long start, int budget)
+{
+	long long now = net_mono(&net);
+	if (now < start) return -1;
+	long long elapsed = now - start;
+	int left = elapsed >= budget ? 0 : budget - static_cast<int>(elapsed);
+	if (net.budget) {
+		long long remaining = net.budget->remaining(now);
+		if (remaining < 0) return -1;
+		if (remaining < left) left = static_cast<int>(remaining);
+	}
+	return left;
+}
+
+static int wait_connect(Net &net, int fd, long long start, int budget)
+{
+	for (;;) {
+		if (net.yield && !net.yield(net)) return WaitCancelled;
+		int left = connect_left(net, start, budget);
+		if (left < 0) return WaitClock;
+		if (left == 0) return WaitTimeout;
+		int slice = net.yield && left > kSliceMs ? kSliceMs : left;
+		struct pollfd p = {fd, POLLOUT, 0};
+		int r = poll(&p, 1, slice);
+		int poll_error = errno;
+		left = connect_left(net, start, budget);
+		if (left < 0) return WaitClock;
+		if (left == 0) return WaitTimeout;
+		if (r > 0) return WaitReady;
+		if (r < 0 && poll_error != EINTR) { errno = poll_error; return WaitError; }
+	}
+}
+
 static Status posix_connect(Net &net, const char *host, const char *port, int timeout_s, Io *out)
 {
+	if (timeout_s <= 0 || timeout_s > INT_MAX / 1000) return make(Err::Config, "invalid connect timeout");
+	const int budget = timeout_s * 1000;
+	const long long start = net_mono(&net);
+	if (start < 0) return make(Err::Clock, "monotonic clock unavailable");
+	if (net.yield && !net.yield(net)) return make(Err::Cancelled, "cancelled before host lookup");
+	int initial_left = connect_left(net, start, budget);
+	if (initial_left < 0) return make(Err::Clock, "monotonic clock unavailable or moved backwards");
+	if (initial_left == 0) return make(Err::Timeout, "name lookup and connect timed out", ETIMEDOUT);
 	struct addrinfo hints, *res = nullptr;
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	int gai = getaddrinfo(host, port, &hints, &res);
+	int left = connect_left(net, start, budget);
+	bool cancelled = net.yield && !net.yield(net);
+	if (cancelled || left <= 0) {
+		if (gai == 0) freeaddrinfo(res);
+		if (cancelled) return make(Err::Cancelled, "cancelled after host lookup");
+		return left < 0 ? make(Err::Clock, "monotonic clock unavailable or moved backwards")
+		                : make(Err::Timeout, "name lookup and connect timed out", ETIMEDOUT);
+	}
 	if (gai != 0) {
 		logf(LogDebug, "getaddrinfo(%s): %s", host, gai_strerror(gai));
 		return make(Err::Dns, "cannot resolve host name", gai);
 	}
 	int fd = -1, lasterr = 0, why = WaitReady;
 	for (struct addrinfo *a = res; a; a = a->ai_next) {
+		if (net.yield && !net.yield(net)) { why = WaitCancelled; break; }
+		left = connect_left(net, start, budget);
+		if (left <= 0) { why = left < 0 ? WaitClock : WaitTimeout; lasterr = ETIMEDOUT; break; }
 		fd = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
 		if (fd < 0) { lasterr = errno; continue; }
 		int fl = fcntl(fd, F_GETFL, 0);
-		fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+		if (fl < 0 || fcntl(fd, F_SETFL, fl | O_NONBLOCK) < 0) {
+			lasterr = errno; close(fd); fd = -1; continue;
+		}
 		int r = connect(fd, a->ai_addr, a->ai_addrlen);
 		if (r < 0 && errno == EINPROGRESS) {
-			int w = wait_fd(&net, fd, POLLOUT, timeout_s * 1000);
+			int w = wait_connect(net, fd, start, budget);
 			if (w == WaitReady) {
 				int soerr = 0;
 				socklen_t sl = sizeof soerr;
-				getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &sl);
-				if (soerr) { lasterr = soerr; r = -1; } else r = 0;
+				if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &sl) != 0) { lasterr = errno; r = -1; }
+				else if (soerr) { lasterr = soerr; r = -1; } else r = 0;
 			} else {
 				why = w;
 				lasterr = w == WaitTimeout ? ETIMEDOUT : errno;
@@ -117,14 +196,22 @@ static Status posix_connect(Net &net, const char *host, const char *port, int ti
 		} else if (r < 0) {
 			lasterr = errno;
 		}
-		if (r == 0) { fcntl(fd, F_SETFL, fl); why = WaitReady; break; }
+		left = connect_left(net, start, budget);
+		if (why != WaitCancelled && left <= 0) {
+			why = left < 0 ? WaitClock : WaitTimeout; lasterr = ETIMEDOUT;
+		}
+		if (r == 0 && left > 0) {
+			if (fcntl(fd, F_SETFL, fl) == 0) { why = WaitReady; break; }
+			lasterr = errno;
+		}
 		close(fd);
 		fd = -1;
-		if (why == WaitCancelled) break;
+		if (why == WaitCancelled || why == WaitTimeout || why == WaitClock) break;
 	}
 	freeaddrinfo(res);
 	if (fd < 0) {
 		if (why == WaitCancelled) return make(Err::Cancelled, "cancelled while connecting");
+		if (why == WaitClock) return make(Err::Clock, "monotonic clock unavailable or moved backwards");
 		return why == WaitTimeout ? make(Err::Timeout, "connect timed out", lasterr)
 		                          : make(Err::Connect, "cannot connect", lasterr);
 	}
@@ -148,9 +235,13 @@ static void posix_close(Net &, Io &io)
 
 static bool posix_sleep(Net &net, long ms)
 {
-	long long end = mono_ms() + ms;
+	if (ms <= 0) return true;
+	long long start = mono_ms();
+	if (start < 0) return false;
 	for (;;) {
-		long long left = end - mono_ms();
+		long long now = mono_ms();
+		if (now < start) return false;
+		long long left = ms - (now - start);
 		if (left <= 0) return true;
 		long step = left > kSliceMs ? kSliceMs : static_cast<long>(left);
 		struct timespec ts = { step / 1000, (step % 1000) * 1000000L };
@@ -159,11 +250,13 @@ static bool posix_sleep(Net &net, long ms)
 	}
 }
 
-// Test hook: WEATHER_NOW=<unix seconds> replaces the clock, to prove that
+// Test builds only: WEATHER_NOW=<unix seconds> replaces the clock, to prove that
 // certificate checking really uses this seam (e.g. year 2100 => "expired").
 static long long posix_now(Net &)
 {
+	#ifdef WEATHER_TEST_HOOKS
 	if (const char *fake = getenv("WEATHER_NOW")) return atoll(fake);
+	#endif
 	return static_cast<long long>(time(nullptr));
 }
 
@@ -182,12 +275,18 @@ static bool posix_entropy(Net &, void *buf, size_t len)
 	return got == len;
 }
 
+static long long posix_monotonic(Net &)
+{
+	return mono_ms();
+}
+
 void posix_net_init(Net *net)
 {
 	net->connect = posix_connect;
 	net->close = posix_close;
 	net->sleep_ms = posix_sleep;
 	net->now = posix_now;
+	net->monotonic_ms = posix_monotonic;
 	net->entropy = posix_entropy;
 }
 

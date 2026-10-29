@@ -1,0 +1,56 @@
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2026 Jack Willis
+
+#152 / draft PR #163 — 2026-10-27
+Tested implementation commit: 042e928 (final evidence/status commit is docs only).
+
+PASS make check: 1823 unit checks and 34 connect-budget checks in each production/
+test-hook build; 426598 mutation inputs; 119 CLI features in each mode; 4 cache CLI,
+3 fixture-startup, 3 provisioning, 5 entropy-analysis, 6 flag checks; 28 TLS,
+95 CDE text, 19 field and 55 Xvfb GUI checks. Anchor check and its 14 tests pass.
+PASS make check-san: ASan+UBSan, both build modes, same unit/budget/CLI suites,
+426598 mutations, cache CLI and CDE/field checks. No sanitizer finding.
+PASS make os9 with WEATHER_BUILD_DIAGNOSTICS=ON, including modified CacheProbe.
+PASS make TARGET=netbsd-macppc all build/netbsd-macppc/xweather
+     build/netbsd-macppc/unittest build/netbsd-macppc/robust.
+Existing NetBSD libc compatibility cabs()/cabsf() linker warnings remain.
+PASS sh tools/check-policy.sh; git diff --check.
+Host Cache-1 screenshot visually inspected: source/forecast time and saved-valid
+status readable. This is synthetic data, not a live-weather correctness claim.
+
+Red/green history (retained, not final failures): initial unit red proved missing
+default fallback/project identity; initial HTTP-date tests failed to compile until
+the parser existed. The first sandboxed unit run also could not bind its local
+socket; reruns used authorized fixture access. Old contact-refusal assertions were
+updated. Earlier GUI runs failed missing-contact-skip expectations (2 checks) and
+single-provider error-log count (1 check); the latter scenario now explicitly
+selects Open-Meteo. One early GUI run attempted live MET after the former missing-
+contact guard ceased skipping; this was not a controlled provider acceptance run.
+Final GUI fixtures supply future expiry and assert zero MET socket opens in both
+cache/restart rounds. A retired CLI missing-contact offline case was replaced by
+non-network valid-expiry reuse; invalid records remain covered by codec/mutation
+and Model tests rather than deliberately making public API calls.
+
+Coverage: project identity and explicit override; new default order; saving-off
+skip/no reads/writes; exact validator matching; expiry reuse/no connect and exact
+boundary revalidation; 304 expiry replacement; wrong query/units; malformed and
+duplicate HTTP metadata; v3 CRC/field bounds; two-record retention across OM
+success and MET reuse; original fetch time/no rewrite; saved-visible status;
+24-hour display cap even when server expiry is longer; primary/retained cache
+input paths under mutation.
+
+NOT VERIFIED: native NetBSD/macppc or Classic/native OS 9 runtime, current-head
+live production-provider 200/304 acceptance, native menu/Preferences screenshots,
+read-only volume or physical power loss. Build success is not hardware acceptance.
+Owner commands and seed-free CacheProbe steps: docs/FORECAST-CACHE.md.
+
+NOT A COMPLETE MET TERMS ACCEPTANCE: redirects/gzip/traffic spreading and aggregate
+application traffic still need release review (#152/#73); error-response freshness,
+Retry-After and coordination across processes/launches are not established. This
+cache is bounded to one query/provider selection and is not a traffic coordinator.
+Failed persistence, corruption/deletion, settings changes or competing writers can
+discard expiry. v2 records are deliberately rejected, without changing settings or
+TLS seeds. Final naming (#135) may require an identity update before release.
+No native delivery, merge, auto-merge enablement, tag or release by Codex.
+
+Raw local logs: /tmp/met152-final-{check,san,os9,netbsd,policy}.log
