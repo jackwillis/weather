@@ -49,6 +49,14 @@ if start_xw rcA $PORT_OK; then
 	snap A01-main
 	./xdrive click 64 231 key F5 key F5 key F5 sleep 500
 	check "A: rapid button and F5 refreshes are ignored" "$(fetches)" 1
+	./xdrive click 138 13 sleep 100 click 150 40
+	XDRIVE_WINDOW='Weather Activity Log' ./xdrive wait 'Weather Activity Log' 2000
+	check "A: View menu opens an independent activity window" "$?" 0
+	XDRIVE_WINDOW='Weather Activity Log' ./xdrive key Home key End sleep 100 snap snap/A01b-activity.$EXT key Escape gone 'Weather Activity Log' 2000
+	check "A: activity window closes independently" "$?" 0
+	./xdrive wait Weather 1000
+	check "A: main window survives activity close" "$?" 0
+	check "A: activity browsing starts no fetch" "$(fetches)" 1
 	./xdrive sleep 5000 click 64 231 sleep 1500
 	check "A: Refresh button fetches" "$(fetches)" 2
 	./xdrive sleep 5000 key F5 sleep 1500
@@ -75,18 +83,36 @@ if start_xw rcA $PORT_OK; then
 	./xdrive key l ctrl sleep 300 key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace type 91 key Return sleep 300 snap snap/A09-dialog-error.$EXT
 	check "A: bad latitude is not saved" "$(grep -c 'latitude = 91' rcA)" 0
 	check "A: dialog stayed open (no refetch)" "$(fetches)" 6
-	./xdrive key Escape sleep 300 click 138 13 sleep 300 click 150 40 sleep 300 snap snap/A10-about.$EXT click 110 250 sleep 300 snap snap/A10b-credits-1.$EXT key space sleep 300 snap snap/A10c-credits-2.$EXT key space sleep 300 snap snap/A10d-credits-3.$EXT click 110 250 sleep 300 snap snap/A10e-about-again.$EXT click 290 250 sleep 300 snap snap/A11-closed.$EXT
+	./xdrive key Escape sleep 300 click 190 13 sleep 300 click 200 40 sleep 300 snap snap/A10-about.$EXT click 110 250 sleep 300 snap snap/A10b-credits-1.$EXT key space sleep 300 snap snap/A10c-credits-2.$EXT key space sleep 300 snap snap/A10d-credits-3.$EXT click 110 250 sleep 300 snap snap/A10e-about-again.$EXT click 290 250 sleep 300 snap snap/A11-closed.$EXT
 	keeplog A
-	quit_xw A
+	./xdrive key j ctrl
+	XDRIVE_WINDOW='Weather Activity Log' ./xdrive wait 'Weather Activity Log' 2000 key q ctrl
+	./xdrive gone Weather 8000
+	check "A: Ctrl-Q from activity quits the application" "$?" 0
+	./xdrive gone 'Weather Activity Log' 2000
+	check "A: application quit closes activity too" "$?" 0
+	wait $XW; check "A: exit status" "$?" 0
 fi
 
 # ---------------------------------------------------------------- B: closing the window during a stuck fetch
 printf 'attempts = 1\ntimeout = 30\n' > rcB
 if start_xw rcB $PORT_SLOW; then
 	./xdrive sleep 1500 snap snap/B01-fetching.$EXT
+	./xdrive key j ctrl
+	XDRIVE_WINDOW='Weather Activity Log' ./xdrive wait 'Weather Activity Log' 2000 key Home key End sleep 100 snap snap/B02-activity-fetching.$EXT
+	check "B: activity stays responsive during a stalled fetch" "$?" 0
+	XDRIVE_WINDOW='Weather Activity Log' ./xdrive close gone 'Weather Activity Log' 2000
+	check "B: viewer close does not cancel the fetch" "$?" 0
+	check "B: activity input starts no nested request" "$(fetches)" 1
+	./xdrive wait Weather 1000
+	check "B: main window remains open during fetch" "$?" 0
+	./xdrive key j ctrl
+	XDRIVE_WINDOW='Weather Activity Log' ./xdrive wait 'Weather Activity Log' 2000
 	t0=$(date +%s)
 	./xdrive close; ./xdrive gone Weather 6000; check "B: window closes while the fetch is stuck" "$?" 0
 	wait $XW; check "B: exit status" "$?" 0
+	./xdrive gone 'Weather Activity Log' 2000
+	check "B: quitting also closes the activity window" "$?" 0
 	t1=$(date +%s)
 	check "B: ...promptly, not after the 30 s timeout" "$([ $((t1 - t0)) -lt 8 ] && echo yes || echo no)" yes
 fi
@@ -97,6 +123,9 @@ if start_xw rcC $PORT_500; then
 	./xdrive sleep 2500 snap snap/C01-failed.$EXT
 	check "C: failure is tried once" "$(fetches)" 1
 	check "C: failure is logged" "$(grep -c 'http: server returned an error status' xw.log)" 2
+	./xdrive key j ctrl
+	XDRIVE_WINDOW='Weather Activity Log' ./xdrive wait 'Weather Activity Log' 2000 sleep 100 snap snap/C02-activity-failed.$EXT key Escape gone 'Weather Activity Log' 2000
+	check "C: activity is usable after fetch failure" "$?" 0
 	./xdrive sleep 5000 click 64 231 sleep 1500
 	check "C: Refresh retries a failed fetch" "$(fetches)" 2
 	keeplog C

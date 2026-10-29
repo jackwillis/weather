@@ -1,8 +1,9 @@
 # Session Activity Log (#160)
 
-The portable foundation is `src/app/activity.hpp`. It is not yet connected to
-production event producers or either native viewer. No menu, on-disk log or
-existing diagnostic sink changes in this slice.
+The portable foundation is `src/app/activity.hpp`. The X11 app connects it to
+selected lifecycle events and an independent CDE-style viewer. The OS 9 viewer
+and core source-fallback notification are still pending. Existing diagnostic
+sinks and on-disk log policy are unchanged.
 
 `ActivityLog` owns 128 entries, retaining the newest entries in chronological
 order. Each contains a UTC time with an explicit trust flag, severity, category
@@ -36,7 +37,29 @@ It supports 1970 through 9999 and does not use platform `time_t` or printf.
 Native viewers must format local time from the stored UTC in their platform
 layer. Fetch durations must use a separate monotonic elapsed clock.
 
-Still open under #160: production event fan-out (including fallback and cache
-restoration), local-time presentation, both independently closable native viewers,
-scrolling/redraw/reentrancy checks, and real PowerMac memory/behavior acceptance.
-The current foundation has no effect on forecast or network behavior.
+## X11 viewer
+
+View > Activity Log (Ctrl+J) opens an ordinary window managed independently by
+the window manager. Escape, Close and WM_DELETE_WINDOW close only the viewer;
+Ctrl+Q from either window quits the app. Up/Down, Page keys, Home/End, the wheel
+and visible buttons scroll. The newest events follow automatically until the
+user scrolls away; reading position is preserved when the ring evicts an entry.
+
+The viewer owns its GC, numeric font, backing pixmap and window, and borrows the
+main theme's other fonts/colors. Drawing is cached; exposes copy the backing
+image. Font metrics and viewport tests keep complete rows visible. Timestamp
+and count columns use the X core fixed font after checking all digits against
+capital-height and equal-width metrics. Times come from stored UTC via the
+platform's local timezone; untrusted times retain TIME-UNKNOWN.
+
+The X11 UI emits startup, saved-forecast restoration, refresh start/result,
+transitions into stale data, applied preference changes and shutdown. It never
+includes preference values, location names or diagnostic error text. Repeated
+stale-state notifications are suppressed until state changes. The read-only
+viewer remains responsive through the existing fetch yield, and the shared
+pump processes at most 64 queued events per call. Viewer actions cannot invoke
+a fetch. No diagnostic sink is redirected through this component.
+
+Still open under #160: core source-fallback fan-out, the OS 9 viewer and its
+local-time/event wiring, real ctwm/display behavior and PowerMac memory/runtime
+acceptance. Linux/Xvfb evidence does not establish those hardware results.
