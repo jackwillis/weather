@@ -129,6 +129,65 @@ Only reviewed native measurements can inform #120's source/credit/threshold
 choice. Classic results cannot substitute for native OS 9. Other G3/G4 models,
 cold boots, long-term drift and adversarial input remain separate limits.
 
+## Event-timing pilot (#193; owner decision 2026-10-28)
+
+The v0.1 collector (#120) is option B of the #121 discussion: credit only discrete
+human input at a conservative per-event rate, aim for 128 credited bits, and mix every
+other observation at zero credit. The EntropyProbe above measures timers in a polling
+loop and stores event time only in ticks (1/60 s); it cannot say how much the interval
+between key presses and clicks carries. A separate pilot measures that. Nothing below
+is implemented yet and no credit exists.
+
+### Capture design (CSV version 2, event-driven, diagnostics only)
+- One row per input event, not per loop: index, phase, event kind (key-down, key-up
+  where available, auto-repeat, mouse-down, mouse-up), `EventRecord.when` in ticks,
+  `Microseconds()` taken immediately after `WaitNextEvent` returns, microseconds since
+  the previous event, and mouse position for mouse events only. Auto-repeat is recorded
+  but never credited. Key identities, characters and modifier combinations are not
+  recorded.
+- A tight `WaitNextEvent(..., sleep=0)` loop with no `Delay` and no disk I/O inside it.
+  The CSV is written only after the capture. A once-a-second heartbeat row exposes
+  gaps, backgrounding and stalls.
+- Key-up events are probably masked out by the system unless `SetEventMask(everyEvent)`
+  is called. This is unverified; confirm on hardware before relying on key-up timing.
+- Mouse movement is summarised (move events per second, gesture boundaries at button
+  changes and pauses over 250 ms) so credit per raw move event can be compared with
+  credit per gesture.
+- Ends at a fixed event count or time limit with a checked completion footer. Native
+  OS 9 and Classic are separate records. No seed, Preferences, network or user-content
+  access.
+
+### Symbols and statistics, fixed before any new capture is scored
+The symbol is the interval between successive credited events, reduced by each of
+three fixed rules, all reported and none chosen after seeing results:
+1. floor(interval in microseconds / 1000), clipped to 0..1023
+2. floor(interval in microseconds / 100), clipped to 0..4095
+3. interval in microseconds modulo 256
+
+Event classes are reported separately (key-down, mouse-down, distinct gesture) and
+fields are never summed as independent sources. Statistics: most-common-value upper
+bound, lag-1 and lag-2 correlation, run lengths, interval distribution. The NIST
+SP 800-90B estimators built under #186 are a sanity check only; a few thousand
+intervals are far below a validation dataset and no bound is claimed.
+
+Controls: idle (expect almost no events), a metronome tap (a person tapping a steady
+beat, to show periodic input is detected and earns little or nothing), and a scripted
+deterministic stream if the owner approves a feeder.
+
+### Output of the pilot
+A per-event credit well below the most conservative estimate (at least 4x lower, to be
+reviewed), the number of events needed for 128 bits, health-test thresholds (minimum
+interval spread, maximum repeat share, minimum distinct gestures), the expected dialog
+duration, and a written list of what is not established (single machine, few sessions,
+no cold-boot restart statistics, correlated mouse movement).
+
+### Sessions
+At least three per environment (native OS 9 and Classic), 3 to 4 minutes each, on
+different boots or days, typing nonsense and clicking, plus one idle and one metronome
+control. If possible one session by a second person, since one person's style would
+overfit the credit. Record model, OS version, launch number, interruptions and workload
+beside the CSV; raw captures stay outside the repository.
+
 ## First-run design boundary (#120)
 
 After #121, a portable collector would separate source health/credit policy from
