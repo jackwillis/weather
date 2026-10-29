@@ -1,0 +1,27 @@
+Issue #52: strict framing, exact capacity and authenticated TLS closure
+
+Red:
+- New static assertions failed for fractional/signed/invalid Content-Length,
+  conflicting repeated lengths and mixed-case transfer coding.
+- After fixing headers, exact-capacity and error-preservation unit checks failed
+  (521 runtime checks, 2 failed).
+- Real TLS controls before the TLS fix: 16 pass / 4 fail. Abrupt complete/cut
+  responses returned Ok; the retry test logged 2 total requests instead of 4.
+
+Green:
+- make check: 521 unit / 230242 mutated inputs / 106 CLI / 20 real TLS / 21 GUI,
+  plus anchors, lint, provisioning and compiler flags, zero failures.
+- make check-san: explicit ASan+UBSan 521 unit / 230242 mutation / 106 CLI.
+- Additional TARGET=host-san check-tls: all20 real TLS checks pass under sanitizers.
+- Actual NetBSD/macppc: 521 unit / 86242 mutation inputs pass.
+- Actual G4 smoke: all10 checks pass, including live certificate-verified
+  Open-Meteo response, trust/clock negatives, settings and no libstdc++ dependency.
+- Retro68 PowerPC/m68k probes and OS9 application cross-build pass.
+- Final positive-only static compatibility checks for zero/identical lengths
+  were host-unit and PowerPC/m68k-probe checked after the full runs; production
+  code was unchanged. No compilation on maul, privileged steps or Tiger boot.
+
+Mutation acceptance invariants independently require decimal Content-Length
+values and absence of accepted Transfer-Encoding fields. TLS fixture keys and
+certificates are throwaway generated local data. No owner seed material involved.
+No OS9 runtime, macOS-host or other live-provider closure claim.

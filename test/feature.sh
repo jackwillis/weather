@@ -6,10 +6,12 @@
 # usage: sh test/feature.sh path/to/weather        ONLINE=1 also tests the real server
 BIN=${1:-build/host/weather}
 HERE=$(dirname "$0")
-BASE=${PORT_BASE:-18700}
+FIXTURE_HERE=$HERE
+. "$HERE/fixture-lib.sh"
+fixture_init || exit 1
 pass=0; fail=0
-pids=""
-trap 'kill $pids 2>/dev/null' EXIT INT TERM
+trap 'fixture_cleanup' EXIT
+trap 'exit 1' INT TERM
 
 ok()   { pass=$((pass+1)); }
 bad()  { fail=$((fail+1)); echo "FAIL: $1"; }
@@ -22,9 +24,9 @@ expect() {
 }
 contains() { case "$OUT" in *"$2"*) ok;; *) bad "$1: output lacks '$2' (got: $OUT)";; esac; }
 
-serve() {  # serve MODE -> sets $P to the port
-	P=$BASE; BASE=$((BASE+1))
-	python3 "$HERE/fixture_server.py" "$1" "$P" & pids="$pids $!"
+serve() {  # serve MODE -> sets $P to a bound, ready port
+    fixture_start "$1" || exit 1
+    P=$FIXTURE_PORT
 }
 
 serve ok; P_OK=$P
@@ -35,14 +37,13 @@ serve chunked; P_CHUNK=$P
 serve trunc; P_TRUNC=$P
 serve garbage; P_GARB=$P
 serve hangup; P_HANG=$P
+serve dribble; P_DRIP=$P
 serve imperial; P_IMP=$P
 serve badjson; P_BADJ=$P
 serve metno; P_MET=$P
 serve fallback; P_FALL=$P
 serve nws; P_NWS=$P
-sleep 1
-
-CFG=$(mktemp); echo "attempts = 1" > "$CFG"
+CFG="$FIXTURE_STATE/config"; echo "attempts = 1" > "$CFG"
 W="-c $CFG"
 
 expect "ok oneline" 0 $W -1 -H 127.0.0.1:$P_OK
@@ -52,7 +53,7 @@ contains "metric output is converted and labelled" "12.7C Clear sky, wind 14.0km
 expect "server ignoring the unit parameters is refused" 65 $W -u metric -1 -H 127.0.0.1:$P_IMP
 contains "units mismatch explained" "units in the response do not match the request"
 expect "ok full" 0 $W -H 127.0.0.1:$P_OK
-contains "full layout" "Weather for Madison, WI from open-meteo, observed 2026-10-24T04:45 UTC"
+contains "full layout" "Weather for Madison, WI from open-meteo, forecast for 2026-10-24T04:45 UTC"
 contains "full wind line" "Wind 8.7 mph from SE   Humidity 84%"
 expect "plain-http warning is shown" 0 $W -1 -H 127.0.0.1:$P_OK
 contains "warn" "NO TLS"
@@ -71,6 +72,18 @@ expect "garbage reply" 65 $W -H 127.0.0.1:$P_GARB
 expect "hangup" 74 $W -H 127.0.0.1:$P_HANG
 expect "bad json" 65 $W -H 127.0.0.1:$P_BADJ
 expect "read timeout" 75 $W -t 1 -H 127.0.0.1:$P_SLOW
+# a server that trickles one byte every half second keeps every read short: the whole attempt must still end (3 x timeout)
+t0=$(date +%s)
+"$BIN" $W -t 1 -H 127.0.0.1:$P_DRIP >/dev/null 2>"$CFG.drip" &
+wp=$!
+( sleep 12; kill $wp 2>/dev/null ) &         # watchdog: a missing deadline fails the test instead of stalling it
+wd=$!
+wait $wp; got=$?; t1=$(date +%s)
+kill $wd 2>/dev/null; wait $wd 2>/dev/null
+if [ "$got" = 75 ]; then ok; else bad "dribbling server: exit $got, wanted 75 ($(cat "$CFG.drip"))"; fi
+if [ $((t1 - t0)) -le 8 ]; then ok; else bad "dribbling server: took $((t1 - t0)) s with -t 1"; fi
+grep -Eq "time limit|timed out waiting for the server" "$CFG.drip" && ok || bad "dribbling server: no deadline or socket-timeout message ($(cat "$CFG.drip"))"
+rm -f "$CFG.drip"
 expect "connection refused" 69 $W -H 127.0.0.1:1
 expect "unknown host" 68 $W -H no-such-host.invalid:80
 
@@ -96,23 +109,35 @@ expect "-n before -l: -l still drops the name (options apply in order)" 0 $W -n 
 contains "no name after -n then -l" "Weather from open-meteo"
 expect "-l reaches the request" 0 $W -d -l 59.91,10.75 -1 -H 127.0.0.1:$P_OK
 contains "-l in request" "latitude=59.9100&longitude=10.7500"
+# the whole globe, not only Europe and the US Midwest: west and east of 90 degrees, and the limits themselves
+expect "-l west hemisphere reaches the request" 0 $W -d -l 47.6062,-122.3321 -1 -H 127.0.0.1:$P_OK
+contains "-l west longitude in request" "latitude=47.6062&longitude=-122.3321"
+expect "-l east of 90 degrees reaches the request" 0 $W -d -l -33.8688,151.2093 -1 -H 127.0.0.1:$P_OK
+contains "-l southern/eastern in request" "latitude=-33.8688&longitude=151.2093"
+expect "-l at the positive limits" 0 $W -l 90,180 -H 127.0.0.1:$P_OK
+expect "-l at the negative limits" 0 $W -l -90,-180 -H 127.0.0.1:$P_OK
 echo "attempts = 3" > "$CFG"
 
 # second data source: MET Norway needs a contact (its terms), is skipped without one, and is the fallback
 printf 'attempts = 1\ncontact = tester@example.org\n' > "$CFG.met"
-expect "met-no without contact is refused" 78 -c "$CFG" -p met-no -H 127.0.0.1:$P_MET
-contains "contact explained" "requires 'contact'"
+expect "met-no uses project identity without contact" 0 -c "$CFG" -p met-no -H 127.0.0.1:$P_MET
+contains "default MET response" "met-no"
 expect "met-no with contact" 0 -c "$CFG.met" -1 -p met-no -H 127.0.0.1:$P_MET
 contains "met-no output" "54.5F Partly cloudy, wind 7.8mph S, humidity 77% (met-no 2026-10-24T06:00)"
 expect "met-no metric" 0 -c "$CFG.met" -1 -u metric -p met-no -H 127.0.0.1:$P_MET
 contains "met-no metric output" "12.5C Partly cloudy, wind 12.6km/h S"
 expect "contact is sent in the User-Agent" 0 -c "$CFG.met" -d -1 -p met-no -H 127.0.0.1:$P_MET
 contains "user agent" "User-Agent: weather/$("$BIN" -V | sed -n "1s/^weather //p") (contact: tester@example.org)"
-expect "met-no is skipped without contact, next source used" 0 -c "$CFG" -1 -p met-no,open-meteo -H 127.0.0.1:$P_OK
+if printf '%s\n' "$OUT" | python3 "$HERE/debug_dump.py"; then ok; else bad "complete debug response"; fi
+expect "malformed MET data falls back to next source" 0 -c "$CFG" -1 -p met-no,open-meteo -H 127.0.0.1:$P_OK
 contains "fell back to open-meteo" "(open-meteo "
 expect "falls back when the first source is broken" 0 -c "$CFG.met" -1 -p open-meteo,met-no -H 127.0.0.1:$P_FALL
 contains "fell back to met-no" "(met-no "
 expect "unknown source" 64 -p open-meteo,nope -H 127.0.0.1:$P_OK
+expect "quiet multiple sources retain HTTP exit" 76 -q -c "$CFG.met" -p open-meteo,met-no -H 127.0.0.1:$P_500
+contains "quiet multiple sources retain HTTP cause" "weather: http: server returned an error status (detail 500)"
+expect "quiet skipped source retains attempted failure" 76 -q -c "$CFG" -p open-meteo,met-no -H 127.0.0.1:$P_404
+contains "quiet skip does not hide HTTP cause" "weather: http: server returned an error status (detail 404)"
 rm -f "$CFG.met"
 
 # usage and config errors
@@ -128,6 +153,10 @@ expect "bad option" 64 -Z
 expect "stray argument" 64 foo
 expect "bad -l" 64 -l banana
 expect "-l out of range" 64 -l 95,10
+expect "-l latitude just past the limit" 64 -l 90.0001,0
+expect "-l longitude out of range" 64 -l 10,181
+expect "-l longitude just past the limit" 64 -l 0,180.0001
+expect "-l longitude just past the negative limit" 64 -l 0,-180.0001
 expect "bad units" 64 -u kelvin
 expect "unknown source" 64 -p nope -H 127.0.0.1:$P_OK
 printf 'units = metric\nbogus = 1\n' > "$CFG"
@@ -230,6 +259,7 @@ case "$SOUT" in *weather:*) bad "log text on stdout";; *) ok;; esac
 
 if [ -n "$ONLINE" ]; then
 	expect "online live fetch" 0 -1
+	if [ "${TEST_HOOKS_ENABLED:-0}" = 1 ]; then
 	# the TLS layer must judge certificates by the platform clock (seam), not its own idea of time
 	WEATHER_NOW=4102444800 "$BIN" -1 >/dev/null 2>"$CFG.err"; got=$?
 	if [ "$got" = 76 ] && grep -q "expired or not yet valid" "$CFG.err"; then ok; else bad "year-2100 clock: exit $got $(cat $CFG.err)"; fi
@@ -239,6 +269,7 @@ if [ -n "$ONLINE" ]; then
 	if [ "$got" = 71 ]; then ok; else bad "1970 clock: exit $got (wanted 71, clock)"; fi
 	WEATHER_NO_TA=1 "$BIN" -1 >/dev/null 2>"$CFG.err"; got=$?
 	if [ "$got" = 76 ] && grep -q "cert" "$CFG.err"; then ok; else bad "no-anchor run: exit $got $(cat $CFG.err)"; fi
+	fi
 	rm -f "$CFG.err"
 fi
 

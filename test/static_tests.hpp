@@ -3,6 +3,7 @@
 // Compile-time tests of the portable core. If the core is wrong on a compiler, this does not compile there.
 // Included by unittest.cpp (host and maul) and by the OS 9 probe (Retro68): a bad parser breaks the build, on every target.
 #pragma once
+#include "core/forecast_cache.hpp"
 #include "platform/os9/modal_clock.hpp"
 #include "platform/os9/portable.hpp"
 #include "core/config.hpp"
@@ -74,6 +75,20 @@ static_assert(http_parse(kHttp).st.ok() && http_parse(kHttp).code == 200 && http
 static_assert(http_parse("HTTP/1.1 200 OK\r\nContent-Length: 9\r\n\r\n{}").st.err == Err::Truncated, "short body");
 static_assert(http_parse("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n").st.err == Err::BadData,
     "chunked refused");
+constexpr bool bad_http_lengths() {
+    const sv values[]={"5.5","-1","+2","2e0","","2, 2","999999999999999999999999999999"};
+    for(sv value:values) {
+        Buf<160> response; response.add("HTTP/1.0 200 OK\r\nContent-Length: ").add(value).add("\r\n\r\n123456");
+        if(http_parse(response.view()).st.err!=Err::Parse) return false;
+    }
+    return true;
+}
+static_assert(bad_http_lengths(),"Content-Length is bounded decimal digits only");
+static_assert(http_parse("HTTP/1.0 200 OK\r\nContent-Length: 2\r\nContent-Length: 3\r\n\r\n{}").st.err==Err::Parse,"conflicting lengths");
+static_assert(http_parse("HTTP/1.0 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n{}").st.err==Err::BadData,"coding names ignore case");
+static_assert(http_parse("HTTP/1.0 200 OK\r\nTransfer-Encoding: gzip, CHUNKED\r\n\r\n{}").st.err==Err::BadData,"unsupported coding lists");
+static_assert(http_parse("HTTP/1.0 200 OK\r\nContent-Length: 002\r\nContent-Length: 2\r\n\r\n{}").body==sv("{}"),"equal repeated decimal lengths remain compatible");
+static_assert(http_parse("HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n").st.ok(),"zero length is valid");
 static_assert(http_parse("garbage garbage").st.err == Err::Parse, "not http");
 static_assert(http_parse("HTTP/1.1 200 OK\r\nContent-Le").st.err == Err::Truncated, "cut headers");
 // a connection that dies before the status line is complete is a dropped connection, not malformed data

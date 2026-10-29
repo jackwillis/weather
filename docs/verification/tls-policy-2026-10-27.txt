@@ -1,0 +1,47 @@
+Issue #66: TLS policy and test-build isolation, 2026-10-27
+Base main e3b5a87. Restored WIP using stash apply, not pop; stash retained.
+
+Before restricting suites, OpenSSL certificate-verified TLS 1.2 ECDHE+AEAD
+handshakes passed api.open-meteo.com, api.met.no, api.weather.gov and
+geocoding-api.open-meteo.com. No HTTP requests or contact details were sent.
+
+Red: CBC-only TLS 1.2 fixture accepted the old client:
+  FAIL: cbc accepted: RESULT err=ok detail=0
+  FAIL: cbc received a request
+  tls tests: 14 passed, 2 failed
+The TLS-1.1-only fixture was already refused by this local OpenSSL/BearSSL
+combination, so that case alone is not claimed as pre-fix behavioral evidence.
+
+Green: after TLS 1.2 floor/ceiling and six explicit ECDHE AEAD suites:
+  tls tests: 16 passed, 0 failed
+
+Production-client handshake-only probe after policy change:
+weather: debug: tls: client ready for api.open-meteo.com (3 trust anchors)
+weather: debug: tls: closed (version 0x0303, cipher 0xcca8)
+PASS api.open-meteo.com
+weather: debug: tls: client ready for api.met.no (3 trust anchors)
+weather: debug: tls: closed (version 0x0303, cipher 0xc02f)
+PASS api.met.no
+weather: debug: tls: client ready for api.weather.gov (3 trust anchors)
+weather: debug: tls: closed (version 0x0303, cipher 0xcca8)
+PASS api.weather.gov
+weather: debug: tls: client ready for geocoding-api.open-meteo.com (3 trust anchors)
+weather: debug: tls: closed (version 0x0303, cipher 0xcca8)
+PASS geocoding-api.open-meteo.com
+
+Production probe also passed with WEATHER_NOW=100 and WEATHER_NO_TA=1 set.
+An explicitly flagged test probe with WEATHER_NO_TA=1 failed as expected,
+logging zero trust anchors. Linked host and NetBSD production artifacts omit
+both hook strings; flagged artifacts retain them. All four dry-run release
+guards (install, package-netbsd, dist, distcheck) rejected TEST_HOOKS=1.
+NetBSD production CLI/X11/unit and test-hook CLI cross-builds passed.
+Full OS 9 build with enabled diagnostics passed; no native hardware run.
+
+make check passed: production and test-hook configurations each ran 1074 unit
+and 111 CLI checks; production robustness ran 299308 inputs. TLS 16, GUI 22,
+anchors 14, provisioning 3, flags 6 and linked-hook isolation passed.
+make REQUIRE_ASAN=1 check-san passed: production and test-hook unit/CLI checks
+with the same counts; production robustness 299308, all zero failures.
+Retro68 PowerPC and m68k portable compile probes passed (GCC 16.1.0).
+No live HTTP API requests were used for compatibility evidence. No certificate
+key-size/signature policy change is claimed. Protected WIP stash remains.

@@ -1,0 +1,1 @@
+- Preserve the last attempted weather source's error, detail and exit status when fallback is exhausted, including with `-q`. Later skipped sources no longer hide an attempted failure.

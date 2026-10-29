@@ -17,7 +17,7 @@ Rule: dependencies point down only. `core/` and `app/` include no OS headers (on
 build on a hit, so the rule is enforced, not hoped for. No heap in `core/`; no exceptions, no RTTI.
 
 ## 2. The OS seams (function-pointer structs, as in `net.hpp`)
-- **Net**: connect / close / sleep_ms / now, plus tls_open / tls_close.
+- **Net**: connect / close / sleep_ms / now / monotonic_ms, plus tls_open / tls_close.
 - **Io**: read / write on a stream. Errors carry an `Err` kind, `errno`-style detail and a static message.
 - **yield (new)**: `bool (*yield)(Net&)` called whenever the code would block (poll slices of ~50 ms,
   backoff sleeps). A UI uses it to pump its event loop (redraw "Fetching...", handle expose/close); returning
@@ -27,6 +27,7 @@ build on a hit, so the rule is enforced, not hoped for. No heap in `core/`; no e
 - **Entropy and time** (done): TLS takes both from the platform (`Net::now`, `Net::entropy`), not from `time()`
   and `/dev/urandom` directly; no entropy source means TLS refuses to start. Epoch times are 64-bit (`long` is 32-bit on ppc32).
   Known limit: `getaddrinfo()` is a blocking call and cannot yield, so a UI can freeze for the resolver's timeout. Needed for OS 9 (no /dev/urandom) and testable with a fake clock.
+- **Attempt deadlines**: fetch uses nonnegative monotonic milliseconds, separate from UTC certificate time. POSIX exposes CLOCK_MONOTONIC; OS 9 uses the same modal-credit active clock as DNS and socket waits. Missing or regressing stream-clock samples fail closed. Reads and writes cannot start at or beyond the attempt limit. A scoped borrowed budget bounds POSIX platform waits and OS 9 async DNS; OS 9 stream-wait internals still use their per-wait timeout.
 - **Settings store** (done: `SettingsStore`, posix dotfile): load/save of the raw text per OS, atomic save, follows a symlinked dotfile; the text editor `settings_update` is portable and refuses anything that would not read back (rc file on Unix, Preferences
   folder on OS 9). The *text* handling (parse, and "replace these keys but keep every other
   line and comment") is portable and tested; only reading/writing the bytes is per-OS.
@@ -64,7 +65,11 @@ Retro68 container. Layers: the same core, app and tls code; `src/platform/os9/` 
   `Net::yield`, so the event loop keeps running and Cmd-. cancels. DNS uses an asynchronous service provider with a host-tested
   controller (2026-10-25). The foreground loop yields and enforces a wrap-safe deadline. An abandoned open retains its callback
   storage until a later request drains it, or OT shuts down; a failed close quarantines the resolver until restart.
-  POSIX `getaddrinfo` still blocks. See `spike/os9/DNS-PROBE.md` for hardware coverage and limits.
+  POSIX `getaddrinfo` still blocks. Its elapsed time is charged when it returns,
+  and all returned addresses share one connection timeout budget. A borrowed, scoped
+  Net::budget also caps POSIX connect/read/write waits to the earlier attempt or caller
+  limit; fetch restores the caller pointer on every return. OS9 async DNS also checks the borrowed attempt budget during open/query/drain;
+  its TCP and stream waits do not yet enforce it internally (raw-I/O checks still apply). See `spike/os9/DNS-PROBE.md` for hardware coverage and limits.
 * **Window scheduling**: SIZE allows background execution. The event pump checks osEvt suspend/resume flags and redraws on resume. A shared active-time clock excludes measured MenuSelect/DragWindow/TrackGoAway intervals from both DNS and socket/TLS deadlines, using modulo-32-bit tick arithmetic and an extended millisecond counter. This pauses only local deadline accounting; a server may close a connection during a long menu hold. New background/menu interaction acceptance is pending a Tiger boot; earlier window artwork/live-TLS scenarios passed under Classic.
 * **Clock**: UTC is derived from the Date & Time time zone (`gmtDelta` plus the daylight-saving flag); TLS certificate dates
   use it, and `fetch` refuses a clock before 2025. Verified against OS X on the real machine: gmtDelta already includes daylight saving (an extra DST term made it an hour slow).
@@ -173,3 +178,18 @@ private exclusive temporaries and checked flush/exchange/rename, with no physica
 power-loss guarantee. Diagnostics explicitly supply isolated stores and are separate
 executables. Cancel never clears an unresolved startup configuration error.
 See OS9-PREFERENCES.md for migration and native verification gaps.
+
+## Platform idioms and the pre-1.0 policy (decided 2026-10-28, #180)
+
+Each platform's configuration, environment and file locations follow that platform's own idioms, as if the program had been designed only for it. The portable core owns one `Config` structure and knows nothing about files, flags, dialogs or the environment; each platform supplies a store (read and write) and a surface that edits it.
+
+| Platform | Settings live in | Changed by | Environment |
+|---|---|---|---|
+| NetBSD and other BSDs | dotfile in `$HOME` | editing the text file; flags override | honor the system defaults (certificate variables, #158) |
+| Linux (not supported yet) | `$XDG_CONFIG_HOME/<app>/config`, default `~/.config/<app>/config` | same text format and flags | XDG variables, system certificate store |
+| macOS (not supported yet) | GUI app: `~/Library/Preferences`; CLI: dotfile | native Preferences window for the GUI app | system certificates |
+| Mac OS 9 | one app-owned Preferences file in `System Folder:Preferences` | the Preferences window and menus only, never text editing | none; the app supplies what the OS lacks (TLS seed, #120) |
+
+A setting may exist on only some platforms where a platform has no idiom for it; the core never depends on a platform-only setting. Linux and macOS are recorded here so the design does not close them off; nothing is implemented for them until they are supported.
+
+**Pre-1.0 policy:** no migrations and no compatibility shims. Settings formats, file names, command names and paths may change between 0.x releases without a migration path. Remove old code paths instead of keeping them (for example the OS 9 `weather.conf` fallback and the text-editing instructions in OS9-PREFERENCES.md, which #182 removes). This policy ends at 1.0.
