@@ -71,10 +71,14 @@ Tab and Shift-Tab (or the arrow keys) move between the fields, Return accepts an
 A value that cannot be used is explained in red and nothing is saved.
 Accepting saves the settings file and fetches the weather for the new place.
 .Sh FIRST LAUNCH
-With missing or empty settings, Location opens before any weather request.
-Confirm and successfully save a location to start the first update.
-Cancel exits without saving or fetching.
-Existing nonempty settings keep their normal startup behavior.
+With missing or empty settings, the window shows the default location
+(Madison, Wisconsin) and fetches it; nothing is written until a location is
+saved.
+Choose
+.Em Location...
+(Ctrl-L) to change it.
+An unreadable or invalid settings file is reported and the program exits;
+it is never replaced.
 Lookup by name remains an explicit Find/Search action.
 .Sh FILES
 .Bl -tag -width "~/.weatherrc"

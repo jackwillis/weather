@@ -237,29 +237,29 @@ if [ -x ./xweather-search-test ]; then
     unset XW_BIN
 fi
 
-# Empty settings are first-run: no weather request until explicit confirmation.
+# Empty settings show the default location and fetch it; nothing is written until a location is saved (#198).
 : > rcFirst
 if start_xw rcFirst $PORT_OK; then
-    ./xdrive sleep 800
-    check "First: no automatic weather request before confirmation" "$(fetches)" 0
-    snap First01-location
-    ./xdrive key Return sleep 1200
-    check "First: confirmed default location is saved" "$(grep -c 'latitude = 43.0747' rcFirst)" 1
-    check "First: confirmation starts exactly one update" "$(fetches)" 1
+    ./xdrive sleep 1500
+    check "First: default location is fetched without a dialog" "$(fetches)" 1
+    check "First: nothing is written by launching" "$(wc -c < rcFirst | tr -d ' ')" 0
+    snap First01-default
+    ./xdrive key l ctrl sleep 300
+    snap First02-location-opened
+    ./xdrive key Escape sleep 300
+    check "First: Escape in Location closes only the dialog" "$(kill -0 "$XW" 2>/dev/null; echo $?)" 0
+    check "First: cancelling Location leaves the file empty" "$(wc -c < rcFirst | tr -d ' ')" 0
+    ./xdrive key l ctrl sleep 200 key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace type 12 key Return sleep 1500
+    check "First: an explicit save writes the chosen location" "$(grep -c 'latitude = 12.0000' rcFirst)" 1
+    check "First: the explicit save refetches once" "$(fetches)" 2
     quit_xw First
 fi
-: > rcFirstCancel
-if start_xw rcFirstCancel $PORT_OK; then
-    ./xdrive sleep 600
-    kill -STOP "$XW"
-    ./xdrive key Escape key Return
-    kill -CONT "$XW"
-    ./xdrive gone Weather 3000
-    check "First: cancelling closes the unconfigured app" "$?" 0
-    wait $XW; check "First: cancelled exit status" "$?" 0
-    check "First: cancelled setup never fetches" "$(fetches)" 0
-    check "First: cancelled setup leaves file empty" "$(wc -c < rcFirstCancel | tr -d ' ')" 0
-fi
+# An invalid settings file is reported and never replaced.
+printf 'latitude = banana\n' > rcBad
+cp rcBad rcBad.before
+./xweather -c rcBad > xw-bad.log 2>&1; bad=$?
+check "First: invalid settings exit with the config error" "$bad" 78
+check "First: invalid settings are not replaced" "$(cmp -s rcBad rcBad.before; echo $?)" 0
 
 # ---------------------------------------------------------------- D: the weather pictures
 for g in $GALLERY; do
