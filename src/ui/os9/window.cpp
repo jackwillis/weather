@@ -156,18 +156,21 @@ void draw_contents()
 	Canvas c; c.rect(0,0,340,kHeight,{221,221,221});
 	text(16,25,cfg.name);
 	if(model.has_forecast()) {
-		const Forecast &f=model.forecast(); art::picture(c,{16,43,108,96},f.code,!f.is_day);
+		const Forecast &f=model.forecast();
+		bool old_data=model.stale(net.now(net));   // cached, failed, old or clock-stepped: dim the values and the picture (#62)
+		const Rgb ink=old_data?Rgb{96,96,96}:Rgb{0,0,0};
+		if(old_data) { art::DimCanvas<Canvas> dim{c,Rgb{221,221,221},55}; art::picture(dim,{16,43,108,96},f.code,!f.is_day); }
+		else art::picture(c,{16,43,108,96},f.code,!f.is_day);
 		Buf<80> t; t.add_fixed(f.temp_t10,1).add(f.metric?" C":" F");
-		bool old_data=model.stale(net.now(net));   // cached, failed, old or clock-stepped: dim the values (#62)
-		text(143,79,t.c_str(),24,180,old_data?Rgb{96,96,96}:Rgb{0,0,0});
-		text(143,103,wmo_text(f.code),12,180,old_data?Rgb{96,96,96}:Rgb{0,0,0});
+		text(143,79,t.c_str(),24,180,ink);
+		text(143,103,wmo_text(f.code),12,180,ink);
 		Buf<80> wind; wind.add("Wind ");
 		if(f.wind_t10==kUnset) wind.add("unavailable");
 		else wind.add_fixed(f.wind_t10,1).add(f.metric?" km/h":" mph");
-		text(143,125,wind.c_str(),10,180);
+		text(143,125,wind.c_str(),10,180,ink);
 		Buf<80> humidity; humidity.add("Humidity ");
 		if(f.humidity==kUnset) humidity.add("unavailable"); else humidity.add_int(f.humidity).add('%');
-		text(143,143,humidity.c_str(),10,180);
+		text(143,143,humidity.c_str(),10,180,ink);
 		Buf<80> observed; observed.add("Forecast for ").add(f.time).add(" UTC"); text(16,165,observed.c_str(),10);
 		text(16,182,f.source?f.source:"",9);
 	}

@@ -192,7 +192,8 @@ void draw_body(Drawable d)
 	Rect ic = r_icon();
 	cde::fill(t, d, ic, t.bg);
 	cde::shadow(t, d, ic, 2, false);
-	cde::weather_icon(t, d, ic.inset(3), have ? f.code : -1, have && f.is_day == 0);
+	bool old_data = have && g.model.stale(now_s());   // cached, failed, old or clock-stepped: dim the values and the picture (#62)
+	cde::weather_icon(t, d, ic.inset(3), have ? f.code : -1, have && f.is_day == 0, old_data);
 
 	int x0 = 156, y = 62;
 	char name[64];
@@ -210,18 +211,17 @@ void draw_body(Drawable d)
 	}
 	Buf<24> temp;
 	temp.add_fixed(f.temp_t10, 1).add("\260").add(f.metric ? "C" : "F");
-	bool old_data = g.model.stale(now_s());   // cached, failed, old or clock-stepped: dim the values (#62)
 	cde::text(t, d, t.big, x0, 108, temp.view(), old_data ? t.dim : t.fg);
 	cde::text(t, d, t.bold, x0, 132, wmo_text(f.code), old_data ? t.dim : t.fg);
 	Buf<64> wind;
 	if (f.wind_t10 != kUnset) {
 		wind.add("Wind ").add_fixed(f.wind_t10, 1).add(f.metric ? " km/h" : " mph");
 		if (f.wind_dir != kUnset) wind.add(" from ").add(compass(f.wind_dir));
-		cde::text(t, d, t.normal, x0, 154, wind.view(), t.fg);
+		cde::text(t, d, t.normal, x0, 154, wind.view(), old_data ? t.dim : t.fg);
 	}
 	if (f.humidity != kUnset) {
 		Buf<32> hum; hum.add("Humidity ").add_int(f.humidity).add("%");
-		cde::text(t, d, t.normal, x0, 172, hum.view(), t.fg);
+		cde::text(t, d, t.normal, x0, 172, hum.view(), old_data ? t.dim : t.fg);
 	}
 	Buf<48> obs; obs.add("Forecast for ");
 	for (const char *p = f.time; *p; p++) obs.add(*p == 'T' ? ' ' : *p);
