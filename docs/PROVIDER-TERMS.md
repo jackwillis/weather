@@ -79,3 +79,15 @@ release treatment with the provider; no external contact is invented or sent.
 
 Persistent cache source IDs include Open-Meteo, MET and NWS (`src/core/forecast_cache.hpp`).
 Source inspection and host checks are not target runtime or legal acceptance.
+
+### Additional display-link review
+
+The [Open-Meteo licence page](https://open-meteo.com/en/licence), re-read on
+2026-10-29, also asks for an Open-Meteo link beside displayed data. Main's forecast
+line uses a source identifier; the detailed URL/credit lives in About/--credits
+and README rather than beside every value. This correction improves credits but
+**does not establish that indirect placement satisfies that provider request**.
+Jack must accept a concrete native/CLI placement or obtain clarification before
+checking off complete attribution. The geocoding documentation credits GeoNames;
+Open-Meteo's licence page lists its location database under CC BY 4.0. No icons
+from the provider site are copied into this project.
