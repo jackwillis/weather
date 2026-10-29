@@ -3,7 +3,7 @@
 static void test_conditional_requests()
 {
     Config defaults;
-    CHECK(sv(defaults.providers)=="open-meteo,met-no");
+    CHECK(sv(defaults.providers)=="open-meteo");   // MET fallback is opt-in for v0.1 (#152 moved to v0.2)
     constexpr const char *modified="Tue, 27 Oct 2026 12:00:00 GMT";
     long long expiry=0;
     CHECK(http_date("Tue, 27 Oct 2026 12:00:00 GMT",&expiry) && expiry==1793102400LL);
