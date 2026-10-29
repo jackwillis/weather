@@ -60,9 +60,14 @@ Name of the place, shown in the full output (printable ASCII, no
 Comma separated list of data sources, tried in order until one answers.
 The sources are
 .Ql open-meteo
-(tried first by default) and
+(tried first by default),
 .Ql met-no
-(MET Norway, worldwide).
+(MET Norway, worldwide), and
+.Ql nws
+(US station observations via api.weather.gov).
+The NWS source uses the first station returned for the gridpoint; if its latest
+observation is unusable, the next configured source is tried.
+Its observation timestamp may be older than the time of the successful fetch.
 The default fallback order is Open-Meteo, then MET Norway.
 MET uses the public project URL as application contact;
 .Ic contact

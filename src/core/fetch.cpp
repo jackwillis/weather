@@ -196,6 +196,8 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 	bool attempted = false;
 	for (size_t i = 0; i < n; i++) {
 		const Provider &p = *providers[i];
+		if (p.steps < 1 || p.steps > 3 || (p.steps > 1 && !p.next_path))
+			return make(Err::BadData, "invalid provider request chain");
 		if (!o.save_forecasts && sv(p.name)=="met-no") {
 			Status skipped=make(Err::Config,"MET Norway requires forecast saving");
 			if (!attempted) last=skipped;
@@ -236,7 +238,14 @@ Status fetch_forecast(Net &net, const Provider *const *providers, size_t n, cons
 			if(!value.empty() && http_validator(value)) request.if_modified_since=value;
 		}
 		sv body;
-		Status s = fetch_retry(net, host, port, tls, path, request, buf, cap, &body);
+		Status s;
+		for (unsigned step = 1; step <= p.steps; ++step) {
+			if (net.yield && !net.yield(net)) { s = make(Err::Cancelled, "cancelled between provider requests"); break; }
+			s = fetch_retry(net, host, port, tls, path, request, buf, cap, &body);
+			if (!s.ok() || step == p.steps) break;
+			s = p.next_path(body, step, path, sizeof path);
+			if (!s.ok()) break;
+		}
 		if (s.ok()) {
 			Forecast f;
 			if(metadata.code==304) {
