@@ -76,6 +76,7 @@ struct App {
     LocationSearch search;
     TextEdit<64> search_query;
     PlaceLookup lookup=nullptr;
+    const XweatherTestHooks *test_hooks=nullptr;
     int selected_place=-1, search_focus=0;
     bool searching=false, search_cancel=false;
     const char *search_message="Enter a place, then Search.";
@@ -252,6 +253,7 @@ void draw_status(Drawable d)
 	char buf[220];
 	int maxw = s.w - 16;
 	cde::fit_text(t.normal, line1, maxw, buf, sizeof buf);
+	if(g.test_hooks && g.test_hooks->status_line) g.test_hooks->status_line(buf);
 	cde::text(t, d, t.normal, s.x + 8, s.y + 16, buf, t.fg);
 	cde::fit_text(t.normal, line2, maxw, buf, sizeof buf);
 	cde::text(t, d, t.normal, s.x + 8, s.y + 33, buf, t.dim);
@@ -758,9 +760,10 @@ void usage(FILE *f)
 
 } // namespace
 
-int wx::run_xweather(int argc, char **argv, PlaceLookup lookup)
+int wx::run_xweather(int argc, char **argv, PlaceLookup lookup, const XweatherTestHooks *hooks)
 {
 	g.lookup=lookup;
+	g.test_hooks=hooks;
 	const char *dispname = nullptr;
 	for (int i = 1; i + 1 < argc; i++)        // X toolkit style "-display NAME", removed before getopt
 		if (!strcmp(argv[i], "-display")) {
@@ -826,6 +829,7 @@ int wx::run_xweather(int argc, char **argv, PlaceLookup lookup)
 	posix_net_init(&g.net);
 	tls_net_init(&g.net);
 	g.net.yield = app_yield;
+	if(hooks && hooks->prepare_net) hooks->prepare_net(g.net);
 
 	g.dpy = XOpenDisplay(dispname);
 	if (!g.dpy) {

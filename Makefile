@@ -80,6 +80,10 @@ $(BUILD)/xweather-search-test: $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_search.o $(BEARSSL_LIB) $(X11_LIBS)
 
 
+$(BUILD)/xweather-stale-test: $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_stale.o $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
+
+
 $(BUILD)/cde-text-test: $(OBJ)/test/cde_text.o $(OBJ)/ui/xweather/cde.o $(OBJ)/platform/$(PLATFORM)/nocxx.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
 
@@ -274,13 +278,13 @@ check-san:
 san-note:
 	@echo "check-san: $(SAN_NOTE)"
 
-check-gui: $(BUILD)/xweather $(BUILD)/xdrive $(BUILD)/xweather-search-test $(BUILD)/cde-text-test $(BUILD)/cde-field-test
+check-gui: $(BUILD)/xweather $(BUILD)/xdrive $(BUILD)/xweather-search-test $(BUILD)/xweather-stale-test $(BUILD)/cde-text-test $(BUILD)/cde-field-test
 	$(BUILD)/cde-text-test
 	sh test/field-host.sh $(BUILD)/cde-field-test
 	sh test/gui-host.sh
 
 check-gui-maul:
-	$(MAKE) TARGET=netbsd-macppc all build/netbsd-macppc/xdrive build/netbsd-macppc/xweather-search-test
+	$(MAKE) TARGET=netbsd-macppc all build/netbsd-macppc/xdrive build/netbsd-macppc/xweather-search-test build/netbsd-macppc/xweather-stale-test
 	sh test/gui-maul.sh
 
 check-cross:
