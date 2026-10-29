@@ -10,7 +10,7 @@ namespace std {
 void __throw_out_of_range_fmt(const char *fmt, ...) __attribute__((__noreturn__));
 void __throw_out_of_range_fmt(const char *, ...)
 {
-	fputs("weather: internal error: string_view out of range (please report this)\n", stderr);
+	fputs("What It Be Like?: internal error: string_view out of range (please report this)\n", stderr);
 	abort();
 }
 }

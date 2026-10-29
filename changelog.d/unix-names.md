@@ -1,0 +1,1 @@
+- Rename the Unix commands to `belike` and `xbelike`, configuration to `~/.belikerc`, and the combined NetBSD package/source archive to `belike`. There are no old-command aliases or configuration migration. Mac OS 9 `Weather` and its Preferences/TLS seed/lock names are unchanged (#135).

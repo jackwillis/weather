@@ -1,8 +1,8 @@
 .Dd October 24, 2026
-.Dt XWEATHER 1
+.Dt XBELIKE 1
 .Os
 .Sh NAME
-.Nm xweather
+.Nm xbelike
 .Nd current weather in an X11 window
 .Sh SYNOPSIS
 .Nm
@@ -16,7 +16,7 @@ shows the current conditions for one place in a small window in the style of the
 a picture for the conditions (sun, moon and stars, clouds, rain, snow, thunderstorm, fog), the temperature,
 a description, wind and humidity, the time of the observation, and a status bar.
 It uses the same settings file, built-in TLS library and data sources as
-.Xr weather 1 .
+.Xr belike 1 .
 .Pp
 The window refreshes by itself every 15 minutes, which is how often the data source updates, unless that is
 turned off.
@@ -30,7 +30,7 @@ The options are as follows:
 Read and save settings in
 .Ar file
 instead of
-.Pa ~/.weatherrc .
+.Pa ~/.belikerc .
 .It Fl d
 Debug: log at the most detailed level and include the request and response text.
 .It Fl display Ar name
@@ -81,10 +81,10 @@ An unreadable or invalid settings file is reported and the program exits;
 it is never replaced.
 Lookup by name remains an explicit Find/Search action.
 .Sh FILES
-.Bl -tag -width "~/.weatherrc"
-.It Pa ~/.weatherrc
+.Bl -tag -width "~/.belikerc"
+.It Pa ~/.belikerc
 Settings, see
-.Xr weatherrc 5 .
+.Xr belikerc 5 .
 Changes made in the window are written here.
 .El
 .Sh PLACE SEARCH
@@ -114,30 +114,30 @@ is given.
 reads these from the X resource database
 .Pq Xr xrdb 1
 using the name
-.Ql xweather .
-.Bl -tag -width "xweather.background"
-.It Ic xweather.background
+.Ql xbelike .
+.Bl -tag -width "xbelike.background"
+.It Ic xbelike.background
 The base colour; the light and dark bevel colours are derived from it.
 Default is a blue-grey,
 .Ql #AEB2C3 .
-.It Ic xweather.foreground
+.It Ic xbelike.foreground
 Text colour.
-.It Ic xweather.font
+.It Ic xbelike.font
 Normal font. The default is 12 point Helvetica, falling back to
 .Ql fixed .
-.It Ic xweather.boldFont
+.It Ic xbelike.boldFont
 Bold font for the menu bar, buttons and headings.
-.It Ic xweather.bigFont
+.It Ic xbelike.bigFont
 Font for the temperature (24 point bold Helvetica by default).
 .El
 .Sh EXIT STATUS
 0 after a normal exit.
 Otherwise the values documented in
-.Xr weather 1 ,
+.Xr belike 1 ,
 and 69 if the X display cannot be opened.
 .Sh SEE ALSO
-.Xr weather 1 ,
-.Xr weatherrc 5 ,
+.Xr belike 1 ,
+.Xr belikerc 5 ,
 .Xr xrdb 1
 .Sh AUTHORS
 .An Jack Willis

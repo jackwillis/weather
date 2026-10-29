@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 Jack Willis
-// weather: print current conditions. See weather.1 for usage.
+// belike: print current conditions. See belike.1 for usage.
 #include "core/config.hpp"
 #include "core/geocoding.hpp"
 #include "app/model.hpp"
@@ -26,10 +26,10 @@ using namespace wx;
 
 static void usage(FILE *f)
 {
-	fputs("usage: weather [-1CdhqsSV] [-c file] [-l lat,lon] [-n name] [-p providers] [-t secs]\n"
+	fputs("usage: belike [-1CdhqsSV] [-c file] [-l lat,lon] [-n name] [-p providers] [-t secs]\n"
 	      "               [-u metric|imperial] [-v] [-g query]\n"
               "  -g  search places and exit; does not save or fetch weather\n"
-	      "  -1  one line of output       -c  config file (default ~/.weatherrc)\n"
+	      "  -1  one line of output       -c  config file (default ~/.belikerc)\n"
 	      "  -d  debug: dump traffic      -l  latitude,longitude in decimal degrees\n"
 	      "  -n  place name for display   (-l without -n drops the configured name)\n"
 	      "  -h  this help                -p  comma separated sources, in fallback order\n"
@@ -49,7 +49,7 @@ static bool cli_yield(Net &) { return !g_stop; }
 
 static int fail(const Status &s)
 {
-	fprintf(stderr, "weather: %s: %s", err_name(s.err), s.msg);
+	fprintf(stderr, "belike: %s: %s", err_name(s.err), s.msg);
 	if (s.detail) {
 		if (s.err == Err::Config) fprintf(stderr, " (line %d)", s.detail);
 		else fprintf(stderr, " (detail %d)", s.detail);
@@ -109,9 +109,9 @@ int main(int argc, char **argv)
 		case 'S': save = true; break;
 		case 'v': verbose++; break;
 		case 'V':
-			printf("weather %s\n", WEATHER_VERSION);
+			printf("belike %s\n", WEATHER_VERSION);
 			for (const char *line : kCreditsShort) printf("%s\n", line);
-			puts("Run 'weather --credits' for all credits.");
+			puts("Run 'belike --credits' for all credits.");
 			return 0;
 		case 'C':
 			for (size_t i = 0; i < kCreditPageCount; i++) {
@@ -179,7 +179,7 @@ int main(int argc, char **argv)
 	else if (verbose == 2) lvl = LogDebug;
 	else if (verbose == 1 && lvl < LogInfo) lvl = LogInfo;
 	if (quiet) lvl = LogError;
-	log_init(lvl, use_syslog, "weather");
+	log_init(lvl, use_syslog, "belike");
 
 	if (save) {
 		if (!store_st.ok()) return fail(store_st);
@@ -225,7 +225,7 @@ int main(int argc, char **argv)
 	size_t nchosen = 0;
 	{
 		Status s = resolve_providers(cfg.providers, kProviders, kNumProviders, chosen, 8, &nchosen);
-		if (!s.ok()) { fprintf(stderr, "weather: %s '%s'\n", s.msg, cfg.providers); return exit_code(s.err); }
+		if (!s.ok()) { fprintf(stderr, "belike: %s '%s'\n", s.msg, cfg.providers); return exit_code(s.err); }
 	}
 
 	Net net;

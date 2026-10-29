@@ -74,7 +74,7 @@ text so merging closes the issue. Delete the branch after it merges.
 
 Jack tags and publishes; agents prepare. See the runbook in issue #123 (v0.0.1) and #45 (v0.1).
 1. `make check check-san distcheck os9` pass on `main`; the version in `Makefile` is the one to release (`docs/release-notes/X.Y.Z.md` exists).
-2. With maul booted into NetBSD: `make package-netbsd`, inspect with `pkg_info -L -B -d` (licence `gnu-gpl-v3`, LICENSE and THIRD_PARTY.md present) and run the unpacked `weather` once.
+2. With maul booted into NetBSD: `make package-netbsd`, inspect with `pkg_info -L -B -d` (licence `gnu-gpl-v3`, LICENSE and THIRD_PARTY.md present) and run the unpacked `belike` once.
 3. **Jack pushes the tag** `vX.Y.Z`. The `Release` workflow builds the source tarball and the `.dsk` (with LICENSE, THIRD_PARTY.md and a Read Me added by `tools/stage-dsk.sh`), checks them (`tools/check-release.sh`) and creates a **draft** pre-release. It never publishes.
 4. `tools/release-attach.sh vX.Y.Z` (try `--dry-run` first) attaches the NetBSD package and extends `SHA512SUMS`. It refuses anything that is not a draft.
 5. **Jack reads the draft and publishes it.** The pipeline can be exercised without a tag from the Actions tab (workflow dispatch builds and checks artifacts, creates no release).

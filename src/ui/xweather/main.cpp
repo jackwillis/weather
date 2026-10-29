@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 Jack Willis
-// xweather: current conditions in a CDE-look X11 window. One window; menus and dialogs are
+// xbelike: current conditions in a CDE-look X11 window. One window; menus and dialogs are
 // drawn as overlays inside it. All refresh behaviour comes from app/Model; the (blocking)
 // fetch keeps the window alive through Net::yield, and can be cancelled by closing it.
 #include "app/credits.hpp"
@@ -46,7 +46,7 @@ enum Press { PNone = 0, PRefresh, PLocation, POk, PCancel, PAboutOk, PFind, PSea
 struct MenuItem { const char *label, *accel; int cmd; int kind; };   // kind: 0 plain, 1 check, 2 radio
 const MenuItem kFile[] = {{"Refresh", "F5", CmdRefresh, 0}, {"Location...", "Ctrl+L", CmdLocation, 0}, {"Exit", "Ctrl+Q", CmdExit, 0}};
 const MenuItem kOptions[] = {{"Auto-refresh", "", CmdAuto, 1}, {"Imperial (F, mph)", "", CmdImperial, 2}, {"Metric (C, km/h)", "", CmdMetric, 2}, {"Save forecasts on this computer", "", CmdCache, 1}};
-const MenuItem kHelp[] = {{"About xweather...", "", CmdAbout, 0}};
+const MenuItem kHelp[] = {{"About xbelike...", "", CmdAbout, 0}};
 struct Menu { const char *title; const MenuItem *items; int n; Rect bar; Rect drop; };
 
 struct App {
@@ -326,9 +326,9 @@ void draw_about(Drawable d)
 {
 	cde::Theme &t = g.th;
 	Rect p = a_panel();
-	Buf<48> v; v.add("xweather ").add(WEATHER_VERSION);
+	Buf<48> v; v.add("xbelike ").add(WEATHER_VERSION);
 	if (g.about_page < 0) {
-		draw_panel(d, p, "About xweather");
+		draw_panel(d, p, "About xbelike");
 		cde::bitmap1(t, d, p.x + (p.w - kLogoW) / 2, p.y + 36, kLogoBits, kLogoW, kLogoH, kLogoRowBytes, t.fg);
 		cde::text(t, d, t.bold, p.x + 16, p.y + 144, v.view(), t.fg);
 		for (size_t i = 0; i < sizeof kCreditsShort / sizeof *kCreditsShort; i++)
@@ -751,11 +751,11 @@ void do_fetch()
 
 void usage(FILE *f)
 {
-	fputs("usage: xweather [-dhqvV] [-c file] [-display name] [-H host:port]\n"
-	      "  -c  config file (default ~/.weatherrc; shared with weather(1))\n"
+	fputs("usage: xbelike [-dhqvV] [-c file] [-display name] [-H host:port]\n"
+	      "  -c  config file (default ~/.belikerc; shared with belike(1))\n"
 	      "  -d  debug: dump traffic       -q  errors only       -v  more logging\n"
 	      "  -H  (testing) plain HTTP to host:port instead of the provider\n"
-	      "X resources: xweather.background, .foreground, .font, .boldFont, .bigFont\n", f);
+	      "X resources: xbelike.background, .foreground, .font, .boldFont, .bigFont\n", f);
 }
 
 } // namespace
@@ -784,24 +784,24 @@ int wx::run_xweather(int argc, char **argv, PlaceLookup lookup, const XweatherTe
 		case 'H': force = optarg; break;
 		case 'q': quiet = true; break;
 		case 'v': verbose++; break;
-		case 'V': printf("xweather %s\n", WEATHER_VERSION); return 0;
+		case 'V': printf("xbelike %s\n", WEATHER_VERSION); return 0;
 		default: usage(stderr); return exit_code(Err::Usage);
 		}
 	}
 	if (optind != argc) { usage(stderr); return exit_code(Err::Usage); }
-	log_init(quiet ? LogError : verbose >= 2 ? LogDebug : verbose == 1 ? LogInfo : LogWarn, false, "xweather");
+	log_init(quiet ? LogError : verbose >= 2 ? LogDebug : verbose == 1 ? LogInfo : LogWarn, false, "xbelike");
 
-	// Settings: the same file as weather(1).
+	// Settings: the same file as belike(1).
 	Status ss = posix_settings_init(&g.store, cfgpath, cfgpath != nullptr);
 	g.have_store = ss.ok();
-	if (!ss.ok() && cfgpath) { fprintf(stderr, "xweather: %s: %s\n", err_name(ss.err), ss.msg); return exit_code(ss.err); }
+	if (!ss.ok() && cfgpath) { fprintf(stderr, "xbelike: %s: %s\n", err_name(ss.err), ss.msg); return exit_code(ss.err); }
 	if (g.have_store) {
 		static char text[4096];
 		size_t n = 0;
 		Status ls = g.store.base.load(g.store.base, text, sizeof text, &n);
 		if (ls.ok() && n) ls = config_parse(sv(text, n), &g.cfg);
 		if (!ls.ok()) {
-			fprintf(stderr, "xweather: %s: %s", err_name(ls.err), ls.msg);
+			fprintf(stderr, "xbelike: %s: %s", err_name(ls.err), ls.msg);
 			if (ls.err == Err::Config && ls.detail) fprintf(stderr, " (line %d)", ls.detail);
 			fputc('\n', stderr);
 			return exit_code(ls.err);
@@ -809,7 +809,7 @@ int wx::run_xweather(int argc, char **argv, PlaceLookup lookup, const XweatherTe
 	}
 	if (force) {
 		const char *colon = strrchr(force, ':');
-		if (!colon || static_cast<size_t>(colon - force) >= sizeof g.forcehost) { fprintf(stderr, "xweather: -H wants host:port\n"); return 64; }
+		if (!colon || static_cast<size_t>(colon - force) >= sizeof g.forcehost) { fprintf(stderr, "xbelike: -H wants host:port\n"); return 64; }
 		memcpy(g.forcehost, force, static_cast<size_t>(colon - force));
 		g.forcehost[colon - force] = 0;
 		g.fo.force_host = g.forcehost;
@@ -822,7 +822,7 @@ int wx::run_xweather(int argc, char **argv, PlaceLookup lookup, const XweatherTe
 	g.fo.contact = g.cfg.contact;
 	{
 		Status ps = resolve_providers(g.cfg.providers, kProviders, kNumProviders, g.providers, 8, &g.nprov);
-		if (!ps.ok()) { fprintf(stderr, "xweather: %s '%s'\n", ps.msg, g.cfg.providers); return exit_code(ps.err); }
+		if (!ps.ok()) { fprintf(stderr, "xbelike: %s '%s'\n", ps.msg, g.cfg.providers); return exit_code(ps.err); }
 	}
 
 	signal(SIGPIPE, SIG_IGN);
@@ -833,7 +833,7 @@ int wx::run_xweather(int argc, char **argv, PlaceLookup lookup, const XweatherTe
 
 	g.dpy = XOpenDisplay(dispname);
 	if (!g.dpy) {
-		fprintf(stderr, "xweather: cannot open display '%s'\n", dispname ? dispname : (getenv("DISPLAY") ? getenv("DISPLAY") : "(DISPLAY not set)"));
+		fprintf(stderr, "xbelike: cannot open display '%s'\n", dispname ? dispname : (getenv("DISPLAY") ? getenv("DISPLAY") : "(DISPLAY not set)"));
 		return exit_code(Err::Connect);
 	}
 	int scr = DefaultScreen(g.dpy);
@@ -841,9 +841,9 @@ int wx::run_xweather(int argc, char **argv, PlaceLookup lookup, const XweatherTe
 	layout_menus();
 
 	g.win = XCreateSimpleWindow(g.dpy, RootWindow(g.dpy, scr), 120, 90, W, H, 0, g.th.fg, g.th.bg);
-	XStoreName(g.dpy, g.win, "Weather");
+	XStoreName(g.dpy, g.win, "xbelike");
 	XClassHint ch2;
-	char nm[] = "xweather", cl[] = "XWeather";
+	char nm[] = "xbelike", cl[] = "XBelike";
 	ch2.res_name = nm; ch2.res_class = cl;
 	XSetClassHint(g.dpy, g.win, &ch2);
 	XSizeHints sh;
@@ -874,7 +874,7 @@ int wx::run_xweather(int argc, char **argv, PlaceLookup lookup, const XweatherTe
 	restore_cache();
     // Missing or empty settings are not special: the default location (Madison) is shown and fetched; Location... changes it (#198).
     if(!g.have_store) set_notice("No settings file: a changed location cannot be saved",30);
-	logf(LogInfo, "xweather %s: %s, auto-refresh %s", WEATHER_VERSION, g.cfg.name[0] ? g.cfg.name : "(unnamed)", mc.auto_refresh ? "on" : "off");
+	logf(LogInfo, "xbelike %s: %s, auto-refresh %s", WEATHER_VERSION, g.cfg.name[0] ? g.cfg.name : "(unnamed)", mc.auto_refresh ? "on" : "off");
 
 	redraw();
 	long long last_sec = 0;

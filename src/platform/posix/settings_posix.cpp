@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 Jack Willis
-// ~/.weatherrc on Unix. Saves atomically (temp file in the same directory, fsync, rename),
+// ~/.belikerc on Unix. Saves atomically (temp file in the same directory, fsync, rename),
 // keeps the file's mode, and follows a symlinked dotfile instead of replacing the link.
 #include "settings_posix.hpp"
 #include <cerrno>
@@ -97,7 +97,7 @@ Status posix_settings_init(PosixStore *s, const char *path, bool must_exist)
 	}
 	const char *home = getenv("HOME");
 	if (!home || !*home) return make(Err::Config, "HOME is not set; use -c FILE");
-	if (snprintf(s->path, sizeof s->path, "%s/.weatherrc", home) >= static_cast<int>(sizeof s->path))
+	if (snprintf(s->path, sizeof s->path, "%s/.belikerc", home) >= static_cast<int>(sizeof s->path))
 		return make(Err::Config, "settings path too long");
 	return okay();
 }

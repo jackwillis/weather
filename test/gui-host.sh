@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Jack Willis
-# GUI test of xweather on this machine, in a private Xvfb. Screenshots go to build/gui-host/.
+# GUI test of xbelike on this machine, in a private Xvfb. Screenshots go to build/gui-host/.
 # Needs: Xvfb, ImageMagick (import, convert), python3. Skips (exit 0) when Xvfb is missing.
 cd "$(dirname "$0")/.."
 IM=convert; command -v magick >/dev/null 2>&1 && IM=magick
@@ -9,7 +9,7 @@ command -v Xvfb >/dev/null 2>&1 || { echo "gui-host: Xvfb not installed, skippin
 . test/gui-lib.sh
 OUT=build/gui-host; rm -rf $OUT; mkdir -p $OUT/run
 BIN_DIR=${WX_BUILD:-build/host}
-cp "$BIN_DIR/xweather" "$BIN_DIR/xweather-search-test" "$BIN_DIR/xweather-stale-test" "$BIN_DIR/xdrive" test/gui/scenario.sh $OUT/run/
+cp "$BIN_DIR/xbelike" "$BIN_DIR/xbelike-search-test" "$BIN_DIR/xbelike-stale-test" "$BIN_DIR/xdrive" test/gui/scenario.sh $OUT/run/
 python3 test/cache_fixture.py $OUT/run/rcCache.cache
 python3 test/cache_fixture.py $OUT/run/rcStale.cache 10800
 XPID=

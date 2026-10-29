@@ -1,8 +1,8 @@
 .Dd October 24, 2026
-.Dt WEATHER 1
+.Dt BELIKE 1
 .Os
 .Sh NAME
-.Nm weather
+.Nm belike
 .Nd print current weather conditions
 .Sh SYNOPSIS
 .Nm
@@ -21,7 +21,7 @@ fetches the current conditions for a place over an encrypted (TLS) connection an
 It needs no proxy and no other software; the TLS library and the trust anchors it needs are built in.
 .Pp
 The place, units and other settings come from
-.Xr weatherrc 5 ,
+.Xr belikerc 5 ,
 and the options below override them for one run.
 Diagnostics go to standard error (or the system log with
 .Fl s ) ;
@@ -35,7 +35,7 @@ Print a single line instead of the multi-line summary.
 Read settings from
 .Ar file
 instead of
-.Pa ~/.weatherrc .
+.Pa ~/.belikerc .
 The file must exist, unless
 .Fl S
 is given, which creates it.
@@ -154,13 +154,13 @@ Open-Meteo's free tier is for non-commercial use.
 .Nm
 is free software and has no advertising or subscriptions.
 Run
-.Ql weather --credits
+.Ql belike --credits
 for the full credits.
 .Sh FILES
-.Bl -tag -width "~/.weatherrc"
-.It Pa ~/.weatherrc
+.Bl -tag -width "~/.belikerc"
+.It Pa ~/.belikerc
 Settings, see
-.Xr weatherrc 5 .
+.Xr belikerc 5 .
 .El
 .Sh ENVIRONMENT
 .Bl -tag -width "WEATHER_NO_TA"
@@ -202,23 +202,23 @@ The final error remains visible with
 .Sh EXAMPLES
 Show the weather for the configured place:
 .Pp
-.Dl $ weather
+.Dl $ belike
 .Pp
 One line in metric units for Oslo, for a status bar:
 .Pp
-.Dl $ weather -1 -u metric -l 59.91,10.75
+.Dl $ belike -1 -u metric -l 59.91,10.75
 .Pp
 Make Madison the default place:
 .Pp
-.Dl $ weather -l 43.0747,-89.3841 -n \&"Madison, WI\&" -S
+.Dl $ belike -l 43.0747,-89.3841 -n \&"Madison, WI\&" -S
 .Pp
 Use it in a script:
 .Bd -literal -offset indent
-if line=$(weather -1 -q); then echo "$line"; else echo "weather unavailable"; fi
+if line=$(belike -1 -q); then echo "$line"; else echo "weather unavailable"; fi
 .Ed
 .Sh SEE ALSO
-.Xr xweather 1 ,
-.Xr weatherrc 5
+.Xr xbelike 1 ,
+.Xr belikerc 5
 .Sh AUTHORS
 .An Jack Willis
 .Sh BUGS

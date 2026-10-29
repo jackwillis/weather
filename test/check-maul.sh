@@ -14,5 +14,5 @@ if [ -n "$CONNECT" ]; then
     check_connect=1
 fi
 for f in test/fixtures/*; do maulctl push nb "$f" "wx/$f" >/dev/null || exit 1; done
-maulctl nb "chmod 755 /tmp/wx/unittest /tmp/wx/robust; cd /tmp/wx && ./unittest && ./robust 2000 && { [ $check_connect = 0 ] || { chmod 755 ./connect-budget-test && ./connect-budget-test; }; }; echo status=\$?" | tee /tmp/weather-check-maul.out
-grep -q '^status=0$' /tmp/weather-check-maul.out
+maulctl nb "chmod 755 /tmp/wx/unittest /tmp/wx/robust; cd /tmp/wx && ./unittest && ./robust 2000 && { [ $check_connect = 0 ] || { chmod 755 ./connect-budget-test && ./connect-budget-test; }; }; echo status=\$?" | tee /tmp/belike-check-maul.out
+grep -q '^status=0$' /tmp/belike-check-maul.out

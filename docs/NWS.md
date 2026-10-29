@@ -1,6 +1,6 @@
 # NWS observations
 
-Select `providers=nws` or `weather -p nws`. It is opt-in and does not change the
+Select `providers=nws` or `belike -p nws`. It is opt-in and does not change the
 Open-Meteo default. Multiple sources retain the configured fallback order.
 Coverage is determined by the NWS point lookup; outside coverage normally returns
 HTTP 404. NWS supplies station observations, not a synthesized point forecast.

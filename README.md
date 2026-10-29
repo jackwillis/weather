@@ -10,8 +10,8 @@ interfaces, and can save the last forecast for use when the network is unavailab
 The programs share a portable C++17 core with separate operating-system interfaces:
 
 - **Weather** — a native Mac OS 9 window application, built with Retro68 and the classic Macintosh Toolbox.
-- **xweather** — a CDE-inspired X11 weather window for NetBSD, implemented in plain Xlib.
-- **weather** — a Unix command-line client.
+- **xbelike** — a CDE-inspired X11 weather window for NetBSD, implemented in plain Xlib.
+- **belike** — a Unix command-line client.
 
 The native CLI also builds and runs on Linux and modern macOS, but the project's
 Unix package is currently built for **NetBSD/macppc only**. Development and hardware
@@ -33,16 +33,17 @@ environment. Linux and modern macOS are development hosts; this is not a promise
 of native Tiger, Linux or macOS release packages. Final hardware acceptance is
 tracked in [#204](https://github.com/jackwillis/weather/issues/204).
 
-The approved Unix rename to `belike`, `xbelike` and `~/.belikerc` is pending
-[#135](https://github.com/jackwillis/weather/issues/135); commands below describe
-the current source. There will be no old-name alias or rc migration. Native OS 9
-`Weather`, its Preferences and TLS seed/lock names stay unchanged.
+The Unix programs are `belike` and `xbelike`, with settings in `~/.belikerc`
+([#135](https://github.com/jackwillis/weather/issues/135)). There are no old-name
+aliases or rc migration; `~/.weatherrc` is ignored. Native OS 9 `Weather`, its
+Preferences and TLS seed/lock names stay unchanged. The published v0.0.1 still
+uses the old Unix names; these instructions describe the unreleased source.
 
 | Platform | Application | Current evidence |
 | --- | --- | --- |
-| NetBSD/macppc on Power Mac G4 | `weather`, `xweather` | Currently packaged Unix target; live CLI and X11/Xvfb hardware tests; real-display review of xweather remains open (#70). |
-| Linux | `weather` (native build); `xweather` when X11 dependencies are available | Builds and runs from source; no Linux distribution package supplied. |
-| Modern macOS | `weather` (native build); `xweather` prospective via XQuartz | CLI builds and runs from source; X11 GUI build/runtime on XQuartz has **not yet been verified** ([#171](https://github.com/jackwillis/weather/issues/171)). No macOS package supplied. |
+| NetBSD/macppc on Power Mac G4 | `belike`, `xbelike` | Currently packaged Unix target; live CLI and X11/Xvfb hardware tests; real-display review of xbelike remains open (#70). |
+| Linux | `belike` (native build); `xbelike` when X11 dependencies are available | Builds and runs from source; no Linux distribution package supplied. |
+| Modern macOS | `belike` (native build); `xbelike` prospective via XQuartz | CLI builds and runs from source; X11 GUI build/runtime on XQuartz has **not yet been verified** ([#171](https://github.com/jackwillis/weather/issues/171)). No macOS package supplied. |
 | Mac OS 9.2.2 (native) | `Weather` | Owner-observed working production application across restart; full native acceptance remains open (#102). |
 | Mac OS 9 under Tiger Classic | `Weather` | Live verified-TLS fetches, window diagnostic and cache-recovery tests passed; remaining lifecycle and Preferences checks are tracked. |
 
@@ -68,7 +69,7 @@ of the published prerelease; these issue links describe ongoing development.
 
 ### Quick look
 
-    $ weather -1
+    $ belike -1
     54.6F Clear sky, wind 9.0mph SE, humidity 83% (open-meteo 2026-10-24T05:00)
 
 The example above is illustrative, not a live forecast.
@@ -76,30 +77,30 @@ The example above is illustrative, not a live forecast.
 For project goals and technical detail, see [docs/PLAN.md](docs/PLAN.md),
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [the issue tracker](https://github.com/jackwillis/weather/issues).
 
-Place-name lookup is explicit and read-only: `weather -g "Madison, WI"` lists
+Place-name lookup is explicit and read-only: `belike -g "Madison, WI"` lists
 up to five matches with region/country and coordinates, then exits. Choose the
 coordinates deliberately and use a separate command such as
-`weather -l 43.0731,-89.4012 -n Madison -S` to save. Search credits Open-Meteo /
+`belike -l 43.0731,-89.4012 -n Madison -S` to save. Search credits Open-Meteo /
 GeoNames; its public endpoint is for non-commercial use. With missing or empty
 settings, the window shows the default location (Madison, WI) and fetches it;
 Location... (Ctrl-L) changes it. The CLI remains non-interactive. See
 [search behavior and privacy](docs/GEOCODING.md). X11 Location has Find... (Ctrl-F) with explicit result selection; OK saves
 separately. OS 9 search controls are integrated; native/Classic acceptance remains in #204.
 
-## xweather
-    xweather [-dhqvV] [-c file] [-display name]
-A CDE-look window: menu bar (File: Refresh F5, Location... Ctrl+L, Exit Ctrl+Q; Options: auto-refresh, units and forecast saving; Help: About xweather... > Credits...),
+## xbelike
+    xbelike [-dhqvV] [-c file] [-display name]
+A CDE-look window: menu bar (File: Refresh F5, Location... Ctrl+L, Exit Ctrl+Q; Options: auto-refresh, units and forecast saving; Help: About xbelike... > Credits...),
 a picture for the conditions (sun, moon, clouds, rain, snow, storm, fog), temperature, wind, humidity, and a status bar
 ("Updated 5 min ago / Next update in 10 min"; after a failure it keeps showing the last good data, marked as stale).
-It shares `~/.weatherrc` with `weather`. Closing the window during a fetch cancels it. On modern macOS, XQuartz may provide an X11 server and development libraries, but `xweather` compatibility has not yet been verified; see [#171](https://github.com/jackwillis/weather/issues/171). X resources (xrdb):
-`xweather.background`, `.foreground`, `.font`, `.boldFont`, `.bigFont`.
+It shares `~/.belikerc` with `belike`. Closing the window during a fetch cancels it. On modern macOS, XQuartz may provide an X11 server and development libraries, but `xbelike` compatibility has not yet been verified; see [#171](https://github.com/jackwillis/weather/issues/171). X resources (xrdb):
+`xbelike.background`, `.foreground`, `.font`, `.boldFont`, `.bigFont`.
 
 ## Use
-    weather [-1dhqsSV] [-c file] [-l lat,lon] [-n name] [-p sources] [-t secs] [-u metric|imperial] [-v] [-g query]
+    belike [-1dhqsSV] [-c file] [-l lat,lon] [-n name] [-p sources] [-t secs] [-u metric|imperial] [-v] [-g query]
 Data sources: Open-Meteo first, then MET Norway automatically if it fails. `nws` (US station observations; see [NWS notes](docs/NWS.md)) can be added with `-p` or `providers`. MET identifies the app using `https://github.com/jackwillis/weather`; an optional `contact` overrides that URL. Existing `providers` settings and `-p` keep their explicit order. MET requires forecast saving; with saving off, it is skipped. Saved MET responses are reused until the service’s `Expires` time, then conditionally revalidated.
 
 Attribution: weather data comes from [Open-Meteo](https://open-meteo.com) and, if enabled, the [MET Norway Locationforecast API](https://api.met.no), both under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the values are converted to your units and summarised, otherwise unchanged. The `nws` source (if enabled) uses National Weather Service (NOAA) U.S. public-domain observations; values are converted and summarised, with no NOAA/NWS endorsement or affiliation. See [NWS terms](https://www.weather.gov/disclaimer) and `docs/NWS.md`. Open-Meteo's free tier is for non-commercial use. See `docs/PROVIDER-TERMS.md`.
-Config: `~/.weatherrc` (`latitude`, `longitude`, `name`, `units`, `timeout`, `attempts`, `providers`, `contact`, `log`, `autorefresh`),
+Config: `~/.belikerc` (`latitude`, `longitude`, `name`, `units`, `timeout`, `attempts`, `providers`, `contact`, `log`, `autorefresh`),
 flags override it. The default location is Madison, WI 53703 (Capitol Square 43.0747,-89.3841); set `name`, `latitude`, `longitude` or use -l/-n. Exit codes follow BSD sysexits
 (68 dns, 69 connect/no source, 74 io, 75 timeout, 76 http/tls/cert, 65 bad data, 64 usage, 78 config).
 When all sources fail, the last attempted source supplies the error and exit code, including with `-q`; later skipped sources do not hide it.
@@ -117,26 +118,26 @@ Plain-HTTP test requests bypass caching. See
 ## Build and test
 GNU make is required (`gmake` on BSD and under Homebrew; Apple's make 3.81 works too). One fragment per target in `mk/`.
 
-    make                          # native build (build/host/weather), -Werror
+    make                          # native build (build/host/belike), -Werror
     make check                    # lint, anchors (+ test/anchors.sh), unit (static_assert + runtime), robustness, CLI feature tests (fixture server),
                                   # seed provisioning, Makefile flags test; plus the GUI scenario when X11 headers are present
     make lint                     # portable layers (src/core, src/app) may include only freestanding headers
-    make TARGET=netbsd-macppc     # cross-build for NetBSD/macppc (build/netbsd-macppc/weather, stripped; .debug keeps symbols)
+    make TARGET=netbsd-macppc     # cross-build for NetBSD/macppc (build/netbsd-macppc/belike, stripped; .debug keeps symbols)
     make ppc                      # same as TARGET=netbsd-macppc
     make check-maul               # cross-build the unit and robustness tests and run them on maul (big-endian ground truth)
     make smoke-maul               # cross-build, push to maul, test the real binary there
     make check-san                # unit + robustness + feature tests with UBSan (trap mode; ASan too if libasan is installed)
     make check-tls                # certificate verification, offline: real tls.cpp vs a local TLS server with generated certificates (openssl, python3)
-    make check-gui                # xweather in a private Xvfb on this machine, with screenshots in build/gui-host/
-    make check-gui-maul           # the same scenario with the real PowerPC xweather in Xvfb on maul (build/gui/)
-    ONLINE=1 sh test/feature.sh build/host/weather   # also test against the real server
+    make check-gui                # xbelike in a private Xvfb on this machine, with screenshots in build/gui-host/
+    make check-gui-maul           # the same scenario with the real PowerPC xbelike in Xvfb on maul (build/gui/)
+    ONLINE=1 sh test/feature.sh build/host/belike   # also test against the real server
 
 Needs: a C++17 compiler and GNU make; BearSSL is vendored in `third_party/bearssl` (pinned, built per target by the Makefile).
 GitHub Actions runs host/GUI checks and ASan/UBSan sequentially, plus a separate 32-bit unit/mutation/CLI job.
 CI requires the ASan runtime (`REQUIRE_ASAN=1`) and fails rather than silently downgrading to UBSan-only checks.
 The 32-bit job can be reproduced with `make TARGET=host-32 check` on x86 Linux with g++ multilib installed.
 CI uses fixtures and no private seeds or maul credentials; real PowerPC and OS 9 checks remain separate hardware gates.
-Optional: libX11-devel (builds `xweather`), Xvfb + ImageMagick (`check-gui`), python3 (fixture servers for tests only), and for
+Optional: libX11-devel (builds `xbelike`), Xvfb + ImageMagick (`check-gui`), python3 (fixture servers for tests only), and for
 the cross target the toolchain from `~/scratch/netbsd-xc` (see its README-repro.md; paths are variables in
 `mk/netbsd-macppc.mk`). Trust anchors: `src/tls/anchors.h` is generated from `src/tls/roots.pem` (`make anchors`) and `make check` verifies
 the header matches the PEM and that the PEM holds exactly ISRG Root X1, ISRG Root X2 and HARICA TLS RSA Root CA 2021 (checked by SHA-256
@@ -171,7 +172,7 @@ Some native Preferences hardware acceptance remains pending.
 
 Both apps prefer nonempty `Weather Preferences` in the classic Preferences folder,
 otherwise optional `weather.conf` next to the app (same `key = value` lines as
-`~/.weatherrc`, at most 4095 bytes). Missing files use defaults; unreadable or invalid
+`~/.belikerc`, at most 4095 bytes). Missing files use defaults; unreadable or invalid
 files report an error without applying partial changes. The first successful UI
 save preserves legacy settings/comments in Preferences and leaves weather.conf intact. `WeatherConsole` fetches,
 prints and waits for a click; Cmd-. cancels its fetch. Debug output is appended to
@@ -184,7 +185,7 @@ To run it on a Mac with OS X (Classic) use `tools/deliver-os9.sh` (see its comme
 
 Optional diagnostics: configure the OS 9 CMake build with
 `-DWEATHER_BUILD_DIAGNOSTICS=ON`, build and deliver `WeatherUITest.dsk`, then run
-`python3 tools/check-os9-window.py /tmp/weather-window-shots` from the laptop.
+`python3 tools/check-os9-window.py /tmp/belike-window-shots` from the laptop.
 The driver uses explicit marker files in the separate test app, takes screenshots,
 and verifies a yielding update, refresh suppression, units, stale data, live TLS and
 Command-period cancellation and system-requested quit. Run it again with
@@ -195,13 +196,13 @@ suspend/resume; it never clicks or answers a system dialog. Production `Weather`
 ten-minute watchdog and never answers system dialogs or changes the user's config.
 
 ## Install and packages
-    make install DESTDIR=/stage PREFIX=/usr/pkg MANDIR=/usr/pkg/man   # bin/weather, bin/xweather, man pages, example config
+    make install DESTDIR=/stage PREFIX=/usr/pkg MANDIR=/usr/pkg/man   # bin/belike, bin/xbelike, man pages, example config
     make plist PREFIX=/usr/pkg MANDIR=/usr/pkg/man                    # the file list (a package PLIST)
-    make dist                                                         # build/dist/weather-VERSION.tar.gz + SHA-512 (clean tree, reproducible)
+    make dist                                                         # build/dist/belike-VERSION.tar.gz + SHA-512 (clean tree, reproducible)
     make distcheck                                                    # unpack the tarball elsewhere, build, test, rebuild it and compare bytes
-    make package-netbsd                                               # build/pkg/weather-VERSION.tgz, a pkg_add-able NetBSD package
+    make package-netbsd                                               # build/pkg/belike-VERSION.tgz, a pkg_add-able NetBSD package
 NetBSD package: `tools/mkpkg-netbsd.sh` cross-builds, stages `make install`, and runs `pkg_create` on maul (it only archives
-files). Install on maul with `doas pkg_add weather-0.1.0.tgz`; remove with `pkg_delete weather`. No install script is needed:
+files). Install on maul with `doas pkg_add belike-0.1.0.tgz`; remove with `pkg_delete belike`. No install script is needed:
 pkg_add installs exactly the PLIST and settings are a per-user dotfile.
 
 ## Layout (dependencies point down only; see docs/ARCHITECTURE.md)
@@ -211,7 +212,7 @@ pkg_add installs exactly the PLIST and settings are a per-user dotfile.
 - `src/tls/` BearSSL glue + trust anchors
 - `src/platform/posix/` sockets with yield/cancel, clock, entropy, settings dotfile store, syslog/stderr log sink, libstdc++ shim
 - `src/platform/os9/` Mac OS 9: Open Transport network layer, Open Transport declarations and glue, console app and log sink; `os9/` is its CMake build
-- `src/cli/` the `weather` command
+- `src/cli/` the `belike` command
 - `third_party/bearssl/` pinned BearSSL; `tools/` anchor generation and check
 - `mk/` per-target build fragments; `test/` unit tests, fixtures, fixture server, feature and maul smoke scripts; `spike/` experiments
 

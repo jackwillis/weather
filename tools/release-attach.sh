@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Jack Willis
 # Attach the NetBSD package to the DRAFT release the tag workflow created, and add it to SHA512SUMS.
-# The release asset is named weather-X.Y.Z-NetBSD-<os version>-macppc.tgz so users see what it is for; pkg_add reads the
+# The release asset is named belike-X.Y.Z-NetBSD-<os version>-macppc.tgz so users see what it is for; pkg_add reads the
 # package metadata, not the file name, so installing the renamed file works.
 # The package is built on the laptop and maul (`make package-netbsd`; see docs/PROJECT-MANAGEMENT.md); CI cannot build it.
 #   usage: tools/release-attach.sh vX.Y.Z [--dry-run]       (needs gh, authenticated; run from the repository root)
@@ -10,7 +10,7 @@
 tag=$1 dry=$2
 case "$tag" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "usage: $0 vX.Y.Z [--dry-run]"; exit 2 ;; esac
 version=${tag#v}
-pkg=build/pkg/weather-$version.tgz
+pkg=build/pkg/belike-$version.tgz
 fail() { echo "release-attach: $1"; exit 1; }
 run() { if [ "$dry" = "--dry-run" ]; then echo "DRY RUN: $*"; else "$@"; fi; }
 
@@ -18,12 +18,12 @@ run() { if [ "$dry" = "--dry-run" ]; then echo "DRY RUN: $*"; else "$@"; fi; }
 [ "$(sed -n 's/^VERSION *= *//p' Makefile)" = "$version" ] || fail "Makefile VERSION does not match $tag"
 gzip -t "$pkg" || fail "$pkg is not valid gzip"
 tar tzf "$pkg" 2>/dev/null | grep -qx '+CONTENTS' || fail "$pkg has no +CONTENTS: not a pkg_create package"
-tar tzf "$pkg" 2>/dev/null | grep -q 'share/doc/weather/LICENSE' || fail "$pkg carries no LICENSE"
+tar tzf "$pkg" 2>/dev/null | grep -q 'share/doc/belike/LICENSE' || fail "$pkg carries no LICENSE"
 tar tzf "$pkg" 2>/dev/null | grep -qE '\.(seed|import)$' && fail "$pkg contains seed material"
 
 osver=$(tar xzOf "$pkg" +BUILD_INFO 2>/dev/null | sed -n 's/^OS_VERSION=//p' | head -1)
 [ -n "$osver" ] || fail "$pkg has no OS_VERSION in +BUILD_INFO"
-asset=weather-$version-NetBSD-$osver-macppc.tgz
+asset=belike-$version-NetBSD-$osver-macppc.tgz
 
 state=$(gh release view "$tag" --json isDraft,isPrerelease --jq '"\(.isDraft) \(.isPrerelease)"') || fail "no release for $tag (push the tag first; the workflow creates the draft)"
 [ "$state" = "true true" ] || fail "release $tag is not a draft pre-release ($state): refusing to modify it"

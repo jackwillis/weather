@@ -129,7 +129,7 @@ Status fetch_once(Net &net, const char *host, const char *port, bool tls, const 
 	}
 
 	Buf<160> agent;
-	agent.add("weather/" WEATHER_VERSION);
+	agent.add("belike/" WEATHER_VERSION);
 	agent.add(" (contact: ").add(o.contact && o.contact[0] ? o.contact : "https://github.com/jackwillis/weather").add(")");
 	Buf<640> req;
 	if (!http_request(req, host, path, agent.view(),o.if_modified_since)) {
