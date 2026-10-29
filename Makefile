@@ -188,7 +188,7 @@ probe-os9:
 
 # Native compiler acceptance plus negative checks of our private-record guards.
 check-ot-layout:
-	podman run --rm -v $(CURDIR):/src:Z -w /src ghcr.io/autc04/retro68 sh test/ot-layout.sh /Retro68-build/toolchain/bin/powerpc-apple-macos-g++
+	$(CONTAINER) run --rm -v $(CURDIR):/src:Z -w /src $(RETRO68_IMAGE) sh test/ot-layout.sh /Retro68-build/toolchain/bin/powerpc-apple-macos-g++
 
 # Release builds pin RETRO68_IMAGE by digest (ghcr.io/autc04/retro68@sha256:...) and may use CONTAINER=docker.
 CONTAINER    ?= podman
