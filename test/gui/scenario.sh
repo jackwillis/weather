@@ -147,9 +147,9 @@ if start_xw rcE $PORT_OK; then
 	./xdrive key l ctrl sleep 200 down 160 243 up 160 243 3 sleep 300
 	check "E: right-button release cannot activate left-button OK" "$(fetches)" 1
 	check "E: wrong-button release does not save" "$(cmp -s rcE rcE.before; echo $?)" 0
-	./xdrive key Escape up 160 243 key l ctrl sleep 200 down 160 243 key Return sleep 1500 up 160 243 sleep 500
+	./xdrive key Escape up 160 243 key l ctrl sleep 200 key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace type 11 down 160 243 key Return sleep 1500 up 160 243 sleep 500
 	check "E: Return while holding OK applies exactly once" "$(fetches)" 2
-	./xdrive key l ctrl sleep 200 down 160 243 up 10 10 sleep 300
+	./xdrive key l ctrl sleep 200 key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace type 12 down 160 243 up 10 10 sleep 300
 	check "E: release outside OK does not apply" "$(fetches)" 2
 	./xdrive click 160 243 sleep 1500
 	check "E: ordinary OK click still applies" "$(fetches)" 3
@@ -169,7 +169,7 @@ if start_xw rcF $PORT_OK; then
 	check "F: full-length name survives editing" "${#saved}" 47
 	case "$saved" in Z*Y) check "F: Home and End edit visible endpoints" yes yes;; *) check "F: Home and End edit visible endpoints" no yes;; esac
 	case "$saved" in *0*) check "F: click uses scrolled text position" yes yes;; *) check "F: click uses scrolled text position" no yes;; esac
-	check "F: applying long name refetches once" "$(fetches)" 2
+	check "F: a name-only edit saves without refetching" "$(fetches)" 1
 	keeplog F
 	quit_xw F
 fi
