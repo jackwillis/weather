@@ -30,6 +30,8 @@ struct InetHostInfo { char name[256]; UInt32 addrs[10]; };
 
 OSStatus InitOpenTransport(void);
 void CloseOpenTransport(void);
+// Our glue: process-lifetime endpoint cleanup, run before explicit or exit OT close.
+void weather_ot_before_close(void (*cleanup)(void));
 OTConfiguration *OTCreateConfiguration(const char *path);
 EndpointRef OTOpenEndpoint(OTConfiguration *cfg, OTOpenFlags oflag, TEndpointInfo *info, OSStatus *err);
 InetSvcRef OTOpenInternetServices(OTConfiguration *cfg, OTOpenFlags oflag, OSStatus *err);

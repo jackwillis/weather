@@ -38,6 +38,7 @@ UInt32 g_library_manager = 0;
 UInt32 g_slm_global = 0;
 UInt32 g_exit_patch_rd = 0xaafe0700;   // empirical: the value this app has always run with; its meaning is undocumented and whether 0 would do is untested (#63)
 bool g_open = false;
+void (*g_before_close)() = nullptr;
 
 void close_at_exit() { CloseOpenTransport(); }
 }
@@ -53,14 +54,23 @@ OSStatus InitOpenTransport(void)
 	g_record.exit_patch_rd = &g_exit_patch_rd;
 	g_record.flag = 1;
 	OSStatus e = InitOpenTransportPriv(3, &g_record);
-	if (e == noErr && !g_open) { g_open = true; std::atexit(close_at_exit); }
+	if (e == noErr && !g_open) {
+		g_open = true;
+		if (std::atexit(close_at_exit) != 0) {
+			CloseOpenTransport(); // undo successful init; never leave an unowned OT client
+			return -1;
+		}
+	}
 	return e;
 }
+
+void weather_ot_before_close(void (*cleanup)(void)) { g_before_close = cleanup; }
 
 void CloseOpenTransport(void)
 {
 	if (!g_open) return;
 	g_open = false;
+	if (g_before_close) g_before_close();
 	CloseOpenTransportPriv(&g_record);
 }
 

@@ -209,6 +209,11 @@ distcheck: dist
 	@$(MAKE) -s dist >/dev/null
 	@cmp build/dist/first.tar.gz build/dist/$(DISTNAME).tar.gz && echo "distcheck: tarball is reproducible" && rm -f build/dist/first.tar.gz
 
+# Host-test the actual OS9 glue against test-owned system API stand-ins.
+$(BUILD)/ot-shutdown-test: test/ot_shutdown.cpp src/platform/os9/ot_glue.cc src/platform/os9/ot_min.h test/os9-stubs/MacTypes.h test/os9-stubs/Gestalt.h src/platform/posix/nocxx.cpp FORCE
+	mkdir -p $(BUILD)
+	$(CXX) $(CXXFLAGS_ALL) -Wno-multichar -Wno-address -Itest/os9-stubs $(EXTRA_LDFLAGS) -o $@ test/ot_shutdown.cpp src/platform/posix/nocxx.cpp
+
 # ---- tests
 check: $(CHECK_TARGET)
 PPC_RUN ?= qemu-ppc -L /usr/powerpc-linux-gnu
@@ -230,7 +235,8 @@ check-test-hooks: $(BUILD)/weather
 	build/$(TARGET)-test-hooks/connect-budget-test
 	TEST_HOOKS_ENABLED=1 sh test/feature.sh build/$(TARGET)-test-hooks/weather
 	sh test/test-builds.sh $(BUILD)/weather build/$(TARGET)-test-hooks/weather
-check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather $(BUILD)/connect-budget-test
+check-native: lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather $(BUILD)/connect-budget-test $(BUILD)/ot-shutdown-test
+	sh test/ot-shutdown.sh $(BUILD)/ot-shutdown-test
 	$(BUILD)/unittest
 	$(BUILD)/connect-budget-test
 	$(BUILD)/robust
@@ -251,7 +257,8 @@ endif
 # Everything again under AddressSanitizer + UBSan: unit tests, parser robustness, the CLI's feature tests.
 check-san:
 	@$(MAKE) -s TARGET=host-san san-note
-	$(MAKE) TARGET=host-san build/host-san/unittest build/host-san/robust build/host-san/weather build/host-san/connect-budget-test
+	$(MAKE) TARGET=host-san build/host-san/unittest build/host-san/robust build/host-san/weather build/host-san/connect-budget-test build/host-san/ot-shutdown-test
+	sh test/ot-shutdown.sh build/host-san/ot-shutdown-test
 	build/host-san/unittest
 	build/host-san/connect-budget-test
 	build/host-san/robust

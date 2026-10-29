@@ -1,0 +1,3 @@
+- Keep a completed OS 9 DNS answer when closing its resolver fails. Warn about cleanup and retain quarantine so subsequent lookups require a restart.
+- Close OS 9 network endpoints before Open Transport during explicit shutdown and process exit.
+- Roll back OS 9 transport initialization if exit cleanup cannot be registered.

@@ -30,6 +30,10 @@ struct Conn {
 	Net *net = nullptr;
 };
 Conn g_conn;
+void close_endpoint()
+{
+	if (g_conn.ep) { OTCloseProvider(g_conn.ep); g_conn.ep = nullptr; }
+}
 bool g_ot_ok = false;
 os9::ModalClock g_active_clock;
 
@@ -257,6 +261,9 @@ Status os9_connect(Net &net, const char *host, const char *port, int timeout_s, 
 	g_dns.net = &net;
 	Status dns = g_resolver.resolve(host, static_cast<uint32_t>(timeout_s) * 60, &net);
 	if (!dns.ok()) return dns;
+	Status cleanup = g_resolver.cleanup_status();
+	if (!cleanup.ok())
+		logf(LogWarn, "%s (detail %d); using completed answer, later lookups require restart", cleanup.msg, cleanup.detail);
 	InetHostInfo hi = g_dns.info;
 
 	Status last = make(Err::Connect, "cannot connect");
@@ -355,12 +362,13 @@ const char *os9_entropy_error() { return g_exit_ready ? g_seed_pool.error() : "c
 void os9_net_shutdown()
 {
 	if (!g_seed_pool.shutdown()) logf(LogWarn, "%s", g_seed_pool.error());
-	if (g_conn.ep) { OTCloseProvider(g_conn.ep); g_conn.ep = nullptr; }
+	close_endpoint();
 	if (g_ot_ok) { CloseOpenTransport(); g_ot_ok = false; }
 }
 
 void os9_net_init(Net *net)
 {
+	weather_ot_before_close(close_endpoint);
 	static bool registered = false;
 	if (!registered) { g_exit_ready = std::atexit(os9_net_shutdown) == 0; registered = true; }
 	net->connect = os9_connect;

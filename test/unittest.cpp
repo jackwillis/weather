@@ -1488,8 +1488,24 @@ static void test_os9_dns()
 	  CHECK(f.opens == 1 && f.closes == 0); }
 	{ // A failed close quarantines the backend rather than reusing live OT storage.
 	  DnsFake f; f.close_error = -1; DnsResolver<DnsFake> r(f);
-	  CHECK(r.resolve("h", 60).err == Err::Dns);
+	  CHECK(r.resolve("h", 60).ok());
+	  CHECK(r.cleanup_status().err == Err::Dns && r.cleanup_status().detail == -1);
 	  CHECK(r.resolve("h", 60).err == Err::Dns); CHECK(f.opens == 1 && f.closes == 1); }
+	{ // Failed cleanup never turns a failed query into success or replaces its cause.
+	  DnsFake f; f.query_result_code = -42; f.close_error = -7; DnsResolver<DnsFake> r(f);
+	  Status s = r.resolve("h", 60);
+	  CHECK(s.err == Err::Dns && s.detail == -42);
+	  CHECK(r.resolve("again", 60).err == Err::Dns && f.opens == 1); }
+	{ // Timed-out lookup stays timed out even when cleanup also fails.
+	  DnsFake f; f.query_delay = 100; f.close_error = -7; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("h", 6).err == Err::Timeout);
+	  CHECK(r.resolve("again", 60).err == Err::Dns && f.opens == 1); }
+	{ // A late abandoned open with failed cleanup cannot launch a new query.
+	  DnsFake f; f.open_delay = 12; DnsResolver<DnsFake> r(f);
+	  CHECK(r.resolve("first", 3).err == Err::Timeout);
+	  f.close_error = -7;
+	  CHECK(r.resolve("second", 60).err == Err::Dns);
+	  CHECK(f.opens == 1 && f.queries == 0 && f.closes == 1); }
 	{ // Expiry wins over simultaneous completion.
 	  DnsFake f; f.query_delay = 6; DnsResolver<DnsFake> r(f);
 	  CHECK(r.resolve("h", 6).err == Err::Timeout); }

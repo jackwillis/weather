@@ -1,0 +1,16 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Jack Willis
+set -eu
+binary=${1:?usage: ot-shutdown.sh BINARY}
+expected=$(printf 'endpoint closed\ntransport closed')
+for mode in explicit exit; do
+    output=$("$binary" "$mode")
+    test "$output" = "$expected" || { echo "FAIL: OT shutdown $mode: $output"; exit 1; }
+done
+output=$("$binary" failed-init)
+test -z "$output" || { echo 'FAIL: failed init closed inactive OT'; exit 1; }
+output=$("$binary" failed-register)
+retry_expected=$(printf 'transport closed\nendpoint closed\ntransport closed')
+test "$output" = "$retry_expected" || { echo "FAIL: exit registration rollback: $output"; exit 1; }
+echo 'OT shutdown: 4 cases passed'
