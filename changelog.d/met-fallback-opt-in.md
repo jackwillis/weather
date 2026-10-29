@@ -1,0 +1,1 @@
+- MET Norway is no longer an automatic fallback by default: new installations use Open-Meteo only, and MET stays available by listing `met-no` in `providers` (or `-p`). Automatic fallback acceptance moves to v0.2 (#152).
