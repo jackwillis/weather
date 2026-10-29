@@ -4,6 +4,24 @@
 #include <climits>
 #include <initializer_list>
 
+// One table supplies both the exercised values and an exhaustive switch. With
+// the project's -Werror, adding any Err without updating this table fails the
+// test build, including values appended after Cancelled.
+#define WX_ACTIVITY_TEST_ERRORS(X) \
+    X(Ok) X(Usage) X(Config) X(Clock) X(Dns) X(Connect) X(Timeout) X(Io) \
+    X(Tls) X(CertUntrusted) X(HttpStatus) X(Truncated) X(Parse) X(BadData) \
+    X(NoSource) X(Cancelled)
+
+static bool activity_error_covered(Err error)
+{
+    switch (error) {
+#define WX_ACTIVITY_ERROR_CASE(name) case Err::name: return true;
+    WX_ACTIVITY_TEST_ERRORS(WX_ACTIVITY_ERROR_CASE)
+#undef WX_ACTIVITY_ERROR_CASE
+    }
+    return false;
+}
+
 static void test_activity()
 {
     ActivityLog log;
@@ -41,8 +59,14 @@ static void test_activity()
         CHECK(entry && !std::strchr(entry->message, '\n') && !std::strstr(entry->message, "PRIVATE"));
         CHECK(entry && !entry->time.trustworthy);
     }
-    for (int error = static_cast<int>(Err::Ok); error <= static_cast<int>(Err::Cancelled); ++error) {
-        log.record(ActivityEvent::RefreshFailed, {}, make(static_cast<Err>(error), private_text));
+    const Err errors[] = {
+#define WX_ACTIVITY_ERROR_VALUE(name) Err::name,
+        WX_ACTIVITY_TEST_ERRORS(WX_ACTIVITY_ERROR_VALUE)
+#undef WX_ACTIVITY_ERROR_VALUE
+    };
+    for (Err error : errors) {
+        CHECK(activity_error_covered(error));
+        log.record(ActivityEvent::RefreshFailed, {}, make(error, private_text));
         CHECK(std::strstr(log.at(log.size() - 1)->message, "PRIVATE") == nullptr);
     }
     log.record(ActivityEvent::RefreshFailed, {}, make(Err::Cancelled, private_text));
@@ -73,3 +97,5 @@ static void test_activity()
     CHECK(!activity_utc({0,true}, tiny, 2) && tiny[0] == 0 && tiny[2] == '!');
     CHECK(!activity_utc({0,true}, nullptr, 21));
 }
+
+#undef WX_ACTIVITY_TEST_ERRORS

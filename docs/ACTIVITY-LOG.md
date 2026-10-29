@@ -15,7 +15,10 @@ one instance with a lifetime spanning its session, outside a small stack frame.
 It never copies the diagnostic message or detail. Location names, coordinates,
 request parameters, response bodies, seed/entropy material and keys cannot be
 passed as activity text through this API. Unknown event/error codes use generic
-text. Existing verbose diagnostic logging remains separate.
+text. Producers must pass a non-OK error with `RefreshFailed`; successful results
+use `RefreshSucceeded`. Passing `Err::Ok` with a failure event is a producer
+contract violation; the defensive mapping still records a generic warning rather
+than fabricating a cause. Existing verbose diagnostic logging remains separate.
 
 The owner is a single UI event loop. `at(0)` is the oldest entry; out-of-range
 indexes return null. Entries are borrowed until the next `record` or `clear`.
