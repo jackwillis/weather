@@ -1625,7 +1625,8 @@ static bool credits_mention(const char *what)
 static void test_credits()
 {
 	// Everything THIRD_PARTY.md names, both data sources and the licence must be credited in full.
-	for (const char *what : {"Open-Meteo", "MET Norway", "CC BY 4.0", "BearSSL", "Retro68", "Multiversal", "General", "NO WARRANTY",
+	for (const char *what : {"Open-Meteo", "MET Norway", "CC BY 4.0", "creativecommons.org/licenses/by/4.0/",
+	                         "National Weather Service", "public-domain", "endorsement", "BearSSL", "Retro68", "Multiversal", "General", "NO WARRANTY",
 	                         "Jack Willis", "THIRD_PARTY.md", "github.com/jackwillis/weather"})
 		CHECK(credits_mention(what));
 	for (const char *what : {"Jack Willis", "GPL-3.0-or-later", "Open-Meteo", "MET Norway"}) {
