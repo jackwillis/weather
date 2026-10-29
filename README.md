@@ -65,11 +65,18 @@ For project goals and technical detail, see [docs/PLAN.md](docs/PLAN.md),
 
 ## xweather
     xweather [-dhqvV] [-c file] [-display name]
-A CDE-look window: menu bar (File: Refresh F5, Location... Ctrl+L, Exit Ctrl+Q; Options: auto-refresh, units and forecast saving; Help: About xweather... > Credits...),
+A CDE-look window: menu bar (File: Refresh F5, Location... Ctrl+L, Exit Ctrl+Q; Options: auto-refresh, units and forecast saving; View: Activity Log... Ctrl+J; Help: About xweather... > Credits...),
 a picture for the conditions (sun, moon, clouds, rain, snow, storm, fog), temperature, wind, humidity, and a status bar
 ("Updated 5 min ago / Next update in 10 min"; after a failure it keeps showing the last good data, marked as stale).
 It shares `~/.weatherrc` with `weather`. Closing the window during a fetch cancels it. On modern macOS, XQuartz may provide an X11 server and development libraries, but `xweather` compatibility has not yet been verified; see [#171](https://github.com/jackwillis/weather/issues/171). X resources (xrdb):
 `xweather.background`, `.foreground`, `.font`, `.boldFont`, `.bigFont`.
+
+**View > Activity Log** opens an independent window containing the last 128 events
+from this session, with local times and visible severity. Browse with the buttons,
+mouse wheel, arrow/Page keys or Home/End. Escape or the viewer's Close command
+closes only that window; Ctrl+Q quits the application. Activity browsing stays
+read-only during a fetch. It does not read old log files or show private request
+parameters or diagnostic dumps.
 
 ## Use
     weather [-1dhqsSV] [-c file] [-l lat,lon] [-n name] [-p sources] [-t secs] [-u metric|imperial] [-v]

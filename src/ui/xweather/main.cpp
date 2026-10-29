@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 Jack Willis
-// xweather: current conditions in a CDE-look X11 window. One window; menus and dialogs are
-// drawn as overlays inside it. All refresh behaviour comes from app/Model; the (blocking)
+// xweather: current conditions in a CDE-look X11 window. Menus and dialogs are
+// overlays; activity has an independent read-only window. All refresh behaviour comes
+// from app/Model; the (blocking)
 // fetch keeps the window alive through Net::yield, and can be cancelled by closing it.
 #include "app/credits.hpp"
 #include "app/locform.hpp"
 #include "app/logo.hpp"
 #include "app/model.hpp"
 #include "cde.hpp"
+#include "activity_window.hpp"
 #include "core/config.hpp"
 #include "core/fetch.hpp"
 #include "core/log.hpp"
@@ -33,17 +35,18 @@ using cde::Rect;
 
 namespace {
 
-constexpr int W = 440, H = 300, MB_H = 26, ITEM_H = 22;
+constexpr int W = 440, H = 300, MB_H = 26, ITEM_H = 22, kMenuCount = 4;
 constexpr unsigned kF5 = 0xffc2;       // XK_F5 (named here to keep the includes small)
 constexpr unsigned kLeftTab = 0xfe20;  // XK_ISO_Left_Tab
 
 enum Mode { Normal, MenuOpen, Location, About };
-enum Cmd { CmdRefresh = 1, CmdLocation, CmdExit, CmdAuto, CmdCache, CmdImperial, CmdMetric, CmdAbout };
+enum Cmd { CmdRefresh = 1, CmdLocation, CmdExit, CmdAuto, CmdCache, CmdImperial, CmdMetric, CmdAbout, CmdActivity };
 enum Press { PNone = 0, PRefresh, PLocation, POk, PCancel, PAboutOk, PCredits, PNext, PBack };
 
 struct MenuItem { const char *label, *accel; int cmd; int kind; };   // kind: 0 plain, 1 check, 2 radio
 const MenuItem kFile[] = {{"Refresh", "F5", CmdRefresh, 0}, {"Location...", "Ctrl+L", CmdLocation, 0}, {"Exit", "Ctrl+Q", CmdExit, 0}};
 const MenuItem kOptions[] = {{"Auto-refresh", "", CmdAuto, 1}, {"Imperial (F, mph)", "", CmdImperial, 2}, {"Metric (C, km/h)", "", CmdMetric, 2}, {"Save forecasts on this computer", "", CmdCache, 1}};
+const MenuItem kView[] = {{"Activity Log...", "Ctrl+J", CmdActivity, 0}};
 const MenuItem kHelp[] = {{"About xweather...", "", CmdAbout, 0}};
 struct Menu { const char *title; const MenuItem *items; int n; Rect bar; Rect drop; };
 
@@ -52,6 +55,9 @@ struct App {
 	Window win = 0;
 	Pixmap pm = 0;
 	cde::Theme th;
+	ActivityLog activity;
+	cde::ActivityWindow activity_view;
+	bool activity_stale = false;
 	Atom wm_delete = 0;
 	Net net;
 	Model model;
@@ -64,7 +70,7 @@ struct App {
 	char forcehost[256] = "";
 	const Provider *providers[8];
 	size_t nprov = 0;
-	Menu menus[3];
+	Menu menus[kMenuCount];
 	Mode mode = Normal;
 	int about_page = -1;   // -1: About; 0..kCreditPageCount-1: that Credits page
 	int menu_open = -1, menu_hover = -1;
@@ -85,6 +91,22 @@ long long mono_ms()
 	return static_cast<long long>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
 }
 long long now_s() { return g.net.now(g.net); }
+
+void record_activity(ActivityEvent event, Status result = okay())
+{
+    const long long utc = now_s();
+    const bool evicted = g.activity.size() == ActivityLog::capacity;
+    g.activity.record(event,{utc,utc >= kMinSaneTime && utc <= 253402300799LL},result);
+    g.activity_view.changed(evicted);
+    g.activity_view.paint();
+}
+void record_freshness()
+{
+    if (g.fetching) return;
+    const bool stale = g.model.stale(now_s());
+    if (stale && !g.activity_stale) record_activity(ActivityEvent::StaleForecast);
+    g.activity_stale = stale;
+}
 
 // ---------------------------------------------------------------- layout (shared by drawing and hit-testing)
 Rect r_icon() { return Rect{14, 40, 124, 124}; }
@@ -113,10 +135,10 @@ bool menu_checked(const MenuItem &m)
 
 void layout_menus()
 {
-	static const struct { const char *t; const MenuItem *it; int n; } defs[3] = {
-		{"File", kFile, 3}, {"Options", kOptions, 4}, {"Help", kHelp, 1}};
+	static const struct { const char *t; const MenuItem *it; int n; } defs[kMenuCount] = {
+		{"File", kFile, 3}, {"Options", kOptions, 4}, {"View", kView, 1}, {"Help", kHelp, 1}};
 	int x = 6;
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < kMenuCount; i++) {
 		Menu &m = g.menus[i];
 		m.title = defs[i].t; m.items = defs[i].it; m.n = defs[i].n;
 		int tw = cde::text_width(g.th.bold, m.title);
@@ -137,7 +159,7 @@ void draw_menubar(Drawable d)
 	cde::Theme &t = g.th;
 	cde::fill(t, d, Rect{0, 0, W, MB_H}, t.bg);
 	cde::shadow(t, d, Rect{0, 0, W, MB_H}, 2, true);
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < kMenuCount; i++) {
 		const Menu &m = g.menus[i];
 		bool open = g.mode == MenuOpen && g.menu_open == i;
 		if (open) { cde::fill(t, d, m.bar, t.sel); cde::shadow(t, d, m.bar, 2, false); }
@@ -331,6 +353,14 @@ void set_notice(const char *msg, int secs = 8)
 	g.dirty = true;
 }
 
+void show_activity()
+{
+    if (!g.activity_view.show(g.th,g.activity)) {
+        set_notice("Activity Log unavailable");
+        logf(LogWarn,"cannot open activity window");
+    }
+}
+
 void save_kv(const KeyVal *kv, size_t n)
 {
 	if (!g.have_store) { set_notice("Settings not saved: no HOME and no -c file"); return; }
@@ -357,7 +387,10 @@ void apply_location()
 	g.pressed = PNone;
 	Config c = g.cfg;
 	if (!g.form.read(&c).ok()) { g.dirty = true; return; }
+	const bool changed = c.lat_e4 != g.cfg.lat_e4 || c.lon_e4 != g.cfg.lon_e4 ||
+	    c.metric != g.cfg.metric || std::strcmp(c.name,g.cfg.name) != 0;
 	g.cfg = c;
+	if (changed) record_activity(ActivityEvent::PreferencesChanged);
 	if (g.have_store) {
 		Status s = settings_save(g.store.base, g.cfg);
 		if (!s.ok()) {
@@ -369,6 +402,7 @@ void apply_location()
 		set_notice("Location not saved: no HOME and no -c file");
 	}
 	g.model.location_changed();
+	g.activity_stale = false;
 	g.mode = Normal;
 	g.dirty = true;
 }
@@ -383,6 +417,7 @@ void run_command(int cmd)
 	case CmdLocation: open_location(); break;
 	case CmdExit: g.quit = true; break;
 	case CmdAbout: g.mode = About; g.about_page = -1; break;
+	case CmdActivity: show_activity(); break;
     case CmdCache: {
         bool enabled=!g.cfg.cache;
         if(!g.have_cache) { set_notice("Forecast storage unavailable"); break; }
@@ -394,11 +429,13 @@ void run_command(int cmd)
         Status saved=settings_save_kv(g.store.base,kv,1);
         if(!saved.ok()) { set_notice(saved.msg); break; }
         g.cfg.cache=enabled;
+        record_activity(ActivityEvent::PreferencesChanged);
         set_notice(enabled?"Forecast saving on":"Forecast saving off; saved forecast removed",15);
         break;
     }
 	case CmdAuto: {
 		g.cfg.auto_refresh = !g.cfg.auto_refresh;
+		record_activity(ActivityEvent::PreferencesChanged);
 		g.model.set_auto_refresh(g.cfg.auto_refresh, now_s());
 		KeyVal kv[] = {{"autorefresh", g.cfg.auto_refresh ? "on" : "off"}};
 		save_kv(kv, 1);
@@ -408,9 +445,11 @@ void run_command(int cmd)
 		bool metric = cmd == CmdMetric;
 		if (metric == g.cfg.metric) break;
 		g.cfg.metric = metric;
+		record_activity(ActivityEvent::PreferencesChanged);
 		KeyVal kv[] = {{"units", metric ? "metric" : "imperial"}};
 		save_kv(kv, 1);
 		g.model.location_changed();      // the numbers in the old units are no longer right
+		g.activity_stale = false;
 		break;
 	}
 	}
@@ -420,7 +459,7 @@ void run_command(int cmd)
 int menu_at_bar(int x, int y)
 {
 	if (y >= MB_H) return -1;
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < kMenuCount; i++)
 		if (g.menus[i].bar.contains(x, y)) return i;
 	return -1;
 }
@@ -564,9 +603,18 @@ void on_key(XKeyEvent &e)
 	else g.dirty = false;
 }
 
-// While a fetch runs only repaint and quit; everything else is ignored.
+// During a fetch the read-only activity window remains usable; main-window
+// changes still wait. No activity action can request a nested fetch.
 void handle_event(XEvent &e, bool busy)
 {
+    if (e.xany.window != g.win && e.xany.window != g.activity_view.window()) return;
+    if (e.type == KeyPress && (e.xkey.state & ControlMask)) {
+        char bytes[8]; KeySym symbol=NoSymbol;
+        XLookupString(&e.xkey,bytes,sizeof bytes,&symbol,nullptr);
+        if (symbol==XK_q || symbol==XK_Q) { g.quit=true; return; }
+        if (symbol==XK_j || symbol==XK_J) { show_activity(); return; }
+    }
+    if (g.activity_view.handle(e) || e.xany.window != g.win) return;
 	switch (e.type) {
 	case Expose: if (e.xexpose.count == 0) g.dirty = true; break;
 	case ClientMessage:
@@ -587,7 +635,7 @@ void handle_event(XEvent &e, bool busy)
 
 void pump(bool busy)
 {
-	while (XPending(g.dpy)) {
+	for (int processed=0; processed<64 && XPending(g.dpy); ++processed) {
 		XEvent e;
 		XNextEvent(g.dpy, &e);
 		handle_event(e, busy);
@@ -609,7 +657,11 @@ void restore_cache()
 	CachedForecast previous; bool found=false;
 	Status loaded=read_cached_forecast(g.cache.base,cache_key(g.cfg),now_s(),&previous,&found);
 	if(loaded.ok() && found) {
-		if(g.model.restore_cached(previous.forecast,previous.fetched_at,now_s())) logf(LogInfo,"restored cached forecast (stale)");
+		if(g.model.restore_cached(previous.forecast,previous.fetched_at,now_s())) {
+            logf(LogInfo,"restored cached forecast (stale)");
+            record_activity(ActivityEvent::ForecastRestored);
+            record_freshness();
+        }
 	}
 	else if(!loaded.ok()) logf(LogWarn,"%s",loaded.msg);
 }
@@ -618,6 +670,7 @@ void do_fetch()
 {
 	restore_cache();
 	g.fetching = true;
+	record_activity(ActivityEvent::RefreshStarted);
 	redraw();
 	static char buf[64 * 1024];
 	Query q;
@@ -631,6 +684,8 @@ void do_fetch()
 	}
 	g.fetching = false;
 	g.model.finish(now_s(), s, &f);
+	record_activity(s.ok() ? ActivityEvent::RefreshSucceeded : ActivityEvent::RefreshFailed,s);
+	record_freshness();
 	g.dirty = true;
 }
 
@@ -743,6 +798,7 @@ int main(int argc, char **argv)
 	ModelConfig mc;
 	mc.auto_refresh = g.cfg.auto_refresh;
 	g.model = Model(mc, now_s());
+	record_activity(ActivityEvent::Startup);
 	if(!g.fo.force_host && g.have_store) {
 		Buf<1024> path; path.add(g.store.path).add(".cache");
 		Status initialized=path.truncated?make(Err::Config,"cache path too long"):posix_cache_init(&g.cache,path.c_str());
@@ -763,11 +819,14 @@ int main(int argc, char **argv)
 		if (g.model.tick(t)) { do_fetch(); continue; }
 		pump(false);
 		if (g.quit) break;
+		record_freshness();
 		if (g.dirty || t != last_sec) { last_sec = t; redraw(); }
 		if (XPending(g.dpy)) continue;
 		struct pollfd p = { ConnectionNumber(g.dpy), POLLIN, 0 };
 		poll(&p, 1, 500);
 	}
+	record_activity(ActivityEvent::Shutdown);
+	g.activity_view.close();
 	XFreePixmap(g.dpy, g.pm);
 	XCloseDisplay(g.dpy);
 	return 0;

@@ -1,0 +1,1 @@
+- Add View > Activity Log to xweather: a separate read-only session window with local times, scrolling, independent close and responsive browsing during a fetch (#160). Private diagnostic values stay out of routine activity.

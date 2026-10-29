@@ -1,0 +1,46 @@
+Refs #160: X11 session Activity Log viewer and typed production event wiring.
+Base: cb3e84e5934422dbc96c6c1cfaa1e34a75c5ae19 (merged foundation #188).
+
+Tests first: the initial viewer test did not compile because its header did not
+exist. A later mixed-font/viewport regression failed 22 of 94 assertions against
+the old row geometry; corrected geometry passes all 94. No new parser path.
+Logs: /tmp/weather-activity-window-red.log and
+/tmp/weather-activity-layout-{red,green}.log.
+
+Final make check and make check-san both exit 0. Unit checks: 2513 per mode;
+robustness: 518946 inputs; CLI: 134 per mode; connection budget: 34; TLS: 28;
+CDE text: 95; fields: 19; activity component: 94; full GUI scenarios: 66.
+Sanitizers enabled ASan/UBSan. GUI runs were serial. Coverage includes independent
+close/reopen, scroll retention during eviction, keyboard/button controls, cached
+expose redraw, local time, unknown clocks, and browsing during a stalled fetch
+without a second request. Existing cache, long-field and credits scenarios pass.
+Logs: /tmp/weather-activity-x11-final-{check,san}.log.
+
+Linux cross-build of NetBSD/macppc CLI, xweather and activity component test exits
+0 in separate source/output tree /tmp/weather-activity-x11-cross. Its Makefile,
+viewer, main and component-test sources byte-match this tree. Dynamic dependencies
+of both GUI executables: libX11.so.7, libgcc_s.so.1, libc.so.12; no libstdc++.
+Stripped xweather: 290408 bytes. This is build evidence, not native execution.
+Logs: /tmp/weather-activity-x11-{cross,needed}.log.
+
+Linux private-Xvfb trial at 640x480 with disposable fixture/config, auto-refresh
+and disk cache disabled; RSS KiB (client / X server):
+  viewer initially closed: 5212 / 50048
+  viewer open:             5576 / 51056
+  viewer closed again:     5576 / 50352
+  after 20 open/close cycles, closed: 5576 / 51460
+Each sample observes five seconds. No client CPU ticks were observed; the first
+server sample used one tick (0.2% of one core), subsequent samples none. This
+short trial establishes neither zero CPU use nor a long-term leak bound. Client
+RSS retained its initial increase; server RSS after cycles increased further.
+Physical PowerMac memory and window-manager acceptance remain unverified.
+Log: /tmp/weather-activity-x11-perf-cycles.log.
+
+Default, fetching and failed-refresh screenshots visually inspected at
+build/gui-host/run/snap/{A01b-activity,B02-activity-fetching,C02-activity-failed}.png.
+Manual source review, diff whitespace, shell syntax and man formatting pass.
+
+Remaining #160 scope: OS 9 viewer/event wiring, source-fallback event fan-out,
+native NetBSD/ctwm and OS 9 acceptance, and physical-machine resource measurements.
+History is bounded, memory-only and session-only. Existing diagnostic sinks are
+unchanged. No maul commands or owner acceptance were performed for this change.

@@ -1,4 +1,4 @@
-.Dd October 24, 2026
+.Dd October 28, 2026
 .Dt XWEATHER 1
 .Os
 .Sh NAME
@@ -56,7 +56,7 @@ Print the version and exit.
 .It Sy Location...
 (Ctrl+L) Open the Location dialog.
 .It Sy Exit
-(Ctrl+Q) Close the window.
+(Ctrl+Q) Quit the application.
 .El
 .Ss Options menu
 .Bl -tag -width "Auto-refresh" -compact
@@ -65,6 +65,25 @@ Turn the 15 minute refresh on or off.
 .It Sy Imperial, Metric
 Choose Fahrenheit and mph, or Celsius and km/h.
 .El
+.Ss View menu
+.Bl -tag -width "Activity Log..." -compact
+.It Sy Activity Log...
+(Ctrl+J) Open the read-only session activity window.
+.El
+.Pp
+The window retains the newest 128 events, with local times and severity.
+Use Up/Down, Page Up/Page Down, Home/End, the mouse wheel or the on-screen buttons
+to browse.
+Escape, Close or the window manager closes only the activity window.
+Ctrl+Q from either window quits the application.
+Activity browsing does not request weather updates or read historical log files.
+Routine entries omit location values, request parameters and diagnostic dumps.
+.Pp
+An untrusted or unavailable clock is marked
+.Dq TIME-UNKNOWN .
+The activity timestamps and counts use the X core
+.Ql fixed
+font with checked tabular lining digits.
 .Ss Location dialog
 Latitude, longitude and a name for the place, and a box for metric units.
 Tab and Shift-Tab (or the arrow keys) move between the fields, Return accepts and Escape cancels.

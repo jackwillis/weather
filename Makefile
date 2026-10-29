@@ -49,7 +49,7 @@ TLS_SRCS     = src/tls/tls.cpp
 PLAT_SRCS    = src/platform/$(PLATFORM)/net_posix.cpp src/platform/$(PLATFORM)/log_posix.cpp \
                src/platform/$(PLATFORM)/settings_posix.cpp src/platform/$(PLATFORM)/cache_posix.cpp src/platform/$(PLATFORM)/nocxx.cpp
 CLI_SRCS     = src/cli/main.cpp
-XW_SRCS      = src/ui/xweather/main.cpp src/ui/xweather/cde.cpp
+XW_SRCS      = src/ui/xweather/main.cpp src/ui/xweather/cde.cpp src/ui/xweather/activity_window.cpp
 WEATHER_OBJS = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(CLI_SRCS))
 XW_OBJS      = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_SRCS) $(XW_SRCS))
 TEST_OBJS    = $(OBJ)/app/preferences.o $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o \
@@ -75,6 +75,9 @@ $(BUILD)/cde-text-test: $(OBJ)/test/cde_text.o $(OBJ)/ui/xweather/cde.o $(OBJ)/p
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
 
 $(BUILD)/cde-field-test: $(OBJ)/test/cde_field.o $(OBJ)/ui/xweather/cde.o $(OBJ)/platform/$(PLATFORM)/nocxx.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
+
+$(BUILD)/activity-window-test: $(OBJ)/test/activity_window.o $(OBJ)/ui/xweather/activity_window.o $(OBJ)/ui/xweather/cde.o $(OBJ)/platform/$(PLATFORM)/nocxx.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
 
 $(BUILD)/xdrive: $(OBJ)/test/xdrive.o
@@ -246,17 +249,19 @@ check-san:
 	python3 test/cache_cli.py build/host-san/weather
 
 	@if [ -f /usr/include/X11/Xlib.h ]; then \
-	    $(MAKE) TARGET=host-san X11_LIBS=-lX11 build/host-san/cde-text-test build/host-san/cde-field-test && \
-	    build/host-san/cde-text-test && sh test/field-host.sh build/host-san/cde-field-test; \
+	    $(MAKE) TARGET=host-san X11_LIBS=-lX11 build/host-san/cde-text-test build/host-san/cde-field-test build/host-san/activity-window-test && \
+	    build/host-san/cde-text-test && sh test/field-host.sh build/host-san/cde-field-test && \
+	    sh test/activity-window-host.sh build/host-san/activity-window-test; \
 	else echo "check-san: CDE tests skipped (no X11 headers)"; fi
 	$(MAKE) TARGET=host-san TEST_HOOKS=0 check-test-hooks
 
 san-note:
 	@echo "check-san: $(SAN_NOTE)"
 
-check-gui: $(BUILD)/xweather $(BUILD)/xdrive $(BUILD)/cde-text-test $(BUILD)/cde-field-test
+check-gui: $(BUILD)/xweather $(BUILD)/xdrive $(BUILD)/cde-text-test $(BUILD)/cde-field-test $(BUILD)/activity-window-test
 	$(BUILD)/cde-text-test
 	sh test/field-host.sh $(BUILD)/cde-field-test
+	sh test/activity-window-host.sh $(BUILD)/activity-window-test
 	sh test/gui-host.sh
 
 check-gui-maul:
