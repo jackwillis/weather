@@ -123,6 +123,20 @@ for round in 1 2; do
 	quit_xw Cache-$round
 done
 
+# Old disk data plus a deterministic failing connection. No -H: it disables restoration.
+printf 'providers = met-no\nattempts = 1\nautorefresh = off\n' > rcStale
+./xweather-stale-test -v -c rcStale > xw.log 2>&1 & XW=$!
+if ./xdrive wait Weather 20000; then
+    ./xdrive sleep 1000 snap snap/Stale-with-data.$EXT
+    check "Stale: old disk forecast restored" "$(grep -c 'restored cached forecast (stale)' xw.log)" 1
+    check "Stale: failed once without DNS" "$(grep -c 'stale fixture: connect refused before DNS' xw.log)" 1
+    check "Stale: fitted visible line leads with age before long error" "$(grep -c '^visible status: Cached / stale, fetched 3 h ago\. Update failed:' xw.log | awk '{print ($1 > 0 ? 1 : 0)}')" 1
+    keeplog Stale-with-data
+    quit_xw Stale-with-data
+else
+    echo "FAIL stale-with-data window did not appear"; cat xw.log; fail=$((fail+1))
+fi
+
 # Saving-off survives relaunch; turning it back on is persistent too.
 ./xweather -d -c rcCache > xw.log 2>&1 & XW=$!
 if ./xdrive wait Weather 20000; then

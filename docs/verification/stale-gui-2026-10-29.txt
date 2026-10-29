@@ -1,0 +1,32 @@
+X11 stale-with-data GUI regression (#49), 2026-10-29
+Baseline main 4a5d70c. No hardware access.
+
+The fixture writes an actual 224-byte cache record fetched three hours ago,
+with expired MET metadata. The separately linked xweather-stale-test replaces
+only Net.connect with a deterministic long failure, before DNS or a socket.
+No -H override is passed, so the production cache-restoration path runs.
+A diagnostic observer logs the fitted first line passed to the production painter.
+Production main passes no hooks and links no fixture generator.
+
+Red mutation: replace the idle status with a long age-less error, as the former
+age-last regression would appear after fitting. The targeted private-Xvfb check
+exited 1. Actual output:
+visible status: Update failed: deliberately long certificate failure that hides the appended...
+The mutation was restored before the final build; it is not committed.
+An initial diagnostic compile used nonexistent Err::Cert, then corrected to
+Err::Tls. An initial temporary mutation used nonexistent Buf::clear, then
+corrected to assignment. Neither compile failure is counted as the red proof.
+
+Green: targeted private-Xvfb check exited 0. Actual output:
+visible status: Cached / stale, fetched 3 h ago. Update failed: deliberately long certificate...
+The cache restoration log and exactly one injected failed connect were present.
+Screenshot inspected: age precedes the clipped error; retained temperature,
+condition, wind, humidity and picture are faded.
+
+The shared GUI scenario checks restoration, one deterministic failure and the
+age-first fitted line, then captures Stale-with-data and quits normally. Host and
+maul harnesses stage the same fixture/diagnostic. Only the host is run here;
+maul/native OS 9/runtime acceptance remains #204.
+
+Full-suite and sanitizer results are recorded on the PR when complete. No new
+production parser input path, external contact, seed operation or hardware claim.
