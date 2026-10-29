@@ -1,0 +1,1 @@
+- Tighten the unconnected first-run entropy primitives: missing provenance is unknown, hexadecimal input requires explicit CSPRNG attestation to earn credit, and provisional timing-filter limits are documented and regression-tested (#120). Production seeding remains unchanged; event credit is still unestablished (#121).

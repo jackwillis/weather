@@ -158,11 +158,14 @@ static void exercise(const char *p, size_t n)
 		EXPECT(n == kProvRecordSize && std::memcmp(p, again, n) == 0);
 		EXPECT(prov_resolve(true, reinterpret_cast<const unsigned char *>(p), n) == origin);
 	} else EXPECT(prov_resolve(true, reinterpret_cast<const unsigned char *>(p), n) == SeedOrigin::Unknown);
-	{   // Typed hex is arbitrary hostile text: bounded, all-or-nothing credit, never more than 32 digits.
-		Collector hx(Policy{0, 128000});
+	{   // Arbitrary text defaults to zero credit; attestation is an explicit caller assertion.
+		Collector hx(Policy{0, 128000}), attested(Policy{0, 128000});
 		HexResult r = hx.add_hex(p, n, 1);
-		if (r == HexResult::Ok) EXPECT(hx.credit_mbits() >= kHexDigitCreditMbits && hx.credit_mbits() <= kHexMaxDigits * kHexDigitCreditMbits);
-		else EXPECT(hx.credit_mbits() == 0);
+		HexResult trusted = attested.add_hex(p, n, 1, HexSource::UserAttestedCsprng);
+		EXPECT(r == trusted && hx.credit_mbits() == 0 && !hx.complete());
+		if (trusted == HexResult::Ok)
+			EXPECT(attested.credit_mbits() >= kHexDigitCreditMbits && attested.credit_mbits() <= kHexMaxDigits * kHexDigitCreditMbits);
+		else EXPECT(attested.credit_mbits() == 0);
 	}
 
 	// HTTP

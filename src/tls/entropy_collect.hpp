@@ -15,7 +15,10 @@
 
 namespace wx {
 
-// ---- Seed provenance (sidecar record; the 72-byte WXSEED1 seed record is unchanged) ----
+// ---- Informational provenance (the 72-byte WXSEED1 seed record is unchanged) ----
+// WXPROV1 has no seed/generation binding: parsing is not proof of origin. Before any
+// storage integration, bind metadata to the seed or treat it only as an unverified hint.
+// Never use a separately parsed sidecar to grant security privileges or choose recovery.
 enum class SeedOrigin : unsigned char { Unknown = 0, Provisioned = 1, Collected = 2 };
 constexpr size_t kProvRecordSize = 16;
 inline void prov_encode(SeedOrigin kind, unsigned char record[kProvRecordSize])
@@ -32,15 +35,17 @@ inline bool prov_decode(const unsigned char *record, size_t len, SeedOrigin &kin
 	kind = static_cast<SeedOrigin>(record[8]);
 	return true;
 }
-// No sidecar is a legacy Linux-provisioned install. A sidecar that exists but does not parse
-// is Unknown, never silently Provisioned: callers show it and do not upgrade it.
+// Missing/corrupt metadata is Unknown, including legacy installations. Absence cannot
+// distinguish an externally provisioned seed from a collected seed with a lost sidecar.
 inline SeedOrigin prov_resolve(bool present, const unsigned char *record, size_t len)
 {
-	if (!present) return SeedOrigin::Provisioned;
+	if (!present) return SeedOrigin::Unknown;
 	SeedOrigin k;
 	return prov_decode(record, len, k) ? k : SeedOrigin::Unknown;
 }
-// A provisioned seed always wins; a collected seed is never replaced except by explicit regeneration.
+// Replacement policy for an origin established by the eventual checked storage protocol,
+// not merely parsed from WXPROV1. Unknown origins never permit implicit replacement.
+// A provisioned seed always wins; a collected seed requires explicit regeneration.
 inline bool collection_may_replace(SeedOrigin existing, bool explicit_regenerate)
 {
 	return existing == SeedOrigin::Collected ? explicit_regenerate : false;
@@ -68,7 +73,11 @@ struct Policy {
 };
 enum class EventKind : unsigned char { Key = 1, Click = 2, Motion = 3 };   // Motion is hashed, never credited
 enum class HexResult { Ok, Empty, BadChar, TooLong, Junk, Repeat };
-constexpr uint32_t kHexDigitCreditMbits = 4000;    // user-attested, full strength (4 bits/digit)
+// Credit is a caller-established trust assertion, never inferred from pattern screening.
+// The caller must obtain explicit user attestation: fresh, secret, independently
+// CSPRNG-generated material, not human-selected text, a reused value or a web service.
+enum class HexSource { Unattested, UserAttestedCsprng };
+constexpr uint32_t kHexDigitCreditMbits = 4000;    // only for attested uniform hex digits
 constexpr size_t kHexMaxDigits = 32;
 constexpr size_t kHexMaxChars = 128;               // total input incl. separators
 constexpr unsigned kHealthWindow = 16;
@@ -100,10 +109,11 @@ public:
 	Collector(const Collector &) = delete;
 	Collector &operator=(const Collector &) = delete;
 
-	// Every event is hashed. Only Key/Click earn credit, and only if the health test passes:
-	// the interval must be nonzero, must differ from the previous interval (a constant or
-	// linear-ramp feeder fails), and must not repeat any of the last kHealthWindow intervals
-	// (periodic input fails). This is a guard against scripted input, not an entropy estimate.
+	// Every event is hashed. The provisional filter rejects zero intervals and repeats
+	// within the last kHealthWindow intervals. Constant-rate timestamps fail; ramps in
+	// interval length and longer cycles can pass. This does NOT detect arbitrary scripted
+	// input or establish entropy. Keep event credit zero until #121 supplies reviewed
+	// source credits AND health rules. Nonzero policies below are for synthetic tests only.
 	bool add_event(EventKind kind, uint32_t t_us)
 	{
 		if (finished_) return false;
@@ -125,9 +135,14 @@ public:
 		return ok;
 	}
 
-	// Typed or pasted hex from another computer. Spaces, '-' and case are ignored. Nothing is
-	// absorbed or credited unless the whole input is accepted; once accepted, a second paste is refused.
-	HexResult add_hex(const char *text, size_t len, uint32_t typing_t_us)
+	// Spaces, '-' and case are ignored. Validation/screening cannot prove randomness.
+	// Unattested text is mixed at ZERO credit; only an explicit UserAttestedCsprng
+	// assertion earns 4 bits/digit (32 random digits give at most 128 bits, not 256).
+	// Nothing is absorbed/credited unless the whole input is accepted; acceptance is
+	// one-shot even for partial/unattested input. Callers submit after editing is done
+	// and must wipe their own text buffer. The typing timestamp always earns zero credit.
+	HexResult add_hex(const char *text, size_t len, uint32_t typing_t_us,
+	                  HexSource source = HexSource::Unattested)
 	{
 		if (finished_ || hex_done_) return HexResult::Repeat;
 		if (!text || !len) return HexResult::Empty;
@@ -166,7 +181,8 @@ public:
 		unsigned char t[4] = {static_cast<unsigned char>(typing_t_us >> 24), static_cast<unsigned char>(typing_t_us >> 16),
 			static_cast<unsigned char>(typing_t_us >> 8), static_cast<unsigned char>(typing_t_us)};
 		absorb(3, t, sizeof t);                   // typing timing is mixed in at zero credit
-		add_credit(static_cast<uint64_t>(n) * kHexDigitCreditMbits);
+		if (source == HexSource::UserAttestedCsprng)
+			add_credit(static_cast<uint64_t>(n) * kHexDigitCreditMbits);
 		hex_done_ = true;
 		secret_clear(nib, sizeof nib);
 		return HexResult::Ok;
@@ -178,7 +194,8 @@ public:
 		return !finished_ && policy_.threshold_mbits != 0 && credit_ >= policy_.threshold_mbits;
 	}
 	// Writes the 32-byte seed only when complete and not weak; the collector is spent either way
-	// it succeeds. On refusal nothing is written to `seed`.
+	// it succeeds. On refusal nothing is written to `seed`. The caller supplies a valid
+	// writable 32-byte buffer; this low-level operation does not accept null output.
 	bool finish(unsigned char seed[32])
 	{
 		if (!complete()) return false;
