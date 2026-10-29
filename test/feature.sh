@@ -42,6 +42,7 @@ serve imperial; P_IMP=$P
 serve badjson; P_BADJ=$P
 serve metno; P_MET=$P
 serve fallback; P_FALL=$P
+serve nws; P_NWS=$P
 CFG="$FIXTURE_STATE/config"; echo "attempts = 1" > "$CFG"
 W="-c $CFG"
 
@@ -108,6 +109,13 @@ expect "-n before -l: -l still drops the name (options apply in order)" 0 $W -n 
 contains "no name after -n then -l" "Weather from open-meteo"
 expect "-l reaches the request" 0 $W -d -l 59.91,10.75 -1 -H 127.0.0.1:$P_OK
 contains "-l in request" "latitude=59.9100&longitude=10.7500"
+# the whole globe, not only Europe and the US Midwest: west and east of 90 degrees, and the limits themselves
+expect "-l west hemisphere reaches the request" 0 $W -d -l 47.6062,-122.3321 -1 -H 127.0.0.1:$P_OK
+contains "-l west longitude in request" "latitude=47.6062&longitude=-122.3321"
+expect "-l east of 90 degrees reaches the request" 0 $W -d -l -33.8688,151.2093 -1 -H 127.0.0.1:$P_OK
+contains "-l southern/eastern in request" "latitude=-33.8688&longitude=151.2093"
+expect "-l at the positive limits" 0 $W -l 90,180 -H 127.0.0.1:$P_OK
+expect "-l at the negative limits" 0 $W -l -90,-180 -H 127.0.0.1:$P_OK
 echo "attempts = 3" > "$CFG"
 
 # second data source: MET Norway needs a contact (its terms), is skipped without one, and is the fallback
@@ -145,6 +153,10 @@ expect "bad option" 64 -Z
 expect "stray argument" 64 foo
 expect "bad -l" 64 -l banana
 expect "-l out of range" 64 -l 95,10
+expect "-l latitude just past the limit" 64 -l 90.0001,0
+expect "-l longitude out of range" 64 -l 10,181
+expect "-l longitude just past the limit" 64 -l 0,180.0001
+expect "-l longitude just past the negative limit" 64 -l 0,-180.0001
 expect "bad units" 64 -u kelvin
 expect "unknown source" 64 -p nope -H 127.0.0.1:$P_OK
 printf 'units = metric\nbogus = 1\n' > "$CFG"
@@ -260,6 +272,12 @@ if [ -n "$ONLINE" ]; then
 	fi
 	rm -f "$CFG.err"
 fi
+
+expect "NWS complete observation chain" 0 $W -1 -p nws -H 127.0.0.1:$P_NWS
+contains "NWS imperial output" "54.5F Partly cloudy, wind 11.2mph W, humidity 72% (nws 2026-10-25T23:53)"
+expect "NWS metric observation" 0 $W -1 -u metric -p nws -H 127.0.0.1:$P_NWS
+contains "NWS metric output" "12.5C Partly cloudy, wind 18.0km/h W"
+expect "NWS outside coverage" 76 $W -1 -p nws -H 127.0.0.1:$P_404
 
 rm -f "$CFG"
 echo "feature tests: $pass passed, $fail failed"

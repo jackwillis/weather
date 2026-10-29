@@ -18,6 +18,7 @@
 #include "app/window_actions.hpp"
 #include "app/textedit.hpp"
 #include "core/providers.hpp"
+#include "core/nws.hpp"
 #include "core/settings.hpp"
 #include "platform/posix/net_posix.hpp"
 #include "platform/posix/settings_posix.hpp"
@@ -120,6 +121,20 @@ static void test_config()
 	CHECK(s.err == Err::Config && s.detail == 2);           // line number reported
 	s = config_parse("latitude = 91\n", &c);
 	CHECK(s.err == Err::Config && s.detail == 1);
+	{ // The limits themselves: inclusive at 90 and 180, refused just past them, and each axis has its own limit.
+		Config e;
+		CHECK(config_parse("latitude = 90\nlongitude = 180\n", &e).ok() && e.lat_e4 == 900000 && e.lon_e4 == 1800000);
+		e = Config();
+		CHECK(config_parse("latitude = -90\nlongitude = -180\n", &e).ok() && e.lat_e4 == -900000 && e.lon_e4 == -1800000);
+		CHECK(config_parse("latitude = 90.0001\n", &e).err == Err::Config);
+		CHECK(config_parse("latitude = -90.0001\n", &e).err == Err::Config);
+		CHECK(config_parse("longitude = 180.0001\n", &e).err == Err::Config);
+		CHECK(config_parse("longitude = -180.0001\n", &e).err == Err::Config);
+		e = Config();
+		CHECK(config_parse("longitude = 91\n", &e).ok() && e.lon_e4 == 910000);   // past the latitude limit, inside the longitude one
+		CHECK(config_parse("longitude = -122.3321\n", &e).ok() && e.lon_e4 == -1223321);   // Seattle: west of -90
+		CHECK(config_parse("longitude = 151.2093\n", &e).ok() && e.lon_e4 == 1512093);     // Sydney: east of 90
+	}
 	s = config_parse("no equals sign\n", &c);
 	CHECK(s.err == Err::Config);
 	s = config_parse("name = Oslo, Norway\n", &c);
@@ -163,6 +178,8 @@ struct Fake {
 	long read_secs = 0;      // the clock advances this much on every read (a slow trickle)
 	int reads = 0;
 	bool cancel_sleep = false;
+	int yields = 0, cancel_yield_at = 0, tls_calls = 0, tls_fail_at = 0;
+	char last_host[64] = {};
 	const char *cur = ""; size_t pos = 0; Err cur_err = Err::Ok;
 	char request[512] = {};
 };
@@ -192,11 +209,12 @@ static long fk_write(Io &io, const void *buf, size_t len)
 	if (have + len < sizeof f->request) { memcpy(f->request + have, buf, len); f->request[have + len] = 0; }
 	return static_cast<long>(len);
 }
-static Status fk_connect(Net &n, const char *, const char *, int, Io *out)
+static Status fk_connect(Net &n, const char *host, const char *, int, Io *out)
 {
 	Fake *f = F(n);
 	f->seen_budget_limit = n.budget ? n.budget->limit_ms : -1;
 	f->connects++;
+	snprintf(f->last_host, sizeof f->last_host, "%s", host);
 	Step &s = f->steps[f->next < f->nsteps ? f->next : f->nsteps - 1];
 	f->next++;
 	if (!s.connect_result.ok()) return s.connect_result;
@@ -1561,6 +1579,7 @@ static void test_credits()
 		for (size_t i = 0; i < p.n; i++) CHECK(strlen(p.lines[i]) <= 46);
 	}
 }
+#include "nws_tests.hpp"
 
 #include "conditional_tests.hpp"
 
@@ -1581,9 +1600,11 @@ int main()
 	test_window_actions();
 	test_config_load();
 	test_preferences();
+	test_preference_effects();
 	test_modal_clock();
 	test_forms();
 	test_metno();
+	test_nws();
 	test_os9_dns();
 	test_seed_pool();
 	test_conditional_requests();

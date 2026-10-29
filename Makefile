@@ -202,6 +202,17 @@ distcheck: dist
 
 # ---- tests
 check: $(CHECK_TARGET)
+PPC_RUN ?= qemu-ppc -L /usr/powerpc-linux-gnu
+$(BUILD)/ppc-runtime: $(OBJ)/test/ppc_runtime.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $<
+
+# No binfmt registration or privileged emulator setup is required.
+check-ppc: $(BUILD)/ppc-runtime $(BUILD)/unittest $(BUILD)/robust
+	$(PPC_RUN) $(BUILD)/ppc-runtime
+	$(PPC_RUN) $(BUILD)/unittest
+	$(PPC_RUN) $(BUILD)/robust
+.PHONY: check-ppc
+
 
 # Exercise both configurations, preserving production defaults and release artifacts.
 check-test-hooks: $(BUILD)/weather
@@ -226,6 +237,7 @@ endif
 	python3 test/delivery_safety.py
 	sh test/session_edits.sh
 	python3 test/entropy_analysis.py
+	sh test/changelog.sh
 	sh test/flags.sh "$(MAKE)"
 # Everything again under AddressSanitizer + UBSan: unit tests, parser robustness, the CLI's feature tests.
 check-san:

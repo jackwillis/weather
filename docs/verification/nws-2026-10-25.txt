@@ -1,0 +1,39 @@
+NWS source verification, 2026-10-25 local / 2026-10-26 UTC
+
+Host
+651 checks, 0 failed
+robust: 299168 inputs, 0 failed
+feature tests: 104 passed, 0 failed
+flags tests: 6 passed, 0 failed
+--- 21 checks passed, 0 failed
+gui scenario passed
+
+ASan/UBSan
+651 checks, 0 failed
+robust: 299168 inputs, 0 failed
+feature tests: 104 passed, 0 failed
+
+Actual NetBSD/macppc
+651 checks, 0 failed
+robust: 101168 inputs, 0 failed
+status=0
+
+Host live verified TLS
+weather: info: trying nws (api.weather.gov:443)
+60.8F Clear sky, wind 0.0mph N, humidity 72% (nws 2026-10-26T00:15)
+
+NetBSD/macppc live verified TLS
+weather: info: trying nws (api.weather.gov:443)
+60.8F Clear sky, wind 0.0mph N, humidity 72% (nws 2026-10-26T00:15)
+
+PPC/68k cross-compilation
+sh tools/probe-os9.sh
+ok   powerpc: portable core + compile-time tests compile (powerpc-apple-macos-g++ (GCC) 16.1.0)
+ok   m68k: portable core + compile-time tests compile (m68k-apple-macos-g++ (GCC) 16.1.0)
+
+Full OS 9 app cross-built; not run on OS 9. No compiler ran on maul.
+Initial live failure: baddata: response too large, fixed by bounded station list.
+Calendar red: 634 checks, 3 failed before validation.
+Station-limit red: 651 checks, 1 failed before generated limit.
+Initial CLI fixture run: 101 passed, 3 failed due test flag/exit expectations;
+corrected -u metric and expected existing HTTP 404 exit 76; final 104/0.
