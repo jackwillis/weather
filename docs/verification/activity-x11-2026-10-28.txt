@@ -53,3 +53,10 @@ A sandboxed initial check could not start its TLS fixture (PermissionError,
 0 passed, 1 failed); it is not a green run. Full integration checks rerun with
 local fixture networking permitted; results will be recorded before readiness.
 The cross-build/resource figures above describe the pre-integration viewer tree.
+
+Final integrated make check and make check-san both exit 0: 2602 unit checks per
+mode, 543128 mutation inputs, 143 CLI checks per mode, 34 connection-budget,
+95 CDE text, 19 field and 94 activity component assertions. Ordinary full GUI
+scenario passes all 98 checks, including integrated place search and first-run
+setup. All GUI checks remained serial. Logs:
+/tmp/weather-activity-x11-integration-{check,san}.log.
