@@ -8,6 +8,7 @@
 .Nm
 .Op Fl 1dhqsSV
 .Op Fl c Ar file
+.Op Fl g Ar query
 .Op Fl l Ar lat,lon
 .Op Fl n Ar name
 .Op Fl p Ar sources
@@ -40,6 +41,31 @@ The file must exist, unless
 is given, which creates it.
 .It Fl d
 Debug: log at the most detailed level and include the request and response text.
+.It Fl g Ar query
+Search for places with Open-Meteo geocoding and exit.
+The alias is
+.Fl -search .
+The query must contain 2 to 63 printable ASCII characters.
+Output lists up to five numbered matches, administrative region, country code
+and coordinates; it credits Open-Meteo / GeoNames.
+Non-ASCII result characters are displayed as question marks with an explicit
+ASCII simplification note.
+No result is selected automatically, no settings are saved and no weather is fetched.
+Use the chosen coordinates with
+.Fl l ,
+and optionally
+.Fl n
+and
+.Fl S
+in a separate command.
+This option cannot combine with
+.Fl 1 ,
+.Fl H ,
+.Fl S
+or location, units or provider overrides.
+Search uses certificate-checked TLS and can be cancelled with Ctrl-C.
+It sends the query and the client IP to the service; debug logging includes
+request and result text. The free endpoint is for non-commercial use.
 .It Fl h
 Print a usage summary and exit.
 .It Fl H Ar host:port
@@ -60,9 +86,14 @@ Name of the place, shown in the full output (printable ASCII, no
 Comma separated list of data sources, tried in order until one answers.
 The sources are
 .Ql open-meteo
-(tried first by default) and
+(tried first by default),
 .Ql met-no
-(MET Norway, worldwide).
+(MET Norway, worldwide), and
+.Ql nws
+(US station observations via api.weather.gov).
+The NWS source uses the first station returned for the gridpoint; if its latest
+observation is unusable, the next configured source is tried.
+Its observation timestamp may be older than the time of the successful fetch.
 The default fallback order is Open-Meteo, then MET Norway.
 MET uses the public project URL as application contact;
 .Ic contact

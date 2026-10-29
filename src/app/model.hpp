@@ -152,8 +152,9 @@ public:
 			if (cached_) o.add("Live update pending");
 			else { o.add(fc_.saved_valid ? (now<fc_.expires ? "Saved forecast, server-valid; fetched " : "Saved forecast expired; fetched ") : "Updated "); if (age_unknown(now)) o.add("at "); add_data_age(o, now); } break;
 		case Phase::Failed:
+			// Age first: a long error is cut at the end of the line, and old values must never look current.
+			if (have_ && !cached_) { o.add("Showing data from "); add_data_age(o, now); o.add(". "); }
 			o.add("Update failed: ").add(last_.msg);
-			if (have_ && !cached_) { o.add(". Showing data from "); add_data_age(o, now); }
 			break;
 		}
 		long left = seconds_until_refresh(now);

@@ -15,13 +15,13 @@ inline Status preference_text(SettingsStore &prefs, SettingsStore &legacy, char 
     if (s.ok() && *n >= cap) return make(Err::Config, "settings file too large");
     return s;
 }
-inline Status load_preferences(SettingsStore &prefs, SettingsStore &legacy, Config &cfg)
+inline Status load_preferences(SettingsStore &prefs, SettingsStore &legacy, Config &cfg, bool *configured=nullptr)
 {
     char text[4096]; size_t n = 0;
     Status s = preference_text(prefs, legacy, text, sizeof text, &n);
     Config next; // Preferences is the whole configuration, not an overlay on a prior load.
     if (s.ok()) s = config_parse(sv(text, n), &next);
-    if (s.ok()) cfg = next;
+    if (s.ok()) { cfg = next; if(configured) *configured=n!=0; }
     return s;
 }
 Status commit_preferences(SettingsStore &prefs, SettingsStore &legacy, const Config &candidate,

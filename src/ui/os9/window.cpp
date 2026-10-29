@@ -4,6 +4,7 @@
 #include "window.hpp"
 #include "app/config_load.hpp"
 #include "location.hpp"
+#include "place_search.hpp"
 #include "platform/os9/settings_os9.hpp"
 #include "platform/os9/config_os9.hpp"
 #include "platform/os9/cache_os9.hpp"
@@ -41,11 +42,13 @@ Os9Settings preferences;
 SettingsStore legacy;
 SettingsStore *prefs_store=nullptr, *legacy_store=nullptr;
 LocationDialog location;
+PlaceDialog place;
 unsigned long update_count = 0;
 unsigned long suspend_count = 0, resume_count = 0;
 bool foreground = true;
 long long painted_at = -1;
 bool menus_fetching = false;
+bool first_run = false;
 constexpr int kHeight = 310;
 const unsigned char *pascal_text(const char *s)
 {
@@ -153,17 +156,21 @@ void draw_contents()
 	Canvas c; c.rect(0,0,340,kHeight,{221,221,221});
 	text(16,25,cfg.name);
 	if(model.has_forecast()) {
-		const Forecast &f=model.forecast(); art::picture(c,{16,43,108,96},f.code,!f.is_day);
+		const Forecast &f=model.forecast();
+		bool old_data=model.stale(net.now(net));   // cached, failed, old or clock-stepped: dim the values and the picture (#62)
+		const Rgb ink=old_data?Rgb{96,96,96}:Rgb{0,0,0};
+		if(old_data) { art::DimCanvas<Canvas> dim{c,Rgb{221,221,221},55}; art::picture(dim,{16,43,108,96},f.code,!f.is_day); }
+		else art::picture(c,{16,43,108,96},f.code,!f.is_day);
 		Buf<80> t; t.add_fixed(f.temp_t10,1).add(f.metric?" C":" F");
-		text(143,79,t.c_str(),24,180,model.cached()?Rgb{96,96,96}:Rgb{0,0,0});
-		text(143,103,wmo_text(f.code),12,180);
+		text(143,79,t.c_str(),24,180,ink);
+		text(143,103,wmo_text(f.code),12,180,ink);
 		Buf<80> wind; wind.add("Wind ");
 		if(f.wind_t10==kUnset) wind.add("unavailable");
 		else wind.add_fixed(f.wind_t10,1).add(f.metric?" km/h":" mph");
-		text(143,125,wind.c_str(),10,180);
+		text(143,125,wind.c_str(),10,180,ink);
 		Buf<80> humidity; humidity.add("Humidity ");
 		if(f.humidity==kUnset) humidity.add("unavailable"); else humidity.add_int(f.humidity).add('%');
-		text(143,143,humidity.c_str(),10,180);
+		text(143,143,humidity.c_str(),10,180,ink);
 		Buf<80> observed; observed.add("Forecast for ").add(f.time).add(" UTC"); text(16,165,observed.c_str(),10);
 		text(16,182,f.source?f.source:"",9);
 	}
@@ -201,10 +208,17 @@ void settings_committed() {
     startup=recover_preferences(*prefs_store,*legacy_store,cfg,model,net.now(net));
     if(!startup.ok()) settings_notice=startup;
 }
+void location_closed() {
+    if(location.visible()) return;
+    if(location.committed()) { settings_committed(); if(startup.ok()) first_run=false; }
+    else if(first_run) actions.apply(WindowAction::Quit,cfg,model,net.now(net));
+    draw();
+}
 void command(WindowAction a) {
     if(actions.quit) return;
     if(a==WindowAction::About && !actions.about) about_page=0;
     if(a==WindowAction::Quit) { actions.apply(a,cfg,model,net.now(net)); return; }
+    if(first_run && a!=WindowAction::Location) return;
     if(location.visible()) return;
     if(a==WindowAction::Location) {
         settings_notice=location.open(cfg,model); draw(); return;
@@ -246,10 +260,32 @@ struct ModalTrackingTime {
 	~ModalTrackingTime() { os9_credit_modal_ticks(begin,TickCount()); }
 };
 
+void place_closed() {
+    if(place.visible()) return;
+    LocationForm form;
+    if(place.take_choice(form)) {
+        location.set_field(0,form.lat.view()); location.set_field(1,form.lon.view()); location.set_field(2,form.name.view());
+    }
+}
+void service_place_search() {
+    if(location.take_search_request() && location.visible()) {
+        wx::Status s=place.open(location.window()); if(!s.ok()) location.notice(s.msg);
+    }
+    if(!place.take_request() || actions.quit) return;
+    wx::Status s=place.begin(); if(!s.ok()) return;
+    PlaceResults results;
+    if(test_hooks) s=test_hooks->search?test_hooks->search(net,place.query(),&results):make(Err::Usage,"Diagnostic has no place lookup");
+    else {
+        static char body[kGeocodingBodyLimit]; FetchOpts opts;
+        opts.attempts=cfg.attempts<3?cfg.attempts:3; opts.timeout_s=cfg.timeout_s<60?cfg.timeout_s:60;
+        s=search_places(net,place.query(),opts,body,sizeof body,&results);
+    }
+    place.finish(s,results); place_closed();
+}
 bool pump(Net &)
 {
 	MenuHandle file = GetMenuHandle(129), options = GetMenuHandle(130);
-	bool fetching = model.phase() == Phase::Fetching || location.visible();
+	bool fetching = model.phase() == Phase::Fetching || location.visible() || place.visible();
 	MenuHandle apple=GetMenuHandle(128);
 	if(location.visible()) DisableItem(apple,1); else EnableItem(apple,1);
 	if (fetching != menus_fetching) {
@@ -265,9 +301,12 @@ bool pump(Net &)
 			BeginUpdate(w);
 			if (w == window) { ++update_count; draw(); }
 			else if(w==location.window()) location.draw();
+            else if(w==place.window()) place.draw();
 			EndUpdate(w);
-		} else if (location.visible() && location.event(e,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice)) {
-            if(!location.visible()) { if(location.committed()) settings_committed(); draw(); }
+		} else if (place.visible() && place.event(e)) {
+            place_closed();
+        } else if (location.visible() && location.event(e,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice)) {
+            if(!location.visible()) location_closed();
         } else if (e.what == activateEvt) draw();
 		else if (e.what == osEvt) {
 			constexpr unsigned long kSuspendResumeMessage = 1;
@@ -308,31 +347,42 @@ bool pump(Net &)
 			}
 		}
 	}
-    if(location.visible() && !actions.quit) {
+    if((place.visible() || location.visible()) && !actions.quit) {
         EventRecord idle={}; idle.what=nullEvent; idle.when=TickCount();
-        location.event(idle,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice);
+        if(place.visible()) place.event(idle);
+        else location.event(idle,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice);
     }
 	if (!actions.quit && net.now(net) != painted_at) draw();
-	return !actions.quit;
+	return !actions.quit && !(place.busy() && place.cancelled());
 }
 }
 namespace wx {
 void os9_window_action(WindowAction a) { command(a); }
-bool os9_window_location_visible() { return location.visible(); }
-void os9_window_location_field(int f,sv text) { if(!actions.quit) location.set_field(f,text); }
-void os9_window_location_item(int item) {
+bool os9_window_place_visible() { return place.visible(); }
+void os9_window_place_query(sv value) { if(!actions.quit) place.set_query(value); }
+void os9_window_place_item(int item) { if(!actions.quit) { place.item(item); place_closed(); } }
+void os9_window_place_key(char key,bool command) {
     if(actions.quit) return;
+    EventRecord e={}; e.what=keyDown; e.message=key; e.modifiers=command?cmdKey:0;
+    place.event(e); place_closed();
+}
+size_t os9_window_place_count() { return place.count(); }
+int os9_window_place_selected() { return place.selected(); }
+bool os9_window_location_visible() { return location.visible(); }
+void os9_window_location_field(int f,sv text) { if(!actions.quit && !place.visible()) location.set_field(f,text); }
+void os9_window_location_item(int item) {
+    if(actions.quit || place.visible()) return;
     bool was_visible=location.visible();
     location.item(item,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice);
-    if(was_visible && !location.visible()) { if(location.committed()) settings_committed(); draw(); }
+    if(was_visible && !location.visible()) location_closed();
 }
 int os9_window_location_focus() { return location.focus(); }
 void os9_window_location_key(char key,bool shift) {
-    if(actions.quit) return;
+    if(actions.quit || place.visible()) return;
     EventRecord e={}; e.what=keyDown; e.message=key; e.modifiers=shift?shiftKey:0;
     bool visible=location.visible();
     location.event(e,*prefs_store,*legacy_store,cfg,model,net.now(net),&settings_notice);
-    if(visible && !location.visible()) { if(location.committed()) settings_committed(); draw(); }
+    if(visible && !location.visible()) location_closed();
 }
 const Config &os9_window_config() { return cfg; }
 Status os9_window_settings_status() { return settings_notice; }
@@ -362,8 +412,9 @@ int run_os9_window(const WindowTestHooks *hooks) {
         if(!hooks->preferences || !hooks->legacy) return 1;
         prefs_store=hooks->preferences; legacy_store=hooks->legacy; startup=okay();
     } else startup=os9_settings_init(&preferences);
-    if(hooks && hooks->setup) hooks->setup(cfg);
-    else if(startup.ok()) startup=load_preferences(*prefs_store,*legacy_store,cfg);
+    bool configured=false;
+    if(hooks && hooks->setup) { hooks->setup(cfg); first_run=hooks->first_run; }
+    else if(startup.ok()) { startup=load_preferences(*prefs_store,*legacy_store,cfg,&configured); first_run=startup.ok() && !configured; }
 	model=Model(ModelConfig{cfg.auto_refresh,900,60});
 	log_init(cfg.level,false,"weather");
 	InitGraf(&qd.thePort); InitFonts(); InitWindows(); InitMenus(); TEInit(); InitDialogs(nullptr); InitCursor();
@@ -387,7 +438,7 @@ int run_os9_window(const WindowTestHooks *hooks) {
 	AppendMenu(file, pascal_text("Refresh/R;(-;Quit/Q")); InsertMenu(file, 0);
 	AppendMenu(options, pascal_text("Automatic updates;Metric;Imperial;(-;Location/L;Save forecasts on this computer")); InsertMenu(options, 0);
 	DrawMenuBar();
-	os9_net_init(&net); net.yield=pump; tls_net_init(&net); draw();
+	os9_net_init(&net); net.yield=pump; tls_net_init(&net);
 	{
 		if(test_hooks) active_cache=test_hooks->cache_store; // null explicitly disables diagnostic persistence
 		else {
@@ -400,11 +451,14 @@ int run_os9_window(const WindowTestHooks *hooks) {
         Status removed=remove_cached_forecast(*active_cache);
         if(!removed.ok()) settings_notice=removed;
     }
+    if(first_run) settings_notice=location.open(cfg,model);
+    draw();
 	while(!actions.quit) {
 		pump(net); if(actions.quit) break;
 		if(test_hooks && test_hooks->idle) test_hooks->idle();
 		if(actions.quit) break;
-		if(!location.visible() && model.tick(net.now(net))) {
+        service_place_search(); if(actions.quit) break;
+		if(!first_run && !location.visible() && !place.visible() && model.tick(net.now(net))) {
 			if(cfg.cache && active_cache && !model.has_forecast()) {
 				CachedForecast previous; bool found=false;
 				Status loaded=read_cached_forecast(*active_cache,cache_key(cfg),net.now(net),&previous,&found);
@@ -423,6 +477,7 @@ int run_os9_window(const WindowTestHooks *hooks) {
 		CheckItem(options,1,cfg.auto_refresh); CheckItem(options,2,cfg.metric); CheckItem(options,3,!cfg.metric); CheckItem(options,6,cfg.cache);
 		long finalTicks; Delay(1,&finalTicks);
 	}
+    place.cancel();
 	location.cancel();
 	os9_net_shutdown();
 	DeleteMenu(128); DeleteMenu(129); DeleteMenu(130);

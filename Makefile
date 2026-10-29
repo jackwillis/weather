@@ -71,6 +71,15 @@ $(BUILD)/xweather.debug: $(XW_OBJS) $(BEARSSL_LIB)
 $(BUILD)/xweather: $(BUILD)/xweather.debug
 	$(STRIP)
 
+# Separate diagnostic executable: production links no fixture generator.
+$(OBJ)/ui/xweather/search_runner.o: src/ui/xweather/main.cpp $(OBJ)/.flags
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS_ALL) -DWEATHER_XWEATHER_LIBRARY -c -o $@ $<
+
+$(BUILD)/xweather-search-test: $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_search.o $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_search.o $(BEARSSL_LIB) $(X11_LIBS)
+
+
 $(BUILD)/cde-text-test: $(OBJ)/test/cde_text.o $(OBJ)/ui/xweather/cde.o $(OBJ)/platform/$(PLATFORM)/nocxx.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
 
@@ -207,6 +216,17 @@ $(BUILD)/ot-shutdown-test: test/ot_shutdown.cpp src/platform/os9/ot_glue.cc src/
 
 # ---- tests
 check: $(CHECK_TARGET)
+PPC_RUN ?= qemu-ppc -L /usr/powerpc-linux-gnu
+$(BUILD)/ppc-runtime: $(OBJ)/test/ppc_runtime.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $<
+
+# No binfmt registration or privileged emulator setup is required.
+check-ppc: $(BUILD)/ppc-runtime $(BUILD)/unittest $(BUILD)/robust
+	$(PPC_RUN) $(BUILD)/ppc-runtime
+	$(PPC_RUN) $(BUILD)/unittest
+	$(PPC_RUN) $(BUILD)/robust
+.PHONY: check-ppc
+
 
 # Exercise both configurations, preserving production defaults and release artifacts.
 check-test-hooks: $(BUILD)/weather
@@ -227,7 +247,12 @@ ifeq ($(TEST_HOOKS),0)
 	$(MAKE) TARGET=$(TARGET) check-test-hooks
 endif
 	python3 test/seed_provision.py
+	python3 test/session_edits.py
+	python3 test/package_safety.py
+	python3 test/delivery_safety.py
+	sh test/session_edits.sh
 	python3 test/entropy_analysis.py
+	sh test/changelog.sh
 	sh test/flags.sh "$(MAKE)"
 # Everything again under AddressSanitizer + UBSan: unit tests, parser robustness, the CLI's feature tests.
 check-san:
@@ -249,13 +274,13 @@ check-san:
 san-note:
 	@echo "check-san: $(SAN_NOTE)"
 
-check-gui: $(BUILD)/xweather $(BUILD)/xdrive $(BUILD)/cde-text-test $(BUILD)/cde-field-test
+check-gui: $(BUILD)/xweather $(BUILD)/xdrive $(BUILD)/xweather-search-test $(BUILD)/cde-text-test $(BUILD)/cde-field-test
 	$(BUILD)/cde-text-test
 	sh test/field-host.sh $(BUILD)/cde-field-test
 	sh test/gui-host.sh
 
 check-gui-maul:
-	$(MAKE) TARGET=netbsd-macppc all build/netbsd-macppc/xdrive
+	$(MAKE) TARGET=netbsd-macppc all build/netbsd-macppc/xdrive build/netbsd-macppc/xweather-search-test
 	sh test/gui-maul.sh
 
 check-cross:

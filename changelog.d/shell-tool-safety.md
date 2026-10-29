@@ -1,0 +1,1 @@
+- Session editors preserve the original on failed edits; package transfers validate producer and download results; OS 9 delivery stages the copy and publishes success only after it completes (#57, #85).

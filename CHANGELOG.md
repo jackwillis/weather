@@ -7,7 +7,7 @@ and is not the v0.1 gate. See `docs/release-notes/0.0.1.md` for what works and t
 - Same code as the `0.1.0 (unreleased)` list below, as of the tagged commit; only the version differs.
 
 ## 0.1.0 (unreleased)
-- OS 9 preserves completed DNS answers after resolver cleanup failure, quarantines later lookups, and closes network endpoints before Open Transport at exit. Failed exit-handler registration rolls transport initialization back.
+- Hosted checks execute the portable unit and mutation suites on emulated 32-bit big-endian PowerPC with undefined-behavior traps.
 First version.
 - OS 9 status now reads “Automatic updates are on” when automatic updates are enabled.
 - New installations fall back from Open-Meteo to MET Norway using the project URL as contact, with user overrides preserved. Saved MET forecasts honor server expiry across source changes and revalidate afterwards; saving off still skips MET. Forecast timestamps are labelled as forecasts.

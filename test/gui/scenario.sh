@@ -10,6 +10,7 @@
 #      GALLERY="name:port name:port ..."   one fixture server per weather picture
 cd "${WX_DIR:-.}" || exit 1
 export PATH=/usr/X11R7/bin:$PATH DISPLAY=${DISP:-:77}
+XVFB_ARGS=${XVFB_ARGS:--noreset}
 XVFB=${XVFB:-Xvfb}; EXT=${SNAPEXT:-xwd}
 rm -rf snap; mkdir snap
 fail=0; pass=0
@@ -18,7 +19,7 @@ snap() { ./xdrive snap snap/$1.$EXT; }
 fetches() { c=$(grep -c 'trying open-meteo' xw.log); echo ${c:-0}; }
 start_xw() { # start_xw RC PORT [extra args]   (-v logs one line per fetch)
 	rc=$1; port=$2; shift 2
-	./xweather -v -c "$rc" -H 127.0.0.1:$port "$@" > xw.log 2>&1 &
+	${XW_BIN:-./xweather} -v -c "$rc" -H 127.0.0.1:$port "$@" > xw.log 2>&1 &
 	XW=$!
 	./xdrive wait Weather 20000 || { echo "FAIL window did not appear"; cat xw.log; fail=$((fail+1)); return 1; }
 }
@@ -146,9 +147,9 @@ if start_xw rcE $PORT_OK; then
 	./xdrive key l ctrl sleep 200 down 160 243 up 160 243 3 sleep 300
 	check "E: right-button release cannot activate left-button OK" "$(fetches)" 1
 	check "E: wrong-button release does not save" "$(cmp -s rcE rcE.before; echo $?)" 0
-	./xdrive key Escape up 160 243 key l ctrl sleep 200 down 160 243 key Return sleep 1500 up 160 243 sleep 500
+	./xdrive key Escape up 160 243 key l ctrl sleep 200 key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace type 11 down 160 243 key Return sleep 1500 up 160 243 sleep 500
 	check "E: Return while holding OK applies exactly once" "$(fetches)" 2
-	./xdrive key l ctrl sleep 200 down 160 243 up 10 10 sleep 300
+	./xdrive key l ctrl sleep 200 key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace type 12 down 160 243 up 10 10 sleep 300
 	check "E: release outside OK does not apply" "$(fetches)" 2
 	./xdrive click 160 243 sleep 1500
 	check "E: ordinary OK click still applies" "$(fetches)" 3
@@ -168,10 +169,97 @@ if start_xw rcF $PORT_OK; then
 	check "F: full-length name survives editing" "${#saved}" 47
 	case "$saved" in Z*Y) check "F: Home and End edit visible endpoints" yes yes;; *) check "F: Home and End edit visible endpoints" no yes;; esac
 	case "$saved" in *0*) check "F: click uses scrolled text position" yes yes;; *) check "F: click uses scrolled text position" no yes;; esac
-	check "F: applying long name refetches once" "$(fetches)" 2
+	check "F: a name-only edit saves without refetching" "$(fetches)" 1
 	keeplog F
 	quit_xw F
 fi
+
+# Saving a location must succeed before the old configuration/data are replaced.
+printf 'attempts = 1\nautorefresh = off\n' > rcSave
+if start_xw rcSave $PORT_OK; then
+    ./xdrive sleep 1500
+    mv rcSave rcSave.before; mkdir rcSave
+    ./xdrive key l ctrl sleep 200
+    ./xdrive key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace type 12 key Return sleep 1200
+    check "Save: failure preserves current forecast without refetch" "$(fetches)" 1
+    snap Save01-failed
+    rmdir rcSave; mv rcSave.before rcSave
+    ./xdrive key Return sleep 1200
+    check "Save: retry in the open dialog saves coordinates" "$(grep -c 'latitude = 12.0000' rcSave)" 1
+    check "Save: successful retry refetches once" "$(fetches)" 2
+    quit_xw Save
+fi
+
+# Fixture lookup is a separately linked executable, never a production endpoint override.
+if [ -x ./xweather-search-test ]; then
+    XW_BIN=./xweather-search-test
+    printf 'attempts = 1\nautorefresh = off\n' > rcSearch
+    if start_xw rcSearch $PORT_OK; then
+        ./xdrive sleep 1500 key l ctrl sleep 200 key f ctrl sleep 200
+        check "Search: opening the search sends no query" "$(grep -c 'X11 fixture place lookup' xw.log)" 0
+        ./xdrive key u ctrl type Madison key Return sleep 400
+        snap Search01-results
+        check "Search: explicit action performs one lookup" "$(grep -c 'X11 fixture place lookup' xw.log)" 1
+        ./xdrive click 170 267 sleep 200
+        check "Search: Use without a choice does not refetch" "$(fetches)" 1
+        ./xdrive key Down key Down key Return sleep 300
+        snap Search02-selected-fields
+        check "Search: choosing only fills fields without saving" "$(grep -c latitude rcSearch)" 0
+        check "Search: choosing does not refetch" "$(fetches)" 1
+        ./xdrive key Return sleep 1500
+        check "Search: Apply saves chosen coordinates" "$(grep -c 'latitude = 45.5000' rcSearch)" 1
+        check "Search: Apply saves chosen display name" "$(grep -c 'name = Montr?al' rcSearch)" 1
+        check "Search: selection preserves units" "$(grep -c 'units = imperial' rcSearch)" 1
+        check "Search: Apply refetches once" "$(fetches)" 2
+        ./xdrive key l ctrl sleep 150 key f ctrl sleep 150 key u ctrl type Fail key Return sleep 300
+        snap Search03-failed
+        ./xdrive key Escape key Escape sleep 200
+        check "Search: failure/cancel preserve config" "$(grep -c 'latitude = 45.5000' rcSearch)" 1
+        check "Search: failure/cancel keep last forecast" "$(fetches)" 2
+        ./xdrive key l ctrl sleep 150 key f ctrl sleep 150 key u ctrl type Empty key Return sleep 300
+        snap Search04-empty
+        ./xdrive key Escape key Escape sleep 200
+        ./xdrive key l ctrl sleep 150 key f ctrl sleep 150 key u ctrl type Slow key Return sleep 300 key Escape sleep 400
+        check "Search: Escape cancels the blocking lookup" "$(grep -c 'X11 fixture search cancelled' xw.log)" 1
+        snap Search05-cancelled-to-location
+        check "Search: cancelled lookup does not refetch" "$(fetches)" 2
+        ./xdrive key Escape
+        quit_xw Search
+        if start_xw rcSearch $PORT_OK; then
+            ./xdrive sleep 1200 key l ctrl sleep 200
+            snap Search06-restart
+            ./xdrive key Return sleep 300
+            check "Search: restart keeps chosen location without another change" "$(fetches)" 1
+            ./xdrive click 332 189 sleep 150 key u ctrl type Slow key Return sleep 300
+            quit_xw Search-restart
+        fi
+    fi
+    unset XW_BIN
+fi
+
+# Empty settings show the default location and fetch it; nothing is written until a location is saved (#198).
+: > rcFirst
+if start_xw rcFirst $PORT_OK; then
+    ./xdrive sleep 1500
+    check "First: default location is fetched without a dialog" "$(fetches)" 1
+    check "First: nothing is written by launching" "$(wc -c < rcFirst | tr -d ' ')" 0
+    snap First01-default
+    ./xdrive key l ctrl sleep 300
+    snap First02-location-opened
+    ./xdrive key Escape sleep 300
+    check "First: Escape in Location closes only the dialog" "$(kill -0 "$XW" 2>/dev/null; echo $?)" 0
+    check "First: cancelling Location leaves the file empty" "$(wc -c < rcFirst | tr -d ' ')" 0
+    ./xdrive key l ctrl sleep 200 key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace key BackSpace type 12 key Return sleep 1500
+    check "First: an explicit save writes the chosen location" "$(grep -c 'latitude = 12.0000' rcFirst)" 1
+    check "First: the explicit save refetches once" "$(fetches)" 2
+    quit_xw First
+fi
+# An invalid settings file is reported and never replaced.
+printf 'latitude = banana\n' > rcBad
+cp rcBad rcBad.before
+./xweather -c rcBad > xw-bad.log 2>&1; bad=$?
+check "First: invalid settings exit with the config error" "$bad" 78
+check "First: invalid settings are not replaced" "$(cmp -s rcBad rcBad.before; echo $?)" 0
 
 # ---------------------------------------------------------------- D: the weather pictures
 for g in $GALLERY; do

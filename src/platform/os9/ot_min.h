@@ -2,8 +2,8 @@
 // Copyright (c) 2026 Jack Willis
 // Minimal hand-written declarations for the slice of Open Transport the weather app needs.
 // Retro68's free headers have none, and Apple's headers are not redistributable, so these are our own declarations
-// of the documented public API. Layouts and signatures were checked against Apple's OpenTransport.h and
-// OpenTptInternet.h (OT SDK 1.3, read locally, never copied here) and by running them on a real Mac OS 9.2.2.
+// of the documented public API. They follow Apple's published Open Transport documentation and Technical Note TN1173, and
+// the declarations in use have been run on a real Mac OS 9.2.2.
 //
 // Our ot_glue.cc supplies the client-record handshake; no Apple object files are needed.
 #ifndef WEATHER_OT_MIN_H
@@ -60,7 +60,7 @@ InetSvcRef OTOpenInternetServicesPriv(OTConfiguration *cfg, OTOpenFlags oflag, O
 OSStatus OTAsyncOpenInternetServicesPriv(OTConfiguration *cfg, OTOpenFlags oflag, WeatherOTNotify proc, void *context, void *client);
 OSStatus OTCloseProviderPriv(ProviderRef ref, void *client);
 }
-// Error codes (values checked against Apple's header) and event codes returned by OTLook.
+// Error codes and event codes returned by OTLook, as documented in Apple's Open Transport reference.
 enum {
 	kOTBadAddressErr = -3150, kOTOutStateErr = -3155, kOTLookErr = -3158, kOTFlowErr = -3161, kOTNoDataErr = -3162,
 	kOTCanceledErr = -3180, kOTClientNotInittedErr = -3279,

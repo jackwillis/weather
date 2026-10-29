@@ -149,6 +149,22 @@ struct ScaledCanvas {
 	}
 };
 
+// Draws through another Canvas with every colour moved `pct` percent of the way toward `ground` (the window background), so a
+// stale picture reads as faded like the stale text beside it (#62). No state, no allocation.
+template <class C>
+struct DimCanvas {
+	C &canvas;
+	Rgb ground;
+	int pct;
+	Rgb mix(Rgb c) const {
+		return Rgb{c.r + (ground.r - c.r) * pct / 100, c.g + (ground.g - c.g) * pct / 100, c.b + (ground.b - c.b) * pct / 100};
+	}
+	void rect(int x, int y, int w, int h, Rgb c) { canvas.rect(x, y, w, h, mix(c)); }
+	void disc(int x, int y, int r, Rgb c) { canvas.disc(x, y, r, mix(c)); }
+	void line(int x0, int y0, int x1, int y1, int width, Rgb c) { canvas.line(x0, y0, x1, y1, width, mix(c)); }
+	void poly(const ArtPt *p, int n, Rgb c) { canvas.poly(p, n, mix(c)); }
+};
+
 // Larger areas keep the original geometry. Small areas fit the whole scene;
 // empty areas draw nothing, and areas below five pixels show only sky.
 template <class C>

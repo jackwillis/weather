@@ -18,6 +18,7 @@
 #include "app/window_actions.hpp"
 #include "app/textedit.hpp"
 #include "core/providers.hpp"
+#include "core/nws.hpp"
 #include "core/settings.hpp"
 #include "platform/posix/net_posix.hpp"
 #include "platform/posix/settings_posix.hpp"
@@ -46,6 +47,7 @@ static int g_fail = 0, g_run = 0;
 #include "seed_tests.hpp"
 #include "cache_tests.hpp"
 #include "os9_helper_tests.hpp"
+#include "activity_tests.hpp"
 
 static char g_fixbuf[2][8192];
 static const char *fixture(int slot, const char *name)
@@ -177,6 +179,8 @@ struct Fake {
 	long read_secs = 0;      // the clock advances this much on every read (a slow trickle)
 	int reads = 0;
 	bool cancel_sleep = false;
+	int yields = 0, cancel_yield_at = 0, tls_calls = 0, tls_fail_at = 0;
+	char last_host[64] = {};
 	const char *cur = ""; size_t pos = 0; Err cur_err = Err::Ok;
 	char request[512] = {};
 };
@@ -206,11 +210,12 @@ static long fk_write(Io &io, const void *buf, size_t len)
 	if (have + len < sizeof f->request) { memcpy(f->request + have, buf, len); f->request[have + len] = 0; }
 	return static_cast<long>(len);
 }
-static Status fk_connect(Net &n, const char *, const char *, int, Io *out)
+static Status fk_connect(Net &n, const char *host, const char *, int, Io *out)
 {
 	Fake *f = F(n);
 	f->seen_budget_limit = n.budget ? n.budget->limit_ms : -1;
 	f->connects++;
+	snprintf(f->last_host, sizeof f->last_host, "%s", host);
 	Step &s = f->steps[f->next < f->nsteps ? f->next : f->nsteps - 1];
 	f->next++;
 	if (!s.connect_result.ok()) return s.connect_result;
@@ -916,6 +921,33 @@ static void test_art_bounds()
 	}
 }
 
+struct ArtColors {
+	Rgb seen{-1, -1, -1};
+	void rect(int, int, int, int, Rgb c) { seen = c; }
+	void disc(int, int, int, Rgb c) { seen = c; }
+	void line(int, int, int, int, int, Rgb c) { seen = c; }
+	void poly(const ArtPt *, int, Rgb c) { seen = c; }
+};
+static void test_art_dim()
+{
+	ArtColors base;
+	art::DimCanvas<ArtColors> dim{base, Rgb{200, 200, 200}, 50};
+	dim.rect(0, 0, 1, 1, Rgb{0, 100, 255});
+	CHECK(base.seen.r == 100 && base.seen.g == 150 && base.seen.b == 228);   // halfway to the ground, truncating toward zero
+	dim.disc(0, 0, 1, Rgb{200, 200, 200});
+	CHECK(base.seen.r == 200 && base.seen.g == 200 && base.seen.b == 200);   // the ground colour is a fixed point
+	ArtPt tri[3] = {{0, 0}, {4, 0}, {0, 4}};
+	dim.poly(tri, 3, Rgb{10, 20, 30});
+	CHECK(base.seen.r == 105 && base.seen.g == 110 && base.seen.b == 115);
+	art::DimCanvas<ArtColors> none{base, Rgb{200, 200, 200}, 0};
+	none.line(0, 0, 3, 3, 2, Rgb{7, 8, 9});
+	CHECK(base.seen.r == 7 && base.seen.g == 8 && base.seen.b == 9);          // 0 percent changes nothing
+	ArtBounds bounds{ArtRect{0, 0, 60, 60}};
+	art::DimCanvas<ArtBounds> through{bounds, Rgb{200, 200, 200}, 55};
+	art::picture(through, ArtRect{0, 0, 60, 60}, 61, false);                  // a whole scene draws through the adapter
+	CHECK(bounds.valid && bounds.calls > 0);
+}
+
 static void test_model()
 {
 	{ // Rounding at the minute/hour boundary must not produce "60 min".
@@ -1011,7 +1043,21 @@ static void test_model()
 		m.finish(900, fail_dns(), nullptr);
 		CHECK(m.phase() == Phase::Failed && m.has_forecast() && m.forecast().temp_t10 == 548 && m.stale(900));
 		Buf<200> b; m.status_line(b, 930);     // data is from t=0, retry due at 960
-		CHECK(b.view() == sv("Update failed: cannot resolve host name. Showing data from 16 min ago. Next update in 30 s"));
+		CHECK(b.view() == sv("Showing data from 16 min ago. Update failed: cannot resolve host name. Next update in 30 s"));
+	}
+	{ // a long error cannot push the age off the end of the fitted line: the age comes first (#49)
+		Model m(mc, 0);
+		m.tick(0);
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		CHECK(m.tick(900));
+		m.finish(900, make(Err::CertUntrusted, "certificate is not trusted: the issuer is unknown or the chain is incomplete"), nullptr);
+		Buf<256> b; m.status_line(b, 930);
+		const char *age = strstr(b.c_str(), "16 min ago"), *error = strstr(b.c_str(), "Update failed");
+		CHECK(age && error && age < error && age - b.c_str() < 30);
+		CHECK(m.stale(930));
+		Buf<256> failed_empty; Model none(mc, 0); none.tick(0); none.finish(0, fail_dns(), nullptr); none.status_line(failed_empty, 1);
+		CHECK(strstr(failed_empty.c_str(), "Showing data") == nullptr && strncmp(failed_empty.c_str(), "Update failed", 13) == 0);
 	}
 	{ // a permanent error (bad certificate) is not retried faster than the normal interval
 		Model m(mc, 0);
@@ -1568,6 +1614,7 @@ static void test_window_actions()
 }
 
 #include "preferences_tests.hpp"
+#include "geocoding_tests.hpp"
 
 static bool credits_mention(const char *what)
 {
@@ -1591,6 +1638,7 @@ static void test_credits()
 		for (size_t i = 0; i < p.n; i++) CHECK(strlen(p.lines[i]) <= 46);
 	}
 }
+#include "nws_tests.hpp"
 
 #include "conditional_tests.hpp"
 
@@ -1607,14 +1655,17 @@ int main()
 	test_settings_store();
 	test_model();
 	test_art_bounds();
+	test_art_dim();
 	test_credits();
 	test_window_actions();
 	test_config_load();
 	test_preferences();
+	test_geocoding();
 	test_preference_effects();
 	test_modal_clock();
 	test_forms();
 	test_metno();
+	test_nws();
 	test_os9_dns();
 	test_seed_pool();
 	test_conditional_requests();
@@ -1622,6 +1673,7 @@ int main()
 	test_cache_storage();
 	test_cache_model();
 	test_os9_helpers();
+	test_activity();
 	printf("%d checks, %d failed\n", g_run, g_fail);
 	return g_fail ? 1 : 0;
 }

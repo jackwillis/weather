@@ -42,6 +42,7 @@ serve imperial; P_IMP=$P
 serve badjson; P_BADJ=$P
 serve metno; P_MET=$P
 serve fallback; P_FALL=$P
+serve nws; P_NWS=$P
 CFG="$FIXTURE_STATE/config"; echo "attempts = 1" > "$CFG"
 W="-c $CFG"
 
@@ -256,6 +257,18 @@ SOUT=$("$BIN" -c "$CFG" -1 -H 127.0.0.1:$P_OK 2>/dev/null)
 case "$SOUT" in "54.8F Clear sky"*) ok;; *) bad "stdout polluted: $SOUT";; esac
 case "$SOUT" in *weather:*) bad "log text on stdout";; *) ok;; esac
 
+# Search is explicit, read-only and never silently falls through to a forecast.
+expect "search help" 0 --help
+contains "search option documented" "-g"
+expect "search rejects one-character query" 64 $W -g x
+contains "search query validation" "2 to 63"
+expect "search refuses HTTP fixture downgrade" 64 $W -g Madison -H 127.0.0.1:$P_OK
+expect "search cannot save implicitly" 64 $W -g Madison -S
+expect "search cannot override coordinates" 64 $W -g Madison -l 1,2
+expect "search rejects duplicate query" 64 $W -g Madison -g Paris
+expect "search validates before connecting" 64 $W -g 'A
+B'
+
 if [ -n "$ONLINE" ]; then
 	expect "online live fetch" 0 -1
 	if [ "${TEST_HOOKS_ENABLED:-0}" = 1 ]; then
@@ -271,6 +284,12 @@ if [ -n "$ONLINE" ]; then
 	fi
 	rm -f "$CFG.err"
 fi
+
+expect "NWS complete observation chain" 0 $W -1 -p nws -H 127.0.0.1:$P_NWS
+contains "NWS imperial output" "54.5F Partly cloudy, wind 11.2mph W, humidity 72% (nws 2026-10-25T23:53)"
+expect "NWS metric observation" 0 $W -1 -u metric -p nws -H 127.0.0.1:$P_NWS
+contains "NWS metric output" "12.5C Partly cloudy, wind 18.0km/h W"
+expect "NWS outside coverage" 76 $W -1 -p nws -H 127.0.0.1:$P_404
 
 rm -f "$CFG"
 echo "feature tests: $pass passed, $fail failed"

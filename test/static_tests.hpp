@@ -11,6 +11,7 @@
 #include "core/http.hpp"
 #include "core/json.hpp"
 #include "core/metno.hpp"
+#include "core/nws.hpp"
 #include "core/openmeteo.hpp"
 #include "core/settings.hpp"
 #include "app/locform.hpp"

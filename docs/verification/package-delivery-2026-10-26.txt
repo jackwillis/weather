@@ -1,0 +1,64 @@
+Package transfer and OS 9 delivery status: remaining #57 / G1 script findings
+
+Package orchestration now checks each producer and consumer separately using
+files instead of POSIX shell pipelines with hidden producer status. Build
+metadata readelf/gcc and file-size collection failures propagate. A completed
+local stage.tar is uploaded to a private, validated remote directory, then
+extracted with a checked status before pkg_create is invoked. A downloaded
+package remains .part until tar validates it; only then is it renamed to the
+published .tgz. Success removes own local/remote staging. Failures leave remote
+staging for diagnosis; no unrelated /tmp/wxpkg tree is removed. Cross-tool
+prefix is configurable with WEATHER_CROSS_PREFIX, defaulting to the existing
+Linux cross-toolchain path. No compilation or installation runs on maul.
+
+Delivery now clears a stale success marker on invocation, checks attachment,
+mount/info/source/copy/detach, and only publishes deliver.done after success.
+APPL is copied with ditto -rsrc into a private destination-volume staging dir,
+then renamed after successful detach, preserving the old app on copy failure.
+Exit cleanup attempts detach when a device was reported and cleans own staging.
+Defaults stay weather-dev and /tmp/deliver.{log,done}; isolated test overrides
+WEATHER_DELIVER_DEST and WEATHER_DELIVER_STATE avoid real OS 9 volumes. Disk
+commands and resource-fork behavior are not hardware-verified while Tiger is
+parked. Later failures after publication (for example final marker rename)
+can leave the new application installed without a success marker.
+
+Red tests, using only command stubs and private files:
+- Package: 3 tests failed (archive producer ignored, failed metadata ignored,
+  and interrupted download published). /tmp/weather-package-red.log.
+- Delivery: 4 groups, 7 failures (failed native steps marked done, missing source
+  accepted and partial copy overwrote old app). /tmp/weather-delivery-red.log.
+Fixture copies only repointed old hardcoded paths; no real /Volumes, native
+Mac disk command, privileged step or network service was touched by these tests.
+
+Focused green: 6 package groups and6 delivery groups, with subcases. They cover
+success, spaces in APPL names, producer/metadata/upload/extract/download errors,
+corrupt successful download refusal, source/device/volume validation, stale
+marker clearing, attach/mount/info/copy/detach failures and old-app preservation.
+These run automatically under make check alongside the existing configuration
+editor tests. They are fixture tests, not a substitute for native OS X testing.
+
+Final verification
+make check passed: 517 unit checks, 230242 mutation inputs, 106 CLI checks,
+12 local real-TLS checks, nine session-editor groups, six package groups,
+six delivery groups, four POSIX session smoke checks, 21 serialized GUI checks,
+plus lint/anchors/provisioning/flags. /tmp/weather-script-audit-check.log.
+make check-san explicitly enabled ASan with UBSan: 517 unit checks, 230242
+mutation inputs, 106 CLI checks passed. /tmp/weather-script-audit-san.log.
+A final logging refinement lists only the delivered app, not unrelated files;
+all six delivery groups were rerun successfully afterward.
+
+make package-netbsd passed against actual maul NetBSD: code cross-built on
+Linux, pkg_create only archived on maul, private staging transferred/extracted,
+validated package downloaded as build/pkg/weather-0.1.0.tgz (219776 bytes).
+Checked both bin/weather and bin/xweather plus PowerPC/X11/libc metadata in the
+archive. GNU tar warned about BSD hdrcharset extended headers while listing;
+validation still returned success and the archive was also read with Python's
+tarfile. /tmp/weather-script-audit-package.log. No package installation or
+privileged command occurred. Own remote package staging was removed on success.
+
+Native Tiger hdiutil/diskutil/ditto/resource-fork behavior remains unverified.
+Tests use disposable fixtures; there was no Tiger boot, OS 9 volume access,
+system dialog, real delivery or root install. #85 stays draft pending native
+acceptance/review. Initial failure output included AssertionError: 0 == 0
+(operation reported success where nonzero was required); full outputs remain
+in /tmp/weather-package-red.log and /tmp/weather-delivery-red.log.
