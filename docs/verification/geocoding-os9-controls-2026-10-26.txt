@@ -1,0 +1,31 @@
+PR #17: native OS9 place search controls (cross-built, NOT RUN on OS9)
+
+Red: host unit build failed because PlacePicker was absent. Portable policy tests
+then pass for explicit selection, query edits, busy/invalid choices, cancellation,
+lookup failure and oversized callback results.
+
+Final host make check / make check-san (explicit ASan+UBSan):
+  662 unit / 231002 mutation / 108 CLI / 95 CDE text checks, zero failures.
+  Host GUI: 53 checks pass. No supplemental full ASan GUI run at this milestone.
+Actual NetBSD/macppc G4: 662 unit / 87002 mutation inputs, zero failures.
+All compilation was on Linux. Retro68 PowerPC/m68k portable probes pass.
+Full OS9 Weather/WeatherConsole and diagnostics build. Native keyboard hook and
+final screenshot-pause changes were subsequently cross-built; only the changed
+diagnostic target was rebuilt after the last probe-only change.
+
+Initial native builds failed on the Toolbox Status ambiguity and pascal macro;
+qualified wx::Status and renamed the Pascal-string helper, then builds passed.
+New misleading-indentation warnings were fixed. No fixture lookup failure text,
+place-search-test.log, or capture-stage marker is present in production Weather.pef.
+
+WeatherPlaceSearchTest has only memory stores and explicit fake callbacks. It is
+prepared for first-run gating, pending Find/Apply, no lookup on open/type, explicit
+selection, stale-result clearing, failed save then retry, failed/empty lookup,
+Return/Down handling and Escape cancellation through Net::yield. Capture-stage
+markers leave result/error states visible for 3 seconds. It has NOT RUN.
+Production diagnostics with no search callback fail closed rather than use TLS.
+
+Limits: no Tiger boot, OS9 interaction/screenshots/layout, live OS9 geocoding TLS,
+real Preferences restart or provider-choice acceptance performed. No actual G4 GUI
+run was repeated here (prior first-run milestone had 53 G4 GUI checks). Provider
+selection and combined stack integration remain separate work. PR stays draft.

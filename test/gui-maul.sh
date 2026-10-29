@@ -16,11 +16,11 @@ NAME=${REMOTE#/tmp/}
 suffix=${NAME#wx-gui.}
 case "$suffix" in ''|*[!A-Za-z0-9]*) echo "invalid remote temporary suffix"; exit 1;; esac
 [ "${#suffix}" -eq 8 ] || { echo "invalid remote temporary length"; exit 1; }
-for f in build/netbsd-macppc/xweather build/netbsd-macppc/xdrive; do maulctl push nb $f "$NAME/$(basename "$f")" >/dev/null || exit 1; done
+for f in build/netbsd-macppc/xweather build/netbsd-macppc/xweather-search-test build/netbsd-macppc/xdrive; do maulctl push nb $f "$NAME/$(basename "$f")" >/dev/null || exit 1; done
 maulctl push nb test/gui/scenario.sh "$NAME/scenario.sh" >/dev/null || exit 1
 python3 test/cache_fixture.py $OUT/rcCache.cache
 maulctl push nb $OUT/rcCache.cache "$NAME/rcCache.cache" >/dev/null || exit 1
-maulctl nb "chmod 755 $REMOTE/xweather $REMOTE/xdrive" || exit 1
+maulctl nb "chmod 755 $REMOTE/xweather $REMOTE/xweather-search-test $REMOTE/xdrive" || exit 1
 FWD="-o ExitOnForwardFailure=yes"; for p in $PORTS; do FWD="$FWD -R $p:127.0.0.1:$p"; done
 NB_SSH_OPTS="$FWD" maulctl nb "cd $REMOTE && WX_DIR=$REMOTE DISP=:77 SNAPEXT=xwd PORT_OK=$PORT_OK PORT_SLOW=$PORT_SLOW PORT_500=$PORT_500 GALLERY='$GALLERY' sh $REMOTE/scenario.sh" 2>&1 | tee $OUT/log.txt
 for f in $(maulctl nb "ls $REMOTE/snap" 2>/dev/null); do

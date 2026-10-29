@@ -63,6 +63,16 @@ The example above is illustrative, not a live forecast.
 For project goals and technical detail, see [docs/PLAN.md](docs/PLAN.md),
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [the issue tracker](https://github.com/jackwillis/weather/issues).
 
+Place-name lookup is explicit and read-only: `weather -g "Madison, WI"` lists
+up to five matches with region/country and coordinates, then exits. Choose the
+coordinates deliberately and use a separate command such as
+`weather -l 43.0731,-89.4012 -n Madison -S` to save. Search credits Open-Meteo /
+GeoNames; its public endpoint is for non-commercial use. With missing or empty
+settings, the window asks for an initial location before fetching; Cancel exits
+without saving or fetching. The CLI remains non-interactive. See
+[search behavior and privacy](docs/GEOCODING.md). X11 Location has Find... (Ctrl-F) with explicit result selection; OK saves
+separately. OS 9 search controls are still in progress.
+
 ## xweather
     xweather [-dhqvV] [-c file] [-display name]
 A CDE-look window: menu bar (File: Refresh F5, Location... Ctrl+L, Exit Ctrl+Q; Options: auto-refresh, units and forecast saving; Help: About xweather... > Credits...),
@@ -72,7 +82,7 @@ It shares `~/.weatherrc` with `weather`. Closing the window during a fetch cance
 `xweather.background`, `.foreground`, `.font`, `.boldFont`, `.bigFont`.
 
 ## Use
-    weather [-1dhqsSV] [-c file] [-l lat,lon] [-n name] [-p sources] [-t secs] [-u metric|imperial] [-v]
+    weather [-1dhqsSV] [-c file] [-l lat,lon] [-n name] [-p sources] [-t secs] [-u metric|imperial] [-v] [-g query]
 Data sources: Open-Meteo first, then MET Norway automatically if it fails. `nws` (US station observations; see [NWS notes](docs/NWS.md)) can be added with `-p` or `providers`. MET identifies the app using `https://github.com/jackwillis/weather`; an optional `contact` overrides that URL. Existing `providers` settings and `-p` keep their explicit order. MET requires forecast saving; with saving off, it is skipped. Saved MET responses are reused until the service’s `Expires` time, then conditionally revalidated.
 
 Attribution: weather data comes from [Open-Meteo](https://open-meteo.com) and, if enabled, the [MET Norway Locationforecast API](https://api.met.no), both under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the values are converted to your units and summarised, otherwise unchanged. The `nws` source (if enabled) uses the US National Weather Service API; see `docs/NWS.md`. Open-Meteo's free tier is for non-commercial use. See `docs/PROVIDER-TERMS.md`.

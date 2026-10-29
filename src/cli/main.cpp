@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jack Willis
 // weather: print current conditions. See weather.1 for usage.
 #include "core/config.hpp"
+#include "core/geocoding.hpp"
 #include "app/model.hpp"
 #include "platform/posix/cache_posix.hpp"
 #include "core/fetch.hpp"
@@ -26,7 +27,8 @@ using namespace wx;
 static void usage(FILE *f)
 {
 	fputs("usage: weather [-1CdhqsSV] [-c file] [-l lat,lon] [-n name] [-p providers] [-t secs]\n"
-	      "               [-u metric|imperial] [-v]\n"
+	      "               [-u metric|imperial] [-v] [-g query]\n"
+              "  -g  search places and exit; does not save or fetch weather\n"
 	      "  -1  one line of output       -c  config file (default ~/.weatherrc)\n"
 	      "  -d  debug: dump traffic      -l  latitude,longitude in decimal degrees\n"
 	      "  -n  place name for display   (-l without -n drops the configured name)\n"
@@ -64,6 +66,7 @@ int main(int argc, char **argv)
 	int verbose = 0;
 	bool quiet = false;
 	const char *force = nullptr;
+	const char *place_query = nullptr;
 	char forcehost[256], *forceport = nullptr;
 
 	signal(SIGPIPE, SIG_IGN);
@@ -80,17 +83,21 @@ int main(int argc, char **argv)
 
 	static const struct option longopts[] = {
 		{"help", no_argument, nullptr, 'h'},
+		{"search", required_argument, nullptr, 'g'},
 		{"version", no_argument, nullptr, 'V'},
 		{"credits", no_argument, nullptr, 'C'},
 		{nullptr, 0, nullptr, 0},
 	};
 	int ch;
-	while ((ch = getopt_long(argc, argv, "1c:CdhH:l:n:p:qsSt:u:vV", longopts, nullptr)) != -1) {
+	while ((ch = getopt_long(argc, argv, "1c:Cdg:hH:l:n:p:qsSt:u:vV", longopts, nullptr)) != -1) {
 		switch (ch) {
 		case '1': oneline = true; break;
 		case 'c': cfgpath = optarg; break;
 		case 'd': dump = true; verbose = 3; break;
 		case 'h': usage(stdout); return 0;
+		case 'g':
+			if(place_query) return fail(make(Err::Usage,"give one search query per invocation"));
+			place_query=optarg; break;
 		case 'H': force = optarg; break;
 		case 'l': case 'n': case 'p': case 't': case 'u':
 			if (npending == sizeof pending / sizeof *pending) return fail(make(Err::Usage, "too many options"));
@@ -116,6 +123,13 @@ int main(int argc, char **argv)
 		}
 	}
 	if (optind != argc) { usage(stderr); return exit_code(Err::Usage); }
+
+	if(place_query) {
+        if(save || force || oneline) return fail(make(Err::Usage,"search cannot combine with -S, -H or -1"));
+        for(size_t i=0;i<npending;i++) if(pending[i].ch!='t') return fail(make(Err::Usage,"search cannot combine with location, units or provider flags"));
+        char path[256]; Status s=geocoding_path(place_query,path,sizeof path);
+        if(!s.ok()) return fail(s);
+    }
 
 	// Config file first, then the recorded options on top of it, in the order given.
 	PosixStore store;
@@ -191,6 +205,20 @@ int main(int argc, char **argv)
 		fo.force_port = forceport;
 		logf(LogWarn, "plain HTTP to %s:%s, NO TLS (testing mode)", forcehost, forceport);
 	}
+
+	if(place_query) {
+        Net search_net; posix_net_init(&search_net); search_net.yield=cli_yield; tls_net_init(&search_net);
+        static char search_buffer[40*1024]; PlaceResults places;
+        // A place lookup is separately bounded even if forecast retries are higher.
+        if(fo.attempts>3) fo.attempts=3;
+        if(fo.timeout_s>60) fo.timeout_s=60;
+        Status s=search_places(search_net,place_query,fo,search_buffer,sizeof search_buffer,&places);
+        if(!s.ok()) return fail(s);
+        Buf<2048> output; format_places(output,places);
+        fputs(output.c_str(),stdout);
+        if(ferror(stdout) || fflush(stdout)!=0) return exit_code(Err::Io);
+        return 0;
+    }
 
 	// Resolve provider names.
 	const Provider *chosen[8];

@@ -1557,6 +1557,7 @@ static void test_window_actions()
 }
 
 #include "preferences_tests.hpp"
+#include "geocoding_tests.hpp"
 
 static bool credits_mention(const char *what)
 {
@@ -1601,6 +1602,7 @@ int main()
 	test_window_actions();
 	test_config_load();
 	test_preferences();
+	test_geocoding();
 	test_preference_effects();
 	test_modal_clock();
 	test_forms();

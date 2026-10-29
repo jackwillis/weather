@@ -1,0 +1,47 @@
+CLI location-search verification, 2026-10-26 UTC
+
+Existing draft PR #17; X11/OS 9 search controls remain pending.
+Initial offline feature regression: 106 passed, 2 failed (new help/query behavior).
+
+check:
+anchors tests: 14 passed, 0 failed
+644 checks, 0 failed
+robust: 231002 inputs, 0 failed
+feature tests: 108 passed, 0 failed
+flags tests: 6 passed, 0 failed
+--- 21 checks passed, 0 failed
+gui scenario passed
+
+san:
+check-san: with AddressSanitizer
+644 checks, 0 failed
+robust: 231002 inputs, 0 failed
+feature tests: 108 passed, 0 failed
+
+maul:
+644 checks, 0 failed
+robust: 87002 inputs, 0 failed
+
+portable:
+ok   powerpc: portable core + compile-time tests compile (powerpc-apple-macos-g++ (GCC) 16.1.0)
+ok   m68k: portable core + compile-time tests compile (m68k-apple-macos-g++ (GCC) 16.1.0)
+
+live:
+Places from Open-Meteo / GeoNames
+1	Madison	Wisconsin US	43.0731,-89.4012
+2	Madison Park	Wisconsin US	43.0209,-88.0431
+3	Madison Park	Wisconsin US	43.1025,-88.0329
+4	Madison Mobile Home Park	Wisconsin US	43.0394,-89.3869
+Choose coordinates with -l lat,lon; use -n name and -S to save separately.
+
+ppc-live:
+Places from Open-Meteo / GeoNames
+1	Madison	Wisconsin US	43.0731,-89.4012
+2	Madison Park	Wisconsin US	43.0209,-88.0431
+3	Madison Park	Wisconsin US	43.1025,-88.0329
+4	Madison Mobile Home Park	Wisconsin US	43.0394,-89.3869
+Choose coordinates with -l lat,lon; use -n name and -S to save separately.
+weather: usage: search cannot combine with -S, -H or -1
+PowerPC CLI search and rejected save preserve config: PASS
+
+Updated manual rendered with groff -mdoc -Tutf8 -ww without diagnostics.

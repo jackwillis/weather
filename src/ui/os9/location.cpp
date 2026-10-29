@@ -38,12 +38,12 @@ Status LocationDialog::open(const Config &cfg,const Model &model) {
     if(!dialog_) { SetPort(prior_); editor_.cancel(); return make(Err::Io,"cannot open the Location dialog"); }
     set_text(dialog_,3,editor_.form.lat.view()); set_text(dialog_,4,editor_.form.lon.view()); set_text(dialog_,5,editor_.form.name.view());
     check(dialog_,6,cfg.metric); check(dialog_,7,cfg.auto_refresh);
-    focus_=0; select(dialog_,3);
+    search_requested_=false; focus_=0; select(dialog_,3);
     ShowWindow(window()); SelectWindow(window()); draw(); SetPort(prior_); return okay();
 }
 void LocationDialog::cancel() {
     if(dialog_) { SetPort(prior_); DisposeDialog(dialog_); dialog_=nullptr; SetPort(prior_); }
-    editor_.cancel();
+    search_requested_=false; editor_.cancel();
 }
 void LocationDialog::draw() {
     if(!dialog_) return;
@@ -76,6 +76,8 @@ bool LocationDialog::read() {
 }
 bool LocationDialog::item(int item,SettingsStore &prefs,SettingsStore &legacy,Config &cfg,Model &model,long long now,Status *saved) {
     if(!dialog_) return false;
+    if(search_requested_ && item!=2) return true;
+    if(item==12) { search_requested_=true; return true; }
     if(item==2) { cancel(); *saved=okay(); return true; }
     if(item==6 || item==7) { check(dialog_,item,!checked(dialog_,item)); return true; }
     if(item>=3 && item<=5) { focus_=item-3; return true; }
@@ -93,7 +95,9 @@ bool LocationDialog::event(EventRecord &e,SettingsStore &prefs,SettingsStore &le
     if(e.what==keyDown || e.what==autoKey) {
         char ch=e.message & charCodeMask;
         if((e.modifiers & cmdKey) && (ch=='q' || ch=='Q')) return false;
+        if((e.modifiers & cmdKey) && (ch=='f' || ch=='F')) { item(12,prefs,legacy,cfg,model,now,saved); return true; }
         if(ch==27 || ((e.modifiers & cmdKey) && ch=='.')) { item(2,prefs,legacy,cfg,model,now,saved); return true; }
+        if(search_requested_) return true;
         if(ch==13 || ch==3) { item(1,prefs,legacy,cfg,model,now,saved); return true; }
         if(ch==9) {
             focus_=(focus_+((e.modifiers & shiftKey)?2:1))%3;

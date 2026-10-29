@@ -257,6 +257,18 @@ SOUT=$("$BIN" -c "$CFG" -1 -H 127.0.0.1:$P_OK 2>/dev/null)
 case "$SOUT" in "54.8F Clear sky"*) ok;; *) bad "stdout polluted: $SOUT";; esac
 case "$SOUT" in *weather:*) bad "log text on stdout";; *) ok;; esac
 
+# Search is explicit, read-only and never silently falls through to a forecast.
+expect "search help" 0 --help
+contains "search option documented" "-g"
+expect "search rejects one-character query" 64 $W -g x
+contains "search query validation" "2 to 63"
+expect "search refuses HTTP fixture downgrade" 64 $W -g Madison -H 127.0.0.1:$P_OK
+expect "search cannot save implicitly" 64 $W -g Madison -S
+expect "search cannot override coordinates" 64 $W -g Madison -l 1,2
+expect "search rejects duplicate query" 64 $W -g Madison -g Paris
+expect "search validates before connecting" 64 $W -g 'A
+B'
+
 if [ -n "$ONLINE" ]; then
 	expect "online live fetch" 0 -1
 	if [ "${TEST_HOOKS_ENABLED:-0}" = 1 ]; then
