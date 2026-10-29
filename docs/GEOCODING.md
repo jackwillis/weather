@@ -81,13 +81,13 @@ covers these paths without an X server.
 
 ## First window launch
 
-Missing or zero-byte settings open Location before the first weather request.
-Existing nonempty configurations retain their startup behavior; this rule does
-not reinterpret older configuration files. X11 titles the form "Choose initial
-location". Confirming and successfully saving permits the initial weather
-update; cancelling exits without saving or fetching. Find remains an explicit
-separate search action. Storage errors keep setup pending and preserve the old
-configuration. The CLI remains non-interactive and retains its existing defaults.
+X11 (#198, supersedes the automatic picker added with #106): missing or
+zero-byte settings show the default location (Madison, Wisconsin) and fetch it.
+Nothing is written until the user opens Location... (button, File menu or Ctrl-L)
+and saves a place; Find remains an explicit separate search action. An invalid or
+unreadable settings file is reported and xweather exits without touching it. With
+no settings file available at all, a notice says a changed location cannot be saved.
+The CLI remains non-interactive and retains its existing defaults.
 
 On OS 9, empty Preferences falls back to the legacy configuration as before;
 setup is required only when both sources are empty/missing. Invalid settings
@@ -97,10 +97,6 @@ WeatherFirstApplyTest and WeatherFirstCancelTest diagnostics exercise validation
 failed save, successful save/update, later ordinary Cancel, and first-run Cancel
 using memory-only stores and fake forecasts. They read no production Preferences
 or TLS seed. Cross-build and actual runtime evidence must be distinguished.
-
-The first-run regression also covers terminal event processing: the test stops
-its owned process, queues Cancel then OK, and resumes it. Once Cancel sets quit,
-the pump must discard further input; a queued OK must not create settings.
 
 
 ## Native OS 9 search controls (cross-built; runtime acceptance pending)
