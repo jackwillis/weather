@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 Jack Willis
-// Our own replacement for Apple's static glue (OpenTransportAppPPC.o / OpenTptInetPPC.o), so the OS 9 build needs no Apple binary.
-// Written from the behaviour of that glue as observed by disassembling it and from Apple TN1173 ("Open Transport Asset Tracking"):
+// Our own client-side glue for Open Transport, so the OS 9 build needs no Apple object file. It is written from Apple's public
+// Technical Note TN1173 ("Open Transport Asset Tracking") and from behaviour we observed on a real Mac OS 9.2.2:
 //  - the application owns a small zeroed "client record"; every asset-creating call passes its address as an extra last argument;
 //  - InitOpenTransport checks that Open Transport is present, points three words of the record at private variables, sets a flag
 //    byte, then calls InitOpenTransportPriv(flags, &record). flags 3 = application client.
@@ -36,8 +36,9 @@ static_assert(offsetof(ClientRecord, flag) == 32, "OT client record flag offset 
 ClientRecord g_record;
 UInt32 g_library_manager = 0;
 UInt32 g_slm_global = 0;
-UInt32 g_exit_patch_rd = 0xaafe0700;   // initial value observed in Apple's glue; meaning unknown, kept identical
+UInt32 g_exit_patch_rd = 0xaafe0700;   // empirical: the value this app has always run with; its meaning is undocumented and whether 0 would do is untested (#63)
 bool g_open = false;
+void (*g_before_close)() = nullptr;
 
 void close_at_exit() { CloseOpenTransport(); }
 }
@@ -47,20 +48,29 @@ extern "C" {
 OSStatus InitOpenTransport(void)
 {
 	long resp = 0;
-	if (Gestalt('otan', &resp) != noErr || !(resp & 1)) return -3201;   // Open Transport not present (same code as Apple's glue)
+	if (Gestalt('otan', &resp) != noErr || !(resp & 1)) return -3201;   // Open Transport not present
 	g_record.library_manager = &g_library_manager;
 	g_record.slm_global = &g_slm_global;
 	g_record.exit_patch_rd = &g_exit_patch_rd;
 	g_record.flag = 1;
 	OSStatus e = InitOpenTransportPriv(3, &g_record);
-	if (e == noErr && !g_open) { g_open = true; std::atexit(close_at_exit); }
+	if (e == noErr && !g_open) {
+		g_open = true;
+		if (std::atexit(close_at_exit) != 0) {
+			CloseOpenTransport(); // undo successful init; never leave an unowned OT client
+			return -1;
+		}
+	}
 	return e;
 }
+
+void weather_ot_before_close(void (*cleanup)(void)) { g_before_close = cleanup; }
 
 void CloseOpenTransport(void)
 {
 	if (!g_open) return;
 	g_open = false;
+	if (g_before_close) g_before_close();
 	CloseOpenTransportPriv(&g_record);
 }
 

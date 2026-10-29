@@ -1,42 +1,37 @@
-# TODO
+# TODO (2026-10-28)
 
-## Now
-- [ ] OS 9 Location/Preferences (#12): implemented and cross-built; native dialog/store probes, screenshots and actual restart acceptance await Tiger.
-- [ ] OS 9 hardening acceptance: DNS delayed-open/stalled-server hardware coverage; NetBSD hardware regression after DNS/seed changes (cross-build passes); run under 68k only if a target needs it
-- [ ] M3c last step: jack runs `xweather` once on maul's real X display (window manager, depth, feel); fix what that shows
-- [ ] Reinstall the rebuilt NetBSD package on maul (`doas pkg_add -u`; staged at /tmp/weather-0.1.0.tgz, lost at reboot: rebuild with tools/mkpkg-netbsd.sh)
+GitHub issues and milestones are the live work list. This file is an entry point,
+not a second acceptance checklist. Merged implementation does not imply native
+hardware or release acceptance. Start with [v0.1 #45](https://github.com/jackwillis/weather/issues/45).
 
-## Next
-- [ ] UX tier 2 (v0.2): hourly/daily data in the model and providers (#117), pinned locations model and settings (#118); then the UI slices in #98 (OS 9) and #99 (NetBSD). Shared rules: #113. Map size/licence research: #114.
-- [ ] On-disk stale cache (serve the last good forecast when every source is down)
-- [ ] Third source: api.weather.gov (NWS, US only; TLS verified: chains to ISRG X1) needs multi-step requests (points -> stations -> observation) so the Provider interface must grow a step mechanism
-- [ ] Location by place name (geocoding), default location prompt
-- [ ] SIGHUP config reload / daemon mode (only if the window needs it)
-- [ ] Tests for the OS 9 layer that can run without the Mac (e.g. clock conversion and log format rewrite as pure functions)
+## Now — v0.1
 
-## Packaging (M5, after xweather)
-- [ ] app-defaults file for xweather resources (optional)
-- [ ] pkgsrc source package (Makefile, DESCR, PLIST, distinfo), verified in a NetBSD VM
-- [ ] Verify Open-Meteo terms/attribution; create the GitHub repo and push (jack's call)
+- [ ] Fix OS 9 window Command-period cancellation (#168) and system-requested quit (#169); add diagnostics, then verify on Classic/native OS 9.
+- [ ] Assess the separate Classic/native timing captures and collect the missing restart/repeated evidence (#121), then implement justified first-run entropy collection (#120). The exploratory analyzer credits zero bits; Linux-provisioned seeds remain required today.
+- [ ] Finish native window acceptance (#102), MET default fallback/cache acceptance (#152/#128), and DNS/real-display acceptance (#70, PR #14). Some Classic and owner-observed native runs passed; see #45 for their exact scope.
+- [ ] Refresh shell/package/delivery safety PR #85 (#57), run combined release-candidate host/sanitizer/32-bit/GUI and NetBSD/macppc checks, and rebuild the package. Jack handles reboots, privileged installation and real-display review.
+- [ ] Review test-only PR #154; code/test merges still need Jack.
+- [ ] Decide final program names (#135), verify published checksums (#173), and finish provider attribution/terms (#73) and release readiness (#67). Jack tags and publishes.
+
+## Next — v0.2
+
+- [ ] Integrate existing NWS PR #16 (#105) and place-search PR #17 (#106); resolve current-main conflicts and repeat checks. OS 9 search/provider controls also involve #74/#151.
+- [ ] Refresh OS 9 transport-lifecycle PR #91 (#60), big-endian CI PR #19 (#107), and changelog-fragment PR #87 (#77). Green historical checks do not validate a conflict resolution.
+- [ ] Native OS 9 Preferences (#182, parent #180): app-owned typed storage and controls; remove text Preferences and legacy weather.conf without migration. Coordinate with the current agent owner.
+- [ ] Shared presenter (#159), factual headline (#155), entered-location provider policy (#156), digit artwork (#164), Activity Log (#160) and OS 9 log rotation (#161). Follow shared UX #113 and platform plans #98/#99.
+- [ ] NetBSD system OpenSSL/trust backend (#158), dependency updates (#172), XQuartz verification (#171), and NetBSD VM/pkgsrc work (#75).
+- [ ] Remaining hardening and platform-policy acceptance: use the [v0.2 tracker #46](https://github.com/jackwillis/weather/issues/46).
 
 ## Later
-- [ ] CI with a big-endian check; Mac OS X Tiger native build (parked)
 
-## Done
-- [x] First native OS 9 window (#11): shared art, buffered QuickDraw, menus and model status, bounded yielding event pump, config loading shared with WeatherConsole, separate hardware diagnostic executable. Location editing and Preferences hardware acceptance remain in #12.
-- [x] OS 9 managed TLS seeds (2026-10-25): explicit provisioning, checked rotation, exclusive ownership and HMAC-DRBG; 461 host checks, 186018 mutated inputs, sanitizer/CLI/GUI checks; real-store fault injection on maul; approved genuine seed installation and two live verified-TLS launches with seed advancement. Fixed Retro68 unlink-stub import cleanup through native deletion, with red/green hardware regression.
-- [x] OS 9 end to end (2026-10-25): console `Weather` app fetched a live forecast over TLS 1.2 (ECDHE-RSA-ChaCha20-Poly1305, cert verified against our anchors) on a real Mac OS 9.2.2 under Classic. Our own Open Transport glue replaced Apple's (probe 4 proves it); network layer, log sink, SIZE resource, `make os9`. Bugs found on hardware and fixed: event pump spun forever on an unvalidated update event, Retro68 `printf` has no `%zu`/`%lld`, UTC conversion double-counted daylight saving (checked against OS X `date -u`).
-- [x] Second data source MET Norway (met-no): one request, worldwide, F/C and m/s conversions, WMO code mapping, `contact` setting + User-Agent (their terms), HARICA root pinned; live-verified through BearSSL; compile-time tests also run on Retro68; fallback and skip-without-contact tested (226 unit, 164k mutated inputs, 78 feature) (2026-10-24)
-- [x] OS 9 compile gate (Retro68 GCC 16.1 builds the core + compile-time tests for PowerPC and 68k); xweather resource use measured; ctwm integration scripts tested on copies (2026-10-24)
-- [x] Man pages (weather.1, xweather.1, weatherrc.5; groff -mdoc -ww clean), `make install/plist/dist/distcheck` (tarball reproducible, builds and tests from a clean unpack), example config, CHANGELOG (2026-10-24)
-- [x] NetBSD binary package via `tools/mkpkg-netbsd.sh`: pkg_create on maul; contents, build info and packing list inspected with pkg_info; install/uninstall test script ready (`runlog pkgtest-weather`), awaiting jack
-- [x] `make check-san` (UBSan trap mode + fortify + libstdc++ assertions; ASan automatically once libasan exists) and test/robust.cpp: 108k mutated inputs through every parser with invariants, also run on maul (big-endian); verified it catches a planted off-by-one (26k failures). Makefile fix: test programs now track header changes (a stale robust binary had hidden the planted bug) and objects rebuild when compiler flags change (2026-10-24)
-- [x] BearSSL pinned and vendored (third_party/bearssl, commit recorded); built out-of-tree per target; anchors.h reproducible from the PEM with a check (2026-10-24)
-- [x] M3c xweather (2026-10-24): CDE-look Xlib window, menus, Location dialog (validation, atomic save), auto-refresh + Refresh button, weather pictures, About; GUI scenario with 21 assertions passes in Xvfb on the laptop and on maul (real PowerPC binary); screenshots reviewed. Not yet seen on a real display.
-- [x] M3b seams and model (2026-10-24): Net::yield + Err::Cancelled (SIGINT/SIGTERM cancel a fetch, exit 130), TLS time and entropy from the platform (64-bit clock), portable settings editor + atomic posix store + `weather -S`, app/Model with refresh timers, backoff and stale data. 168 unit checks (also run on maul via `make check-maul`), 65 feature checks (70 online), maul smoke test
-- [x] M3a restructure: src/{core,app,tls,platform/posix,cli}, mk/<target>.mk, per-file objects with dep tracking, `make lint` (verified it fails on a planted violation), BearSSL built by the Makefile for each target (2026-10-24)
-- [x] M2 core + CLI: errors-as-values, retry/backoff, provider fallback, logging, config, sysexits; 42 unit + 42 feature checks; runs on maul (2026-10-24)
-- [x] M1 TLS spike: BearSSL handshake + Open-Meteo fetch works on maul (2026-10-23)
-- [x] Cross-toolchain for NetBSD 11.0 macppc, hello + Xlib app run on maul
-- [x] C++17 -fno-exceptions -fno-rtti cross-compile check; BearSSL builds for macppc
+- v0.3: hourly/daily data (#117), pinned locations (#118), compact/expanded windows (#176); [tracker #47](https://github.com/jackwillis/weather/issues/47).
+- v0.4: CLI revision (#178) and the full documentation pass (#179). Keep current docs accurate meanwhile.
+- Research: map feasibility (#114), chart geometry (#174), architecture proposals (#175), conditional reload/daemon (#68), and native Tiger (#69, parked). Research is not a release commitment.
 
+## Implemented milestones
+
+- [x] v0.0.1 pipeline pre-release published 2026-10-27; package install/run/remove and Classic launch evidence are in docs/STATUS.md. This is not the v0.1 release.
+- [x] Native OS 9 window and persistent text Preferences (PRs #11/#12 merged); remaining acceptance and the planned native-format replacement are separate.
+- [x] Last-good forecast cache (PR #15), MET revalidation/default saving (#146), and automatic Open-Meteo → MET fallback (#163) merged. Target-platform/policy acceptance remains open.
+- [x] Fetch deadlines (#41), TLS 1.2 suite policy/test-hook isolation (#145), and diagnostic-only entropy probe (#147) merged. Resolver/native wait limits and production entropy collection remain separate work.
+- [x] CLI/X11, managed OS 9 seeds, cross-builds, packaging/man pages and host tests exist. Historical results and reproduction commands are in docs/STATUS.md; repeat acceptance on the combined release candidate.

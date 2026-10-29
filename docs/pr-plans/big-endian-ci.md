@@ -1,0 +1,105 @@
+# Big-endian CI
+
+The supplemental gate cross-builds for 32-bit big-endian Linux/PPC and explicitly
+runs the ABI probe, full unit suite and parser mutation suite through qemu-ppc.
+UBSan uses trap mode, so undefined behavior fails without a target sanitizer
+runtime. Run `make TARGET=linux-ppc check`; default loader prefix is
+`/usr/powerpc-linux-gnu`, overridable with PPC_RUN.
+
+This checks executed byte order and sizeof(long/pointer), not compiler macros.
+Invoking the probe natively on x86-64 must fail. The full test suite still contains
+the 32-bit overflow regressions that caught the earlier decimal parser bug.
+
+## Scope and provenance
+
+This is Linux syscall emulation, not NetBSD/macppc emulation. Real maul unit,
+network, GUI, packaging and OS 9 checks remain separate acceptance requirements.
+A full NetBSD image/toolchain CI environment remains future work; no personal
+machine image, Apple SDK, maul keys or private TLS seeds are used here.
+
+Ubuntu 24.04 distribution packages provide the compiler, target libc and QEMU.
+APT verifies signed repository metadata and package hashes. Versions are recorded
+in each job; security updates mean package versions are not bit-for-bit pinned.
+Actions are pinned to commits and checkout credentials are not retained. The
+workflow has read-only permissions, a 15-minute limit, two compiler jobs and no
+privileged emulator registration. Package installation uses the disposable hosted
+runner. Local validation uses an unprivileged container.
+
+References:
+- https://www.qemu.org/docs/master/user/index.html
+- https://packages.ubuntu.com/noble/g%2B%2B-powerpc-linux-gnu
+
+## Verification
+
+Local Debian 12 container: GCC 12.2 and QEMU 7.2.22 executed 489 unit checks
+and 206820 mutation inputs with zero failures. The runtime probe reported
+bytes=1,2,3,4, long=4 and pointer=4; the same probe on the x86-64 host reported
+bytes=4,3,2,1, long=8 and pointer=8 and correctly returned failure.
+
+In an isolated copy of text.hpp, removing the integer overflow guard and parsing
+999999999.0000 at four decimal places caused a QEMU trace/breakpoint trap under
+UBSan. The valid 1.0 control completed first. No planted change entered the repo.
+This validates overflow detection independently of compile-time assertions.
+
+Hosted Ubuntu 24.04 also passed: QEMU 8.2.2 executed the expected big-endian
+32-bit ABI probe, 492 unit checks and 206820 mutation inputs. All three jobs in
+GitHub run 40248930684 passed, including host/GUI/sanitizers and 32-bit x86.
+The PR remains draft for review of this supplemental scope. No claim of NetBSD
+syscall or hardware acceptance is made; full-system NetBSD selection remains
+deferred. Distribution package versions are recorded in the job log.
+
+Host regression: make check passed 492 unit checks, 206820 mutation inputs,
+99 CLI checks and 21 GUI checks; ASan/UBSan checks passed. An initial sandboxed
+run failed at socket creation (test/unittest.cpp:375, ls >= 0); rerunning with
+local fixture networking available passed. The emulated suite passed twice.
+
+## Refresh against main, 2026-10-26
+
+Merged main f4ba116, preserving both the supplemental check-ppc target and main's
+check-native -> check-tls gate in the sole Makefile conflict. Workflow privileges,
+action pins and emulator scope are unchanged.
+
+Host and ASan/UBSan pass 517 unit checks, 230242 mutation inputs and 106 CLI
+checks. Host also passes 12 TLS and 21 GUI checks. The rootless prepared Debian
+container executes the expected ABI and 230242 mutation inputs under QEMU.
+Its initial container-root run executes 514 unit checks; three permission checks
+are intentionally skipped for euid 0. A non-root run with --userns keep-id and a
+read-only, correctly labelled volume executes all 517 with zero failures. Initial
+non-root mounts lacked the matching per-container SELinux label and could not
+read fixtures; no tests ran in those attempts. No host permissions were changed.
+No actual NetBSD or OS9 hardware run was performed for this CI-only refresh.
+Hosted verification will rerun at the new PR head.
+
+## Refresh against main, 2026-10-28
+
+Merged main ef25f333 (including #154), preserving both check-ppc and the current
+production/test-hook, connection-budget, cache, entropy and GUI host gates.
+The added workflow job uses the current pinned actions, retains read-only
+permissions and per-main-commit concurrency, and now follows the repository
+package-install policy: retries, bounded network timeouts, a step timeout and
+--no-install-recommends.
+
+One explicit non-root container run (uid/gid 1000, read-only source mount)
+executed the expected ABI probe (bytes=1,2,3,4; long=4; pointer=4), all 1868 unit
+checks, and 426598 mutation inputs with zero failures. The host ABI probe
+reported bytes=4,3,2,1; long=8; pointer=8 and correctly returned failure.
+
+Initial --userns keep-id alone retained the image's root user and ran 1865 units
+(three permission checks skipped). An overlapping container changed the private
+SELinux mount label, causing that first mutation run to fail with
+"cannot read test/fixtures/metno-thunder-sleet.json". The final run uses a single
+container, explicit --user 1000:1000 and one stable read-only mount; both units
+and mutations pass. No host permission or SELinux policy was changed.
+Container-owned cross-build outputs prevented the host build from creating
+build/host (Permission denied), so host checks use a separate source/output copy.
+This is Linux/PPC user-mode emulation; no NetBSD or OS 9 execution is claimed.
+Logs: /tmp/weather-pr19-{ppc,ppc-nonroot,ppc-final,host-check}.log.
+Full host/sanitizer results follow below.
+
+Final host check and ASan/UBSan suites passed: 1868 unit checks per production/
+test-hook mode, 426598 mutation inputs, 129 CLI checks per mode, 34 connection-
+budget checks, 28 local TLS, 95 CDE text, 19 field and 55 serialized GUI checks.
+Source copies were byte-compared for every implementation change before host
+verification; only this evidence text differs. Repository policy and whitespace
+checks relative to main passed. No runtime source changes were required.
+Host sanitizer log: /tmp/weather-pr19-host-san.log.

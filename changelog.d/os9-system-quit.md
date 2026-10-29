@@ -1,0 +1,1 @@
+- Mac OS 9: handle system quit Apple Events through normal fetch cancellation and shutdown; Classic/native runtime acceptance remains pending (#169, #204).

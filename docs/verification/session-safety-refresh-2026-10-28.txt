@@ -1,0 +1,38 @@
+Session/package/delivery safety refresh: #57 / PR #85, 2026-10-28
+
+Starting PR head: 993f278bf5f994475cb6655f89799f957f93b429.
+Merged main 8c2d5bce50a3eab646d44690788f5f8f19ffc4dd without rewriting history.
+The sole conflict was the Makefile check list. Retained all four safety-suite
+commands and main's entropy-analysis command. Safety scripts/tests are unchanged
+from the prior PR head; added the missing 0.1.0 unreleased changelog entry.
+
+Read all four tools and their tests. Reviewed exact owned-block removal,
+snapshot-before-transform/compare-before-replacement, old-application retention
+on copy failure, checked producer/consumer status, private staging, validated
+remote paths and .part archive validation. Existing October 26 evidence records
+red tests and older NetBSD native checks; it does not verify this refreshed head.
+
+Focused disposable-copy checks passed:
+- python3 test/session_edits.py: 9 groups.
+- python3 test/package_safety.py: 6 groups.
+- python3 test/delivery_safety.py: 6 groups.
+- sh test/session_edits.sh: 4 POSIX smoke checks.
+Expected fault-injection messages include malformed-block refusal and
+FAILED: cannot atomically replace configuration; configuration left unchanged.
+The enclosing tests verify those failures and pass; they are not suite failures.
+
+make check and make check-san (ASan + UBSan) both exited zero:
+1823 unit checks in production and test-hook modes; 426598 mutation inputs;
+119 CLI checks per mode; 34 connection-budget checks; 28 TLS checks in make check;
+95 CDE text checks and 19 field checks; 55 serialized GUI checks in make check.
+make check also runs the 9/6/6 safety groups and 4 shell smoke checks, alongside
+main's entropy analysis, cache, provisioning, fixture and Makefile-flag checks.
+All four shell scripts pass individual sh -n checks; policy and whitespace pass.
+Logs: /tmp/weather-pr85-refresh-check.log and /tmp/weather-pr85-refresh-san.log.
+
+Not run for this refresh: native NetBSD sh/BSD awk or pkg_create, any real session
+config edit, package installation, native Tiger disk tools or resource-fork checks.
+Tests use temporary copies and stub builds/transport/disk tools. No Mac action,
+privileged operation or compilation on maul occurred in this refresh.
+PR stays draft for native acceptance/review. Metadata/ACL/durability and final
+marker-publication limits remain as described in the original verification notes.

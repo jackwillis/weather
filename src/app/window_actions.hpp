@@ -19,7 +19,7 @@ struct WindowActions {
 	bool about = false;
 	bool cancelled = false;
 	void begin_fetch() { cancelled = false; }
-	bool continuing() const { return !quit && !cancelled; }
+	bool continuing(bool fetching=true) const { return !quit && !(fetching && cancelled); }
 	bool key(char ch, bool command, Config &cfg, Model &model, long long now)
 	{
 		return command && ch == '.' && apply(WindowAction::Cancel,cfg,model,now);

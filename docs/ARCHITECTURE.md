@@ -64,7 +64,12 @@ Retro68 container. Layers: the same core, app and tls code; `src/platform/os9/` 
 * **Network I/O** (`net_os9.cpp`): endpoints are synchronous and non-blocking; "no data yet" is polled every 50 ms with
   `Net::yield`, so the event loop keeps running and Cmd-. cancels. DNS uses an asynchronous service provider with a host-tested
   controller (2026-10-25). The foreground loop yields and enforces a wrap-safe deadline. An abandoned open retains its callback
-  storage until a later request drains it, or OT shuts down; a failed close quarantines the resolver until restart.
+  storage until a later request drains it, or OT shuts down; a failed close quarantines the resolver until restart. A completed,
+  validated answer remains usable for the current connection even if cleanup fails;
+  the caller logs a warning, and subsequent lookups refuse to reopen the provider.
+  The glue invokes registered endpoint cleanup before closing OT, for explicit close
+  and process exit; a host regression exercises the real LIFO exit path. Native OS9
+  shutdown acceptance remains pending.
   POSIX `getaddrinfo` still blocks. Its elapsed time is charged when it returns,
   and all returned addresses share one connection timeout budget. A borrowed, scoped
   Net::budget also caps POSIX connect/read/write waits to the earlier attempt or caller

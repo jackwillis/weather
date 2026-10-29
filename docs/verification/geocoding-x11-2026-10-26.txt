@@ -1,0 +1,54 @@
+X11 place search verification, 2026-10-26 UTC
+
+Unfinished: OS 9 search controls, first-run flow, physical-display acceptance.
+No compilation on maul. Native GUI runs use NetBSD Xvfb.
+
+Pre-fix GUI regression:
+FAIL Save: failure preserves current forecast without refetch: got 2 wanted 1
+FAIL Save: retry in the open dialog saves coordinates: got 0 wanted 1
+
+First supplemental sanitizer GUI: SIGILL before search.
+GDB: cde::fit_text at cde.cpp:129 (pre-fix memcpy), called by draw_status.
+Focused red CDE test exit: 132 (Illegal instruction).
+
+host:
+anchors tests: 14 passed, 0 failed
+644 checks, 0 failed
+robust: 231002 inputs, 0 failed
+feature tests: 108 passed, 0 failed
+flags tests: 6 passed, 0 failed
+CDE text: 95 checks, 0 failed
+--- 44 checks passed, 0 failed
+gui scenario passed
+
+sanitizers:
+check-san: with AddressSanitizer
+644 checks, 0 failed
+robust: 231002 inputs, 0 failed
+feature tests: 108 passed, 0 failed
+
+sanitized CDE helper:
+CDE text: 95 checks, 0 failed
+
+ASan/UBSan GUI (detect_leaks=0):
+--- 44 checks passed, 0 failed
+gui scenario passed
+
+actual PowerPC GUI:
+--- 44 checks passed, 0 failed
+gui scenario passed
+
+actual PowerPC core:
+644 checks, 0 failed
+robust: 87002 inputs, 0 failed
+
+Inspected native Search01-results.png and Save01-failed.png; labels, country,
+coordinates, attribution and failure message fit. Host cancel screenshot also
+shows return to the unchanged Location form. Manual renders without diagnostics.
+Production fixture label strings absent.
+
+CI-integrated renderer regression:
+feature tests: 108 passed, 0 failed
+make[1]: Entering directory '/home/jack/code/weather'
+make[1]: Leaving directory '/home/jack/code/weather'
+CDE text: 95 checks, 0 failed

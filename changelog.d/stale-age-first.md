@@ -1,0 +1,1 @@
+- Stale data now reads age first ("Showing data from 16 min ago. Update failed: ..."), so a long error can no longer push the age off the line, and the temperature and condition are dimmed whenever the data is cached, old or from a failed update (#49, #62).

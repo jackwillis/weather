@@ -78,8 +78,12 @@ Institutions CA; api.met.no), converted with BearSSL's `brssl ta`. Certificates 
 
 ## Data
 
-Forecasts come from Open-Meteo (https://open-meteo.com) and, optionally, MET Norway (https://api.met.no, Locationforecast 2.0).
+Forecasts come from Open-Meteo (https://open-meteo.com) and MET Norway (https://api.met.no, Locationforecast 2.0).
+The optional NWS source uses National Weather Service (NOAA) U.S. public-domain observations
+(https://www.weather.gov/disclaimer); values are converted and summarised, with no NOAA/NWS endorsement.
+Place search credits Open-Meteo / GeoNames (CC BY 4.0).
 Both services publish their data under CC BY 4.0, and Weather credits them. Open-Meteo's free tier is for non-commercial use;
-Weather stays free software with no ads or subscriptions. The terms as read on 2026-10-26 are summarised in
+Weather stays free software with no ads or subscriptions. The terms as re-read on 2026-10-29 are summarised in
 `docs/PROVIDER-TERMS.md`. MET Norway's terms ask every client to identify itself with a contact: this is the `contact`
-setting, and the source is skipped until it is set.
+setting when supplied; otherwise the application uses the public project URL. MET requires forecast saving.
+Licence: https://creativecommons.org/licenses/by/4.0/ . See the terms summary for unresolved protocol-policy review.

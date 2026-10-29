@@ -1,0 +1,1 @@
+- Stale data now dims everything: wind, humidity and the weather picture fade along with the temperature and condition, in xweather and the OS 9 window (#49, #62).

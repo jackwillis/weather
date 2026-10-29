@@ -71,6 +71,19 @@ $(BUILD)/xweather.debug: $(XW_OBJS) $(BEARSSL_LIB)
 $(BUILD)/xweather: $(BUILD)/xweather.debug
 	$(STRIP)
 
+# Separate diagnostic executable: production links no fixture generator.
+$(OBJ)/ui/xweather/search_runner.o: src/ui/xweather/main.cpp $(OBJ)/.flags
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS_ALL) -DWEATHER_XWEATHER_LIBRARY -c -o $@ $<
+
+$(BUILD)/xweather-search-test: $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_search.o $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_search.o $(BEARSSL_LIB) $(X11_LIBS)
+
+
+$(BUILD)/xweather-stale-test: $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_stale.o $(BEARSSL_LIB)
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
+
+
 $(BUILD)/cde-text-test: $(OBJ)/test/cde_text.o $(OBJ)/ui/xweather/cde.o $(OBJ)/platform/$(PLATFORM)/nocxx.o
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
 
@@ -179,7 +192,7 @@ probe-os9:
 
 # Native compiler acceptance plus negative checks of our private-record guards.
 check-ot-layout:
-	podman run --rm -v $(CURDIR):/src:Z -w /src ghcr.io/autc04/retro68 sh test/ot-layout.sh /Retro68-build/toolchain/bin/powerpc-apple-macos-g++
+	$(CONTAINER) run --rm -v $(CURDIR):/src:Z -w /src $(RETRO68_IMAGE) sh test/ot-layout.sh /Retro68-build/toolchain/bin/powerpc-apple-macos-g++
 
 # Release builds pin RETRO68_IMAGE by digest (ghcr.io/autc04/retro68@sha256:...) and may use CONTAINER=docker.
 CONTAINER    ?= podman
@@ -200,8 +213,24 @@ distcheck: dist
 	@$(MAKE) -s dist >/dev/null
 	@cmp build/dist/first.tar.gz build/dist/$(DISTNAME).tar.gz && echo "distcheck: tarball is reproducible" && rm -f build/dist/first.tar.gz
 
+# Host-test the actual OS9 glue against test-owned system API stand-ins.
+$(BUILD)/ot-shutdown-test: test/ot_shutdown.cpp src/platform/os9/ot_glue.cc src/platform/os9/ot_min.h test/os9-stubs/MacTypes.h test/os9-stubs/Gestalt.h src/platform/posix/nocxx.cpp FORCE
+	mkdir -p $(BUILD)
+	$(CXX) $(CXXFLAGS_ALL) -Wno-multichar -Wno-address -Itest/os9-stubs $(EXTRA_LDFLAGS) -o $@ test/ot_shutdown.cpp src/platform/posix/nocxx.cpp
+
 # ---- tests
 check: $(CHECK_TARGET)
+PPC_RUN ?= qemu-ppc -L /usr/powerpc-linux-gnu
+$(BUILD)/ppc-runtime: $(OBJ)/test/ppc_runtime.o
+	$(CXX) $(EXTRA_LDFLAGS) -o $@ $<
+
+# No binfmt registration or privileged emulator setup is required.
+check-ppc: $(BUILD)/ppc-runtime $(BUILD)/unittest $(BUILD)/robust
+	$(PPC_RUN) $(BUILD)/ppc-runtime
+	$(PPC_RUN) $(BUILD)/unittest
+	$(PPC_RUN) $(BUILD)/robust
+.PHONY: check-ppc
+
 
 # Exercise both configurations, preserving production defaults and release artifacts.
 check-test-hooks: $(BUILD)/weather
@@ -210,7 +239,8 @@ check-test-hooks: $(BUILD)/weather
 	build/$(TARGET)-test-hooks/connect-budget-test
 	TEST_HOOKS_ENABLED=1 sh test/feature.sh build/$(TARGET)-test-hooks/weather
 	sh test/test-builds.sh $(BUILD)/weather build/$(TARGET)-test-hooks/weather
-check-native: check-os9-events lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather $(BUILD)/connect-budget-test
+check-native: check-os9-events lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather $(BUILD)/connect-budget-test $(BUILD)/ot-shutdown-test
+	sh test/ot-shutdown.sh $(BUILD)/ot-shutdown-test
 	$(BUILD)/unittest
 	$(BUILD)/connect-budget-test
 	$(BUILD)/robust
@@ -221,7 +251,12 @@ ifeq ($(TEST_HOOKS),0)
 	$(MAKE) TARGET=$(TARGET) check-test-hooks
 endif
 	python3 test/seed_provision.py
+	python3 test/session_edits.py
+	python3 test/package_safety.py
+	python3 test/delivery_safety.py
+	sh test/session_edits.sh
 	python3 test/entropy_analysis.py
+	sh test/changelog.sh
 	sh test/flags.sh "$(MAKE)"
 # Host stand-ins exercise the production core-event registration and callback code.
 check-os9-events:
@@ -233,7 +268,8 @@ check-os9-events:
 check-san:
 	@$(MAKE) -s TARGET=host-san san-note
 	$(MAKE) TARGET=host-san check-os9-events
-	$(MAKE) TARGET=host-san build/host-san/unittest build/host-san/robust build/host-san/weather build/host-san/connect-budget-test
+	$(MAKE) TARGET=host-san build/host-san/unittest build/host-san/robust build/host-san/weather build/host-san/connect-budget-test build/host-san/ot-shutdown-test
+	sh test/ot-shutdown.sh build/host-san/ot-shutdown-test
 	build/host-san/unittest
 	build/host-san/connect-budget-test
 	build/host-san/robust
@@ -249,13 +285,13 @@ check-san:
 san-note:
 	@echo "check-san: $(SAN_NOTE)"
 
-check-gui: $(BUILD)/xweather $(BUILD)/xdrive $(BUILD)/cde-text-test $(BUILD)/cde-field-test
+check-gui: $(BUILD)/xweather $(BUILD)/xdrive $(BUILD)/xweather-search-test $(BUILD)/xweather-stale-test $(BUILD)/cde-text-test $(BUILD)/cde-field-test
 	$(BUILD)/cde-text-test
 	sh test/field-host.sh $(BUILD)/cde-field-test
 	sh test/gui-host.sh
 
 check-gui-maul:
-	$(MAKE) TARGET=netbsd-macppc all build/netbsd-macppc/xdrive
+	$(MAKE) TARGET=netbsd-macppc all build/netbsd-macppc/xdrive build/netbsd-macppc/xweather-search-test build/netbsd-macppc/xweather-stale-test
 	sh test/gui-maul.sh
 
 check-cross:

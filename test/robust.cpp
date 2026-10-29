@@ -10,10 +10,12 @@
 #include "app/config_load.hpp"
 #include "app/preferences.hpp"
 #include "core/config.hpp"
+#include "core/geocoding.hpp"
 #include "core/forecast_cache.hpp"
 #include "core/http.hpp"
 #include "core/json.hpp"
 #include "core/metno.hpp"
+#include "core/nws.hpp"
 #include "core/openmeteo.hpp"
 #include "core/settings.hpp"
 #include "core/version.hpp"
@@ -57,6 +59,21 @@ static void exercise(const char *p, size_t n)
 	g_runs++;
 	g_cur_len = n;
 	sv in(p, n);
+    PlaceResults places; places.count=99;
+    Status place_status=geocoding_parse(in,&places);
+    if(place_status.ok()) {
+        EXPECT(places.count<=kPlaceLimit);
+        for(size_t i=0;i<places.count;i++) {
+            EXPECT(places.items[i].lat_e4>=-900000 && places.items[i].lat_e4<=900000);
+            EXPECT(places.items[i].lon_e4>=-1800000 && places.items[i].lon_e4<=1800000);
+            EXPECT(places.items[i].name[0] && places.items[i].name[47]==0);
+        }
+    } else EXPECT(places.count==99);
+    char search_path[256];
+    if(geocoding_path(in,search_path,sizeof search_path).ok()) {
+        EXPECT(sv(search_path).substr(0,16)=="/v1/search?name=");
+        for(char c:sv(search_path)) EXPECT(c>=33 && c<=126);
+    }
 	CacheKey cache_key{Query{},"open-meteo"};
 	for(sv provider:{sv("open-meteo"),sv("nws"),sv("met-no")}) {
 	cache_key.providers=provider;
@@ -203,6 +220,29 @@ static void exercise(const char *p, size_t n)
 	Forecast mm;
 	if (metno_parse(in, Query{0, 0, true}, &mm).ok()) EXPECT(sane(mm, true));
 
+    // NWS: parser/URL failures preserve outputs; accepted values remain bounded.
+    Forecast nf; nf.source = "unchanged"; nf.temp_t10 = 123;
+    Status ns = nws_parse(in, q, &nf);
+    if (ns.ok()) {
+        EXPECT(plausible_temp_t10(nf.temp_t10, false));
+        EXPECT(nf.humidity == kUnset || (nf.humidity >= 0 && nf.humidity <= 100));
+        EXPECT(nf.wind_t10 == kUnset || (nf.wind_t10 >= 0 && nf.wind_t10 <= 5000));
+        EXPECT(nf.wind_dir == kUnset || (nf.wind_dir >= 0 && nf.wind_dir < 360));
+        EXPECT(nf.is_day == kUnset && !strcmp(nf.source, "nws") && strlen(nf.time) == 16);
+        Buf<300> line; format_oneline(line, nf);
+    } else EXPECT(nf.temp_t10 == 123 && !strcmp(nf.source, "unchanged"));
+    Forecast metric;
+    if (nws_parse(in, Query{0,0,true}, &metric).ok()) EXPECT(plausible_temp_t10(metric.temp_t10, true));
+    sv path;
+    if (nws_url_path(in, &path)) EXPECT(inside(in, path) && !path.empty() && path[0] == '/');
+    for (unsigned step = 1; step <= 2; ++step) {
+        char next[322]; memset(next, 0x5a, sizeof next); strcpy(next, "unchanged");
+        Status nst = nws_next(in, step, next, sizeof next - 1);
+        EXPECT(next[321] == 0x5a);
+        if (nst.ok()) EXPECT(next[0] == '/' && strlen(next) < 321 && !strchr(next, ':'));
+        else EXPECT(!strcmp(next, "unchanged"));
+    }
+
 	// numbers
 	for (int d = 0; d <= 4; d++) { Num x = parse_fixed(in.substr(0, 40), d); if (x.ok) EXPECT(x.v > -2000000000L && x.v < 2000000000L); }
 	for (int d = 5; d <= 9; d++) (void)parse_fixed(in.substr(0, 40), d);
@@ -328,8 +368,7 @@ int main(int argc, char **argv)
 	static char seed[8192];
 	size_t n = 0;
 	char path[256];
-	const char *fixtures[] = {"openmeteo-ok.json", "openmeteo-400.json", "metno-ok.json",
-	    "metno-thunder-sleet.json", "metno-thunder-snow.json"};
+	const char *fixtures[] = {"openmeteo-ok.json", "openmeteo-400.json", "metno-ok.json", "metno-thunder-sleet.json", "metno-thunder-snow.json", "nws-points.json", "nws-stations.json", "nws-observation.json", "geocoding.json"};
 	for (const char *fx : fixtures) {
 		snprintf(path, sizeof path, "%s/%s", FIXTURE_DIR, fx);
 		if (!slurp(path, seed, sizeof seed, &n)) { printf("cannot read %s\n", path); return 1; }
@@ -378,6 +417,8 @@ int main(int argc, char **argv)
 	seed_encode(synthetic_seed, record);
 	mutate_all(reinterpret_cast<const char *>(record), sizeof record, iterations, rng);
 
+    const char url[] = "https://api.weather.gov/gridpoints/MKX/38,46/stations";
+    mutate_all(url, sizeof url - 1, iterations, rng);
 	// hostile shapes
 	static char big[20000];
 	memset(big, '[', sizeof big);

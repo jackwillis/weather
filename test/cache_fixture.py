@@ -22,4 +22,7 @@ def record(stamp=None, latitude=430747, metric=False, source=2, providers=b"met-
 
 if __name__ == "__main__":
     import sys
-    Path(sys.argv[1]).write_bytes(record(expires=int(time.time())+3600))
+    if len(sys.argv) > 2:
+        Path(sys.argv[1]).write_bytes(record(stamp=int(time.time())-int(sys.argv[2]), expires=0))
+    else:
+        Path(sys.argv[1]).write_bytes(record(expires=int(time.time())+3600))

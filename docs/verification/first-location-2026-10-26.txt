@@ -1,0 +1,52 @@
+First-run location verification, 2026-10-26 UTC
+
+OS 9 runtime checks remain pending Tiger. Linux cross-builds only; no builds on maul.
+
+Review regression, before terminal pump fix (actual NetBSD/macppc):
+FAIL First: cancelled setup leaves file empty: got 76 wanted 0
+52 checks passed, 1 failed. Failure evidence retained in /tmp/wx-gui.XhqC0aYu.
+Focused corrected host reproduction: queued Cancel+OK leaves 0 config bytes.
+
+host:
+anchors tests: 14 passed, 0 failed
+647 checks, 0 failed
+robust: 231002 inputs, 0 failed
+feature tests: 108 passed, 0 failed
+flags tests: 6 passed, 0 failed
+CDE text: 95 checks, 0 failed
+--- 53 checks passed, 0 failed
+gui scenario passed
+
+ASan/UBSan:
+check-san: with AddressSanitizer
+647 checks, 0 failed
+robust: 231002 inputs, 0 failed
+feature tests: 108 passed, 0 failed
+CDE text: 95 checks, 0 failed
+
+ASan/UBSan GUI (detect_leaks=0):
+--- 53 checks passed, 0 failed
+gui scenario passed
+
+actual PowerPC GUI:
+--- 53 checks passed, 0 failed
+gui scenario passed
+
+actual PowerPC core:
+647 checks, 0 failed
+robust: 87002 inputs, 0 failed
+
+Retro68 portable compilers:
+ok   powerpc: portable core + compile-time tests compile (powerpc-apple-macos-g++ (GCC) 16.1.0)
+ok   m68k: portable core + compile-time tests compile (m68k-apple-macos-g++ (GCC) 16.1.0)
+
+Native initial diagnostic build: Status was ambiguous with Toolbox types;
+qualifying wx::Status repaired it. Final Linux cross-build:
+[ 72%] Built target Weather_APPL
+[ 75%] Built target WeatherConsole_APPL
+[ 85%] Built target WeatherFirstApplyTest_APPL
+[ 89%] Built target WeatherFirstCancelTest_APPL
+
+Production native fixture-label strings absent.
+Native PowerPC First01-location.png inspected: initial-location title and fields fit.
+Manual renders without diagnostics. Native first-run diagnostics are built, NOT RUN.
