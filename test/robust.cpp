@@ -20,6 +20,7 @@
 #include "core/settings.hpp"
 #include "core/version.hpp"
 #include "tls/seed_pool.hpp"
+#include "tls/entropy_collect.hpp"
 #include "platform/os9/portable.hpp"
 #include <cstdio>
 #include <cstdlib>
@@ -148,6 +149,23 @@ static void exercise(const char *p, size_t n)
 		EXPECT(nonzero != 0);
 		seed_encode(seed_out, encoded);
 		EXPECT(n == kSeedRecordSize && std::memcmp(p, encoded, n) == 0);
+	}
+
+	SeedOrigin origin;
+	if (prov_decode(reinterpret_cast<const unsigned char *>(p), n, origin)) {
+		unsigned char again[kProvRecordSize];
+		prov_encode(origin, again);
+		EXPECT(n == kProvRecordSize && std::memcmp(p, again, n) == 0);
+		EXPECT(prov_resolve(true, reinterpret_cast<const unsigned char *>(p), n) == origin);
+	} else EXPECT(prov_resolve(true, reinterpret_cast<const unsigned char *>(p), n) == SeedOrigin::Unknown);
+	{   // Arbitrary text defaults to zero credit; attestation is an explicit caller assertion.
+		Collector hx(Policy{0, 128000}), attested(Policy{0, 128000});
+		HexResult r = hx.add_hex(p, n, 1);
+		HexResult trusted = attested.add_hex(p, n, 1, HexSource::UserAttestedCsprng);
+		EXPECT(r == trusted && hx.credit_mbits() == 0 && !hx.complete());
+		if (trusted == HexResult::Ok)
+			EXPECT(attested.credit_mbits() >= kHexDigitCreditMbits && attested.credit_mbits() <= kHexMaxDigits * kHexDigitCreditMbits);
+		else EXPECT(attested.credit_mbits() == 0);
 	}
 
 	// HTTP
@@ -400,6 +418,15 @@ int main(int argc, char **argv)
 	strcpy(cached.last_modified,"Tue, 27 Oct 2026 12:00:00 GMT");
 	if(!cache_encode(CacheKey{Query{},"met-no"},cached,1792950000LL,cache_record)) return 1;
 	mutate_all(reinterpret_cast<const char *>(cache_record),sizeof cache_record,iterations,rng);
+	{   // Seed provenance sidecar and typed-hex seeds (#120).
+		unsigned char prov[kProvRecordSize];
+		prov_encode(SeedOrigin::Collected, prov);
+		mutate_all(reinterpret_cast<const char *>(prov), sizeof prov, iterations, rng);
+		prov_encode(SeedOrigin::Provisioned, prov);
+		mutate_all(reinterpret_cast<const char *>(prov), sizeof prov, iterations, rng);
+		static const char hexin[] = "9f3A-27c1 0be4 8d56 71aa-c93e 5b02 d4f8";
+		mutate_all(hexin, sizeof hexin - 1, iterations, rng);
+	}
     unsigned char bundle[2*kForecastCacheBytes];
     if(!cache_encode(CacheKey{Query{},"open-meteo,met-no"},cached,1792950000LL,bundle+kForecastCacheBytes)) return 1;
     Forecast open=cached; open.source="open-meteo"; open.expires=0; open.last_modified[0]=0;

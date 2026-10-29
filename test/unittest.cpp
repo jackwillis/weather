@@ -45,6 +45,7 @@ using namespace wx;
 static int g_fail = 0, g_run = 0;
 #define CHECK(c) do { g_run++; if (!(c)) { g_fail++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
 #include "seed_tests.hpp"
+#include "entropy_tests.hpp"
 #include "cache_tests.hpp"
 #include "os9_helper_tests.hpp"
 #include "activity_tests.hpp"
@@ -1695,6 +1696,7 @@ int main()
 	test_nws();
 	test_os9_dns();
 	test_seed_pool();
+	test_entropy_collect();
 	test_conditional_requests();
 	test_cache_codec();
 	test_cache_storage();

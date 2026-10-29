@@ -1,0 +1,1 @@
+- Add the host-tested first-run entropy collector, SHA-256 conditioner, typed-hex input and seed provenance record (#120). No credit or threshold is established (#121), so the shipped policy never completes; no UI, timing source or store wiring yet.
