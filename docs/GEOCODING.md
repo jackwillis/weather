@@ -98,10 +98,6 @@ failed save, successful save/update, later ordinary Cancel, and first-run Cancel
 using memory-only stores and fake forecasts. They read no production Preferences
 or TLS seed. Cross-build and actual runtime evidence must be distinguished.
 
-The first-run regression also covers terminal event processing: the test stops
-its owned process, queues Cancel then OK, and resumes it. Once Cancel sets quit,
-the pump must discard further input; a queued OK must not create settings.
-
 
 ## Native OS 9 search controls (cross-built; runtime acceptance pending)
 
