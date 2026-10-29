@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 Jack Willis
-// The one place credits and licence wording live, so the CLI, xweather and the OS 9 About box cannot drift.
+// The one place credits and licence wording live, so the CLI, xbelike and the OS 9 About box cannot drift.
 // Plain constant text: no heap, no formatting. Full licence texts are in LICENSE and THIRD_PARTY.md.
-// Every line fits 46 columns, so a page fits the OS 9 About box (324 px) and xweather's panel.
+// Every line fits 46 columns, so a page fits the OS 9 About box (324 px) and xbelike's panel.
 #pragma once
 #include <cstddef>
 
 namespace wx {
 
-// Short form: printed by `weather -V` after the version line, and shown in About boxes.
+// Short form: printed by `belike -V` after the version line, and shown in About boxes.
 inline constexpr const char *kCreditsShort[] = {
 	"Copyright (c) 2026 Jack Willis",
 	"License GPL-3.0-or-later, NO WARRANTY.",
@@ -52,7 +52,7 @@ inline constexpr const char *kCreditsSoftware[] = {
 	"  Multiversal Interfaces (MIT)",
 };
 
-// Full credits: `weather --credits`, and the Credits pages of the About boxes.
+// Full credits: `belike --credits`, and the Credits pages of the About boxes.
 inline constexpr CreditPage kCreditPages[] = {
 	{"Weather", kCreditsWeather, sizeof kCreditsWeather / sizeof *kCreditsWeather},
 	{"Weather data", kCreditsData, sizeof kCreditsData / sizeof *kCreditsData},

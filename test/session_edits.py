@@ -13,12 +13,12 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CTWM = 'menu "NetBSD"\n{\n    "File manager (xfe)" !"xfe &"\n}\nOccupyAll\n{\n    "XClock"\n}\n# keep this tail\n'
-XINIT = '# start session\necho maul-weather-not-owned\nexec ctwm\n'
-LINE = '/usr/pkg/bin/xweather &   # maul-weather\n'
+XINIT = '# start session\necho maul-belike-not-owned\nexec ctwm\n'
+LINE = '/usr/pkg/bin/xbelike &   # maul-belike\n'
 
 class SessionEdits(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(prefix='weather-session-')
+        self.tmp = tempfile.TemporaryDirectory(prefix='belike-session-')
         self.addCleanup(self.tmp.cleanup)
         self.base = pathlib.Path(self.tmp.name)
         self.rc = self.base / 'config with spaces'
@@ -28,7 +28,7 @@ class SessionEdits(unittest.TestCase):
         env['CTWMRC' if kind == 'ctwm' else 'XINITRC'] = str(self.rc)
         if extra:
             env.update(extra)
-        args = ['sh', str(ROOT / 'tools' / (kind + '-weather.sh'))]
+        args = ['sh', str(ROOT / 'tools' / (kind + '-belike.sh'))]
         if action:
             args.append(action)
         return subprocess.run(args, env=env, text=True, capture_output=True)
@@ -38,7 +38,7 @@ class SessionEdits(unittest.TestCase):
             with self.subTest(kind=kind):
                 self.rc.write_text(original)
                 self.rc.chmod(0o640)
-                backup = pathlib.Path(str(self.rc) + '.pre-weather')
+                backup = pathlib.Path(str(self.rc) + '.pre-belike')
                 backup.unlink(missing_ok=True)
                 with self.rc.open() as old:
                     result = self.run_script(kind)
@@ -59,10 +59,10 @@ class SessionEdits(unittest.TestCase):
 
     def test_malformed_blocks_leave_entire_file_unchanged(self):
         bodies = [
-            '# BEGIN maul-weather\n"XWeather"\n',
-            '# END maul-weather\n',
-            '# BEGIN maul-weather\n# BEGIN maul-weather\n"XWeather"\n# END maul-weather\n# END maul-weather\n',
-            '# BEGIN maul-weather\nuser_setting = keep\n# END maul-weather\n',
+            '# BEGIN maul-belike\n"XBelike"\n',
+            '# END maul-belike\n',
+            '# BEGIN maul-belike\n# BEGIN maul-belike\n"XBelike"\n# END maul-belike\n# END maul-belike\n',
+            '# BEGIN maul-belike\nuser_setting = keep\n# END maul-belike\n',
         ]
         for body in bodies:
             for action in ['install', 'undo']:
@@ -73,7 +73,7 @@ class SessionEdits(unittest.TestCase):
                     self.assertEqual(self.rc.read_text(), text)
 
     def test_xinitrc_undo_removes_only_exact_owned_line(self):
-        original = '# maul-weather notes\necho maul-weather\nexec ctwm\n'
+        original = '# maul-belike notes\necho maul-belike\nexec ctwm\n'
         self.rc.write_text(original + LINE)
         self.assertEqual(self.run_script('xinitrc', 'undo').returncode, 0)
         self.assertEqual(self.rc.read_text(), original)
@@ -94,7 +94,7 @@ class SessionEdits(unittest.TestCase):
                 result = self.run_script(kind, extra={'PATH': str(stub) + ':' + os.environ['PATH']})
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(self.rc.read_text(), text)
-                self.assertEqual(list(self.base.glob(self.rc.name + '.weather.*')), [])
+                self.assertEqual(list(self.base.glob(self.rc.name + '.belike.*')), [])
 
     def test_unsafe_config_or_backup_links_are_refused(self):
         target = self.base / 'untouched'
@@ -104,7 +104,7 @@ class SessionEdits(unittest.TestCase):
         self.assertEqual(target.read_text(), XINIT)
         self.rc.unlink()
         self.rc.write_text(XINIT)
-        backup = pathlib.Path(str(self.rc) + '.pre-weather')
+        backup = pathlib.Path(str(self.rc) + '.pre-belike')
         backup.symlink_to(target)
         self.assertNotEqual(self.run_script('xinitrc').returncode, 0)
         self.assertEqual(target.read_text(), XINIT)
@@ -116,7 +116,7 @@ class SessionEdits(unittest.TestCase):
                 self.rc.write_text('# unrelated config\n')
                 self.assertNotEqual(self.run_script(kind).returncode, 0)
                 self.assertEqual(self.rc.read_text(), '# unrelated config\n')
-                self.assertFalse(pathlib.Path(str(self.rc) + '.pre-weather').exists())
+                self.assertFalse(pathlib.Path(str(self.rc) + '.pre-belike').exists())
                 link = self.base / 'other-name'
                 os.link(self.rc, link)
                 self.assertNotEqual(self.run_script(kind, 'undo').returncode, 0)
@@ -130,20 +130,20 @@ class SessionEdits(unittest.TestCase):
         self.rc.write_text(CTWM)
         self.assertEqual(self.run_script('ctwm').returncode, 0)
         self.assertEqual(victim.read_text(), 'untouched\n')
-        self.assertEqual(list(self.base.glob(self.rc.name + '.weather.*')), [])
+        self.assertEqual(list(self.base.glob(self.rc.name + '.belike.*')), [])
 
     def test_change_after_validation_is_refused_without_losing_it(self):
         self.rc.write_text(CTWM)
         self.assertEqual(self.run_script('ctwm').returncode, 0)
         original = self.rc.read_text()
-        injected = '# BEGIN maul-weather\nconcurrent edit must survive\n'
+        injected = '# BEGIN maul-belike\nconcurrent edit must survive\n'
         stub = self.base / 'bin'
         stub.mkdir()
         real_awk = shlex.quote(shutil.which('awk'))
         (stub / 'awk').write_text(
             '#!/bin/sh\n' + real_awk + ' "$@"\nstatus=$?\n'
             'if [ "${2:-}" = action=undo ]; then\n'
-            "    printf '# BEGIN maul-weather\\nconcurrent edit must survive\\n' >> \"$CTWMRC\"\n"
+            "    printf '# BEGIN maul-belike\\nconcurrent edit must survive\\n' >> \"$CTWMRC\"\n"
             'fi\nexit "$status"\n')
         (stub / 'awk').chmod(0o700)
         result = self.run_script('ctwm', 'undo', {'PATH': str(stub) + ':' + os.environ['PATH']})

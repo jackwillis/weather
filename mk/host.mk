@@ -7,10 +7,10 @@ BEARSSL_MAKEVARS =
 EXTRA_CXXFLAGS = -Werror
 EXTRA_LDFLAGS  =
 CHECK_TARGET   = check-native
-# xweather needs the X11 development headers (Fedora: libX11-devel); skipped when they are absent.
+# xbelike needs the X11 development headers (Fedora: libX11-devel); skipped when they are absent.
 ifneq ($(wildcard /usr/include/X11/Xlib.h),)
 X11_CXXFLAGS =
 X11_LIBS     = -lX11
-XWEATHER_TARGETS = $(BUILD)/xweather
+XWEATHER_TARGETS = $(BUILD)/xbelike
 CHECK_TARGET   = check-native check-gui
 endif

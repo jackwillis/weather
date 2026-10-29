@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jack Willis
 // CDE-look drawing primitives on plain Xlib (immediate mode: callers redraw everything
 // into a Pixmap, then copy it to the window). Not the Motif API: no Xt, no libXm.
-// Resources (xrdb): xweather.background, .foreground, .font, .boldFont, .bigFont.
+// Resources (xrdb): xbelike.background, .foreground, .font, .boldFont, .bigFont.
 #pragma once
 #include "core/text.hpp"
 #include <X11/Xlib.h>

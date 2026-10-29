@@ -9,7 +9,7 @@
 #   make check-maul           cross-build the unit tests and run them on maul (big-endian ground truth)
 #   make check-san            unit + robustness + feature tests under ASan/UBSan (mk/host-san.mk)
 #   make install              DESTDIR/PREFIX/MANDIR honoured; `make plist` lists the files; `make dist`, `make distcheck`
-#   make package-netbsd       binary package for maul (pkg_create runs on maul): build/pkg/weather-VERSION.tgz
+#   make package-netbsd       binary package for maul (pkg_create runs on maul): build/pkg/belike-VERSION.tgz
 #   make smoke-maul           cross-build, push to maul, test the real binary there
 #   make clean
 # Shortcut: `make ppc` = make TARGET=netbsd-macppc.
@@ -55,20 +55,20 @@ XW_OBJS      = $(patsubst src/%.cpp,$(OBJ)/%.o,$(CORE_SRCS) $(TLS_SRCS) $(PLAT_S
 TEST_OBJS    = $(OBJ)/app/preferences.o $(OBJ)/test/unittest.o $(OBJ)/core/fetch.o $(OBJ)/platform/$(PLATFORM)/log_posix.o \
                $(OBJ)/platform/$(PLATFORM)/net_posix.o $(OBJ)/platform/$(PLATFORM)/settings_posix.o $(OBJ)/platform/$(PLATFORM)/cache_posix.o
 
-all: $(BUILD)/weather $(XWEATHER_TARGETS)
+all: $(BUILD)/belike $(XWEATHER_TARGETS)
 ppc:
 	$(MAKE) TARGET=netbsd-macppc all
 
-$(BUILD)/weather.debug: $(WEATHER_OBJS) $(BEARSSL_LIB)
+$(BUILD)/belike.debug: $(WEATHER_OBJS) $(BEARSSL_LIB)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(WEATHER_OBJS) $(BEARSSL_LIB)
 
-$(BUILD)/weather: $(BUILD)/weather.debug
+$(BUILD)/belike: $(BUILD)/belike.debug
 	$(STRIP)
 
-$(BUILD)/xweather.debug: $(XW_OBJS) $(BEARSSL_LIB)
+$(BUILD)/xbelike.debug: $(XW_OBJS) $(BEARSSL_LIB)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(XW_OBJS) $(BEARSSL_LIB) $(X11_LIBS)
 
-$(BUILD)/xweather: $(BUILD)/xweather.debug
+$(BUILD)/xbelike: $(BUILD)/xbelike.debug
 	$(STRIP)
 
 # Separate diagnostic executable: production links no fixture generator.
@@ -76,11 +76,11 @@ $(OBJ)/ui/xweather/search_runner.o: src/ui/xweather/main.cpp $(OBJ)/.flags
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS_ALL) -DWEATHER_XWEATHER_LIBRARY -c -o $@ $<
 
-$(BUILD)/xweather-search-test: $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_search.o $(BEARSSL_LIB)
+$(BUILD)/xbelike-search-test: $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_search.o $(BEARSSL_LIB)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_search.o $(BEARSSL_LIB) $(X11_LIBS)
 
 
-$(BUILD)/xweather-stale-test: $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_stale.o $(BEARSSL_LIB)
+$(BUILD)/xbelike-stale-test: $(filter-out $(OBJ)/ui/xweather/main.o,$(XW_OBJS)) $(OBJ)/ui/xweather/search_runner.o $(OBJ)/test/xweather_stale.o $(BEARSSL_LIB)
 	$(CXX) $(EXTRA_LDFLAGS) -o $@ $^ $(X11_LIBS)
 
 
@@ -149,22 +149,22 @@ check-anchors:
 PREFIX  ?= /usr/local
 BINDIR  ?= $(PREFIX)/bin
 MANDIR  ?= $(PREFIX)/share/man
-EXDIR   ?= $(PREFIX)/share/examples/weather
-DOCDIR  ?= $(PREFIX)/share/doc/weather
+EXDIR   ?= $(PREFIX)/share/examples/belike
+DOCDIR  ?= $(PREFIX)/share/doc/belike
 INSTALL ?= install
-DISTNAME = weather-$(VERSION)
+DISTNAME = belike-$(VERSION)
 
 install: all
 	$(INSTALL) -d -m 755 $(DESTDIR)$(BINDIR) $(DESTDIR)$(MANDIR)/man1 $(DESTDIR)$(MANDIR)/man5 $(DESTDIR)$(EXDIR) $(DESTDIR)$(DOCDIR)
-	$(INSTALL) -m 755 $(BUILD)/weather $(DESTDIR)$(BINDIR)/weather
-	$(INSTALL) -m 644 man/weather.1 $(DESTDIR)$(MANDIR)/man1/weather.1
-	$(INSTALL) -m 644 man/weatherrc.5 $(DESTDIR)$(MANDIR)/man5/weatherrc.5
-	$(INSTALL) -m 644 share/weatherrc.example $(DESTDIR)$(EXDIR)/weatherrc
+	$(INSTALL) -m 755 $(BUILD)/belike $(DESTDIR)$(BINDIR)/belike
+	$(INSTALL) -m 644 man/belike.1 $(DESTDIR)$(MANDIR)/man1/belike.1
+	$(INSTALL) -m 644 man/belikerc.5 $(DESTDIR)$(MANDIR)/man5/belikerc.5
+	$(INSTALL) -m 644 share/belikerc.example $(DESTDIR)$(EXDIR)/belikerc
 	$(INSTALL) -m 644 LICENSE THIRD_PARTY.md $(DESTDIR)$(DOCDIR)/
 	@if [ -n "$(XWEATHER_TARGETS)" ]; then \
-	    echo "$(INSTALL) -m 755 $(BUILD)/xweather $(DESTDIR)$(BINDIR)/xweather"; \
-	    $(INSTALL) -m 755 $(BUILD)/xweather $(DESTDIR)$(BINDIR)/xweather && \
-	    $(INSTALL) -m 644 man/xweather.1 $(DESTDIR)$(MANDIR)/man1/xweather.1; fi
+	    echo "$(INSTALL) -m 755 $(BUILD)/xbelike $(DESTDIR)$(BINDIR)/xbelike"; \
+	    $(INSTALL) -m 755 $(BUILD)/xbelike $(DESTDIR)$(BINDIR)/xbelike && \
+	    $(INSTALL) -m 644 man/xbelike.1 $(DESTDIR)$(MANDIR)/man1/xbelike.1; fi
 
 # The files `make install` would install, relative to PREFIX: the basis of a package PLIST.
 plist:
@@ -182,7 +182,7 @@ dist:
 	    echo "Size ($(DISTNAME).tar.gz) = $$(wc -c < $(DISTNAME).tar.gz) bytes" >> $(DISTNAME).tar.gz.sha512 && \
 	    cat $(DISTNAME).tar.gz.sha512
 
-# NetBSD binary package for maul: cross-build, stage, pkg_create on maul -> build/pkg/weather-VERSION.tgz
+# NetBSD binary package for maul: cross-build, stage, pkg_create on maul -> build/pkg/belike-VERSION.tgz
 package-netbsd:
 	sh tools/mkpkg-netbsd.sh
 
@@ -233,19 +233,20 @@ check-ppc: $(BUILD)/ppc-runtime $(BUILD)/unittest $(BUILD)/robust
 
 
 # Exercise both configurations, preserving production defaults and release artifacts.
-check-test-hooks: $(BUILD)/weather
-	$(MAKE) TARGET=$(TARGET) TEST_HOOKS=1 build/$(TARGET)-test-hooks/unittest build/$(TARGET)-test-hooks/weather build/$(TARGET)-test-hooks/connect-budget-test
+check-test-hooks: $(BUILD)/belike
+	$(MAKE) TARGET=$(TARGET) TEST_HOOKS=1 build/$(TARGET)-test-hooks/unittest build/$(TARGET)-test-hooks/belike build/$(TARGET)-test-hooks/connect-budget-test
 	build/$(TARGET)-test-hooks/unittest
 	build/$(TARGET)-test-hooks/connect-budget-test
-	TEST_HOOKS_ENABLED=1 sh test/feature.sh build/$(TARGET)-test-hooks/weather
-	sh test/test-builds.sh $(BUILD)/weather build/$(TARGET)-test-hooks/weather
-check-native: check-os9-events lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/weather $(BUILD)/connect-budget-test $(BUILD)/ot-shutdown-test
+	TEST_HOOKS_ENABLED=1 sh test/feature.sh build/$(TARGET)-test-hooks/belike
+	sh test/test-builds.sh $(BUILD)/belike build/$(TARGET)-test-hooks/belike
+check-native: check-os9-events lint check-anchors check-tls $(BUILD)/unittest $(BUILD)/robust $(BUILD)/belike $(BUILD)/connect-budget-test $(BUILD)/ot-shutdown-test
 	sh test/ot-shutdown.sh $(BUILD)/ot-shutdown-test
 	$(BUILD)/unittest
 	$(BUILD)/connect-budget-test
 	$(BUILD)/robust
-	TEST_HOOKS_ENABLED=$(TEST_HOOKS) sh test/feature.sh $(BUILD)/weather
-	python3 test/cache_cli.py $(BUILD)/weather
+	TEST_HOOKS_ENABLED=$(TEST_HOOKS) sh test/feature.sh $(BUILD)/belike
+	python3 test/unix_names.py $(BUILD)/belike
+	python3 test/cache_cli.py $(BUILD)/belike
 	python3 test/fixture_startup.py
 ifeq ($(TEST_HOOKS),0)
 	$(MAKE) TARGET=$(TARGET) check-test-hooks
@@ -268,13 +269,14 @@ check-os9-events:
 check-san:
 	@$(MAKE) -s TARGET=host-san san-note
 	$(MAKE) TARGET=host-san check-os9-events
-	$(MAKE) TARGET=host-san build/host-san/unittest build/host-san/robust build/host-san/weather build/host-san/connect-budget-test build/host-san/ot-shutdown-test
+	$(MAKE) TARGET=host-san build/host-san/unittest build/host-san/robust build/host-san/belike build/host-san/connect-budget-test build/host-san/ot-shutdown-test
 	sh test/ot-shutdown.sh build/host-san/ot-shutdown-test
 	build/host-san/unittest
 	build/host-san/connect-budget-test
 	build/host-san/robust
-	sh test/feature.sh build/host-san/weather
-	python3 test/cache_cli.py build/host-san/weather
+	sh test/feature.sh build/host-san/belike
+	python3 test/unix_names.py build/host-san/belike
+	python3 test/cache_cli.py build/host-san/belike
 
 	@if [ -f /usr/include/X11/Xlib.h ]; then \
 	    $(MAKE) TARGET=host-san X11_LIBS=-lX11 build/host-san/cde-text-test build/host-san/cde-field-test && \
@@ -285,13 +287,13 @@ check-san:
 san-note:
 	@echo "check-san: $(SAN_NOTE)"
 
-check-gui: $(BUILD)/xweather $(BUILD)/xdrive $(BUILD)/xweather-search-test $(BUILD)/xweather-stale-test $(BUILD)/cde-text-test $(BUILD)/cde-field-test
+check-gui: $(BUILD)/xbelike $(BUILD)/xdrive $(BUILD)/xbelike-search-test $(BUILD)/xbelike-stale-test $(BUILD)/cde-text-test $(BUILD)/cde-field-test
 	$(BUILD)/cde-text-test
 	sh test/field-host.sh $(BUILD)/cde-field-test
 	sh test/gui-host.sh
 
 check-gui-maul:
-	$(MAKE) TARGET=netbsd-macppc all build/netbsd-macppc/xdrive build/netbsd-macppc/xweather-search-test build/netbsd-macppc/xweather-stale-test
+	$(MAKE) TARGET=netbsd-macppc all build/netbsd-macppc/xdrive build/netbsd-macppc/xbelike-search-test build/netbsd-macppc/xbelike-stale-test
 	sh test/gui-maul.sh
 
 check-cross:
@@ -303,8 +305,8 @@ check-maul:
 
 smoke-maul:
 	$(MAKE) TARGET=netbsd-macppc all
-	$(MAKE) TARGET=netbsd-macppc TEST_HOOKS=1 build/netbsd-macppc-test-hooks/weather
-	sh test/smoke-maul.sh build/netbsd-macppc/weather build/netbsd-macppc-test-hooks/weather
+	$(MAKE) TARGET=netbsd-macppc TEST_HOOKS=1 build/netbsd-macppc-test-hooks/belike
+	sh test/smoke-maul.sh build/netbsd-macppc/belike build/netbsd-macppc-test-hooks/belike
 
 # Layering rule: core/ and app/ may include only freestanding headers.
 ALLOWED_INCLUDES = cstddef|cstdint|cstring|cstdarg|string_view|utility|type_traits|limits

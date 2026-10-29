@@ -1,10 +1,10 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Jack Willis
-# GUI scenario for xweather, run inside a private virtual X server. Runs on this machine
+# GUI scenario for xbelike, run inside a private virtual X server. Runs on this machine
 # (test/gui-host.sh) and on maul/NetBSD (test/gui-maul.sh); plain POSIX sh.
 #
-# env: WX_DIR (dir holding xweather and xdrive; default .)  DISP (default :77)
+# env: WX_DIR (dir holding xbelike and xdrive; default .)  DISP (default :77)
 #      XVFB (default Xvfb)  XVFB_ARGS  SNAPEXT (xwd|png)  XDRIVE_SNAPCMD (host: import ...)
 #      PORT_OK PORT_SLOW PORT_500   fixture servers on 127.0.0.1
 #      GALLERY="name:port name:port ..."   one fixture server per weather picture
@@ -19,13 +19,13 @@ snap() { ./xdrive snap snap/$1.$EXT; }
 fetches() { c=$(grep -c 'trying open-meteo' xw.log); echo ${c:-0}; }
 start_xw() { # start_xw RC PORT [extra args]   (-v logs one line per fetch)
 	rc=$1; port=$2; shift 2
-	${XW_BIN:-./xweather} -v -c "$rc" -H 127.0.0.1:$port "$@" > xw.log 2>&1 &
+	${XW_BIN:-./xbelike} -v -c "$rc" -H 127.0.0.1:$port "$@" > xw.log 2>&1 &
 	XW=$!
-	./xdrive wait Weather 20000 || { echo "FAIL window did not appear"; cat xw.log; fail=$((fail+1)); return 1; }
+	./xdrive wait xbelike 20000 || { echo "FAIL window did not appear"; cat xw.log; fail=$((fail+1)); return 1; }
 }
 keeplog() { cp xw.log snap/$1.log; }
 quit_xw() {
-	./xdrive key q ctrl; ./xdrive gone Weather 8000; check "$1: Ctrl-Q closes the window" "$?" 0
+	./xdrive key q ctrl; ./xdrive gone xbelike 8000; check "$1: Ctrl-Q closes the window" "$?" 0
 	wait $XW; check "$1: exit status" "$?" 0
 }
 
@@ -85,7 +85,7 @@ printf 'attempts = 1\ntimeout = 30\n' > rcB
 if start_xw rcB $PORT_SLOW; then
 	./xdrive sleep 1500 snap snap/B01-fetching.$EXT
 	t0=$(date +%s)
-	./xdrive close; ./xdrive gone Weather 6000; check "B: window closes while the fetch is stuck" "$?" 0
+	./xdrive close; ./xdrive gone xbelike 6000; check "B: window closes while the fetch is stuck" "$?" 0
 	wait $XW; check "B: exit status" "$?" 0
 	t1=$(date +%s)
 	check "B: ...promptly, not after the 30 s timeout" "$([ $((t1 - t0)) -lt 8 ] && echo yes || echo no)" yes
@@ -106,8 +106,8 @@ fi
 # ---------------------------------------------------------------- Cache: real file restoration, no service contact
 printf 'providers = met-no\nattempts = 1\n' > rcCache
 for round in 1 2; do
-	./xweather -d -c rcCache > xw.log 2>&1 & XW=$!
-	./xdrive wait Weather 20000 || { echo "FAIL cached window did not appear"; cat xw.log; cp xw.log snap/Cache-startup-failure.log; fail=$((fail+1)); break; }
+	./xbelike -d -c rcCache > xw.log 2>&1 & XW=$!
+	./xdrive wait xbelike 20000 || { echo "FAIL cached window did not appear"; cat xw.log; cp xw.log snap/Cache-startup-failure.log; fail=$((fail+1)); break; }
 	./xdrive sleep 1500 snap snap/Cache-$round.$EXT
 	check "Cache $round: stale forecast restored, including restart" "$(grep -c 'restored cached forecast (stale)' xw.log)" 1
 	check "Cache $round: server-valid MET reused without contact" "$(grep -c 'MET Norway: using saved forecast until server expiry' xw.log)" 1
@@ -125,8 +125,8 @@ done
 
 # Old disk data plus a deterministic failing connection. No -H: it disables restoration.
 printf 'providers = met-no\nattempts = 1\nautorefresh = off\n' > rcStale
-./xweather-stale-test -v -c rcStale > xw.log 2>&1 & XW=$!
-if ./xdrive wait Weather 20000; then
+./xbelike-stale-test -v -c rcStale > xw.log 2>&1 & XW=$!
+if ./xdrive wait xbelike 20000; then
     ./xdrive sleep 1000 snap snap/Stale-with-data.$EXT
     check "Stale: old disk forecast restored" "$(grep -c 'restored cached forecast (stale)' xw.log)" 1
     check "Stale: failed once without DNS" "$(grep -c 'stale fixture: connect refused before DNS' xw.log)" 1
@@ -138,8 +138,8 @@ else
 fi
 
 # Saving-off survives relaunch; turning it back on is persistent too.
-./xweather -d -c rcCache > xw.log 2>&1 & XW=$!
-if ./xdrive wait Weather 20000; then
+./xbelike -d -c rcCache > xw.log 2>&1 & XW=$!
+if ./xdrive wait xbelike 20000; then
     ./xdrive sleep 1500 snap snap/Cache-saving-off-restart.$EXT
     check "Cache: off restart does not restore" "$(grep -c 'restored cached forecast' xw.log)" 0
     check "Cache: off restart skips MET" "$(grep -c 'MET Norway requires forecast saving' xw.log)" 1
@@ -205,8 +205,8 @@ if start_xw rcSave $PORT_OK; then
 fi
 
 # Fixture lookup is a separately linked executable, never a production endpoint override.
-if [ -x ./xweather-search-test ]; then
-    XW_BIN=./xweather-search-test
+if [ -x ./xbelike-search-test ]; then
+    XW_BIN=./xbelike-search-test
     printf 'attempts = 1\nautorefresh = off\n' > rcSearch
     if start_xw rcSearch $PORT_OK; then
         ./xdrive sleep 1500 key l ctrl sleep 200 key f ctrl sleep 200
@@ -271,7 +271,7 @@ fi
 # An invalid settings file is reported and never replaced.
 printf 'latitude = banana\n' > rcBad
 cp rcBad rcBad.before
-./xweather -c rcBad > xw-bad.log 2>&1; bad=$?
+./xbelike -c rcBad > xw-bad.log 2>&1; bad=$?
 check "First: invalid settings exit with the config error" "$bad" 78
 check "First: invalid settings are not replaced" "$(cmp -s rcBad rcBad.before; echo $?)" 0
 
@@ -281,7 +281,7 @@ for g in $GALLERY; do
 	printf 'attempts = 1\nautorefresh = off\n' > rcD
 	if start_xw rcD $port; then
 		./xdrive sleep 2500 snap snap/G-$name.$EXT
-		./xdrive key q ctrl; ./xdrive gone Weather 8000; wait $XW
+		./xdrive key q ctrl; ./xdrive gone xbelike 8000; wait $XW
 	fi
 done
 

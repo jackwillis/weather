@@ -21,7 +21,7 @@ from cache_fixture import record
 
 class CacheCLI(unittest.TestCase):
     def setUp(self):
-        self.directory = tempfile.TemporaryDirectory(prefix="weather-cache-cli-")
+        self.directory = tempfile.TemporaryDirectory(prefix="belike-cache-cli-")
         self.addCleanup(self.directory.cleanup)
         self.rc = Path(self.directory.name) / "rc"
         self.cache = Path(str(self.rc) + ".cache")

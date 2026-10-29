@@ -1,5 +1,5 @@
-# Example settings for weather(1) and xweather(1): copy to ~/.weatherrc and edit.
-# See weatherrc(5). Everything here is optional; these are the defaults.
+# Example settings for belike(1) and xbelike(1): copy to ~/.belikerc and edit.
+# See belikerc(5). Everything here is optional; these are the defaults.
 
 latitude  = 43.0747        # decimal degrees, -90..90
 longitude = -89.3841       # decimal degrees, -180..180
@@ -11,5 +11,5 @@ units     = imperial       # imperial (F, mph) or metric (C, km/h)
 #providers = open-meteo    # data sources in the order to try them: open-meteo, met-no
 #contact   = you@example.org   # required by met-no (their terms ask clients to identify themselves)
 #log       = warn          # error, warn, info or debug
-#autorefresh = on          # xweather: refresh every 15 minutes
+#autorefresh = on          # xbelike: refresh every 15 minutes
 #cache = on                # save forecasts; off removes saved data and disables met-no

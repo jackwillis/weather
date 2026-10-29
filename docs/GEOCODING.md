@@ -1,7 +1,7 @@
 # Location search
 
 PR #17 implements the portable foundation and explicit read-only CLI search
-(`weather -g "place"`, also `--search`). X11 result selection and OS 9 native search controls are implemented. Native OS 9
+(`belike -g "place"`, also `--search`). X11 result selection and OS 9 native search controls are implemented. Native OS 9
 interaction and layout acceptance remain pending. Normal forecast requests and startup do not search.
 The CLI prints numbered matches, region/country and coordinates, with attribution
 and a simplification note when needed. It never automatically selects or saves;
@@ -68,7 +68,7 @@ file, editing fails rather than silently changing only memory. Automatic weather
 refresh pauses while Location or search is open, preventing nested requests.
 
 Production HTTP fixture mode refuses place lookup. The GUI test links a separate
-`xweather-search-test` with an explicit C++ lookup callback; production `xweather`
+`xbelike-search-test` with an explicit C++ lookup callback; production `xbelike`
 contains no fixture generator or environment/marker-based geocoding override.
 
 Supplemental GUI memory checks run the same scripted scenario under ASan/UBSan
@@ -85,7 +85,7 @@ X11 (#198, supersedes the automatic picker added with #106): missing or
 zero-byte settings show the default location (Madison, Wisconsin) and fetch it.
 Nothing is written until the user opens Location... (button, File menu or Ctrl-L)
 and saves a place; Find remains an explicit separate search action. An invalid or
-unreadable settings file is reported and xweather exits without touching it. With
+unreadable settings file is reported and xbelike exits without touching it. With
 no settings file available at all, a notice says a changed location cannot be saved.
 The CLI remains non-interactive and retains its existing defaults.
 

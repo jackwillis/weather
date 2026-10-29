@@ -27,8 +27,9 @@ The v0.1 supported release targets are NetBSD/macppc (one combined CLI/X11
 package) and native PowerPC Mac OS 9.2.2, with Tiger Classic as additional
 validation. Linux and modern macOS are development hosts, not packaged release
 targets; XQuartz acceptance is still #171. The broader platform RFC is not an
-expanded support promise. The approved Unix names belike/xbelike and ~/.belikerc
-remain pending #135; current source still uses weather/xweather/~/.weatherrc.
+expanded support promise. This source uses belike/xbelike and ~/.belikerc (#135), with no old-name
+aliases or configuration migration. Historical test evidence below used the old
+weather/xweather names; fresh renamed-package acceptance remains pending #204.
 OS 9 Weather and its seed/lock names stay unchanged. #158 and #182 stay v0.2.
 
 Draft v0.1 notes are in `docs/release-notes/0.1.0.md`. Provider conclusions (#73),

@@ -52,18 +52,18 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-        run: sh tools/check-release.sh "$VERSION" "build/dist/weather-$VERSION.tar.gz" build/os9/Weather-release.dsk "$TAG"
+        run: sh tools/check-release.sh "$VERSION" "build/dist/belike-$VERSION.tar.gz" build/os9/Weather-release.dsk "$TAG"
       - name: Collect artifacts and checksums
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p out
-          cp "build/dist/weather-$VERSION.tar.gz" out/
+          cp "build/dist/belike-$VERSION.tar.gz" out/
           cp build/os9/Weather-release.dsk "out/Weather-$VERSION.dsk"
           echo "Retro68 image: $RETRO68_IMAGE" > out/retro68-image.txt
           cd out
           # Only the release files: not SHA512SUMS itself, not the image note
-          for f in "weather-$VERSION.tar.gz" "Weather-$VERSION.dsk"; do
+          for f in "belike-$VERSION.tar.gz" "Weather-$VERSION.dsk"; do
             printf 'SHA512 (%s) = %s\n' "$f" "$(sha512sum "$f" | cut -d' ' -f1)"
           done > SHA512SUMS.new
           mv SHA512SUMS.new SHA512SUMS
@@ -92,7 +92,7 @@ jobs:
         run: |
           version=$(sed -n 's/^VERSION *= *//p' Makefile)
           ls -l dl
-          for f in "weather-$version.tar.gz" "Weather-$version.dsk" SHA512SUMS retro68-image.txt; do
+          for f in "belike-$version.tar.gz" "Weather-$version.dsk" SHA512SUMS retro68-image.txt; do
             [ -f "dl/$f" ] || { echo "missing dl/$f"; exit 1; }
           done
           [ "$(wc -l < dl/SHA512SUMS)" = 2 ] || { echo "SHA512SUMS must list exactly the tarball and the .dsk"; cat dl/SHA512SUMS; exit 1; }
@@ -124,4 +124,4 @@ jobs:
           [ -f "$notes" ] || { echo "missing $notes"; exit 1; }
           { cat "$notes"; echo; echo "## Build"; cat dl/retro68-image.txt; } > notes.md
           gh release create "$TAG" --draft --prerelease --verify-tag --title "What It Be Like? $version" --notes-file notes.md \
-            dl/weather-"$version".tar.gz dl/Weather-"$version".dsk dl/SHA512SUMS
+            dl/belike-"$version".tar.gz dl/Weather-"$version".dsk dl/SHA512SUMS

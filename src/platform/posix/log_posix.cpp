@@ -31,7 +31,7 @@ void logf(Level lvl, const char *fmt, ...)
 	static const char *const names[] = {"error", "warning", "info", "debug"};
 	static const int prio[] = {LOG_ERR, LOG_WARNING, LOG_INFO, LOG_DEBUG};
 	if (g_syslog) syslog(prio[lvl], "%s", line);
-	else fprintf(stderr, "weather: %s: %s\n", names[lvl], line);
+	else fprintf(stderr, "belike: %s: %s\n", names[lvl], line);
 }
 
 } // namespace wx

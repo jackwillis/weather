@@ -27,7 +27,7 @@
 
 static Display *dpy;
 static Window win;
-static const char *default_title = "Weather";   // override with XDRIVE_WINDOW
+static const char *default_title = "xbelike";   // override with XDRIVE_WINDOW
 
 // The app may quit between our events (Ctrl-Q): a send to a vanished window is not an error.
 static int on_x_error(Display *, XErrorEvent *e) { return e->error_code == BadWindow ? 0 : (fprintf(stderr, "xdrive: X error %d\n", e->error_code), 0); }

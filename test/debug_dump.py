@@ -11,9 +11,9 @@ response = (b'HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nContent-Lengt
             % len(body)) + body
 expected = ''.join(chr(c) if 32 <= c < 127 else '.' for c in response)
 output = sys.stdin.read()
-headers = re.findall(r'^weather: debug: response \((\d+) bytes\):$', output, re.M)
+headers = re.findall(r'^belike: debug: response \((\d+) bytes\):$', output, re.M)
 assert headers == [str(len(response))], 'response header must give the complete byte count'
-chunks = re.findall(r'^weather: debug: response \[(\d+)\]: (.*)$', output, re.M)
+chunks = re.findall(r'^belike: debug: response \[(\d+)\]: (.*)$', output, re.M)
 actual = ''
 for offset, text in chunks:
     assert int(offset) == len(actual), 'chunks must be contiguous and ordered'

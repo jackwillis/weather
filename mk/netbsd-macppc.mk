@@ -14,4 +14,4 @@ CHECK_TARGET   = check-cross
 # X11 comes from the sysroot (xbase/xcomp sets); the rpath is required on NetBSD.
 X11_CXXFLAGS = -I$(SYSROOT)/usr/X11R7/include
 X11_LIBS     = -L$(SYSROOT)/usr/X11R7/lib -Wl,-rpath,/usr/X11R7/lib -lX11
-XWEATHER_TARGETS = $(BUILD)/xweather
+XWEATHER_TARGETS = $(BUILD)/xbelike

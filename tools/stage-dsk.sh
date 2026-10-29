@@ -17,7 +17,7 @@ A small weather window. Free software: GNU General Public License, version 3 or
 
 Source code (exactly this version):
   https://github.com/jackwillis/weather/releases/tag/v$version
-  (the weather-$version.tar.gz attached to that release)
+  (the belike-$version.tar.gz attached to that release)
 
 Credits and third-party notices: THIRD_PARTY.md. Weather data comes from
 Open-Meteo.com and MET Norway (CC BY 4.0).

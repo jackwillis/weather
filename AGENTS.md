@@ -46,7 +46,7 @@ This file is the working agreement. Updated 2026-10-25.
     make check-san        # sanitizers
     make check-maul smoke-maul   # PowerPC tests on maul; maul must be booted into NetBSD (maulctl status)
     make os9              # Mac OS 9 app via Retro68 in podman -> build/os9/Weather.{APPL,bin,dsk}
-    make package-netbsd   # build/pkg/weather-0.1.0.tgz (pkg_create runs on maul); install is `doas pkg_add` by the owner
+    make package-netbsd   # build/pkg/belike-0.1.0.tgz (pkg_create runs on maul); install is `doas pkg_add` by the owner
     make dist distcheck   # reproducible tarball (needs a clean, committed tree)
 Host GUI checks allocate a private Xvfb display. Run all GUI checks serially, including checks with private displays, as directed by the owner.
 Concurrent non-GUI checks require separate source/build/output trees; never compile into the same object directories.
@@ -70,7 +70,7 @@ agent memory directory. maul boots either NetBSD or Mac OS X; ask the owner to r
 Check clocks with `date -u +%s` on the Mac versus the app's `clock:` log line.
 
 ## State at handoff
-* CLI and xweather work on NetBSD/macppc; two providers, BearSSL TLS, packaging and host checks are in place.
+* CLI and xbelike work on NetBSD/macppc; two providers, BearSSL TLS, packaging and host checks are in place.
 * OS 9 Weather is the native window; WeatherConsole retains the console diagnostic. They share bounded, all-or-nothing Preferences/legacy weather.conf loading (see docs/OS9-PREFERENCES.md).
 * WeatherUITest is a separate optional executable. Production Weather links no fixture generator or marker-file driver. See README for the scripted hardware run.
 * DNS/managed TLS seeds are implemented; preserve once-per-process network init and terminal shutdown. Never remove a live seed lock.

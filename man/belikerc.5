@@ -1,15 +1,15 @@
 .Dd October 24, 2026
-.Dt WEATHERRC 5
+.Dt BELIKERC 5
 .Os
 .Sh NAME
-.Nm weatherrc
-.Nd settings for weather and xweather
+.Nm belikerc
+.Nd settings for belike and xbelike
 .Sh DESCRIPTION
-.Pa ~/.weatherrc
+.Pa ~/.belikerc
 holds the settings shared by
-.Xr weather 1
+.Xr belike 1
 and
-.Xr xweather 1 .
+.Xr xbelike 1 .
 It is a text file of lines of the form
 .Pp
 .Dl key = value
@@ -26,9 +26,9 @@ A missing file is the same as an empty one.
 Programs that change the file
 .Pf ( Fl S
 in
-.Xr weather 1 ,
+.Xr belike 1 ,
 and the Location dialog and Options menu in
-.Xr xweather 1 )
+.Xr xbelike 1 )
 rewrite only the keys they own and leave every other line, comment and line ending as it was.
 The new file replaces the old one atomically, keeps its permissions, and a symbolic link is followed
 rather than replaced.
@@ -70,7 +70,7 @@ Default
 .Ql open-meteo,met-no .
 .It Ic contact
 An e-mail address or web address that identifies you, sent in the User-Agent as
-.Ql weather/VERSION (contact: ...) .
+.Ql belike/VERSION (contact: ...) .
 Printable ASCII, up to 79 characters, without
 .Ql # ,
 .Ql \&( 
@@ -111,7 +111,7 @@ Default
 or
 .Ql off :
 whether
-.Xr xweather 1
+.Xr xbelike 1
 refreshes by itself every 15 minutes.
 Default
 .Ql on .
@@ -123,8 +123,8 @@ latitude  = 59.9100
 longitude = 10.7500
 name      = Oslo, Norway
 units     = metric
-autorefresh = on     # xweather only
+autorefresh = on     # xbelike only
 .Ed
 .Sh SEE ALSO
-.Xr weather 1 ,
-.Xr xweather 1
+.Xr belike 1 ,
+.Xr xbelike 1

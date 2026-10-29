@@ -26,7 +26,7 @@ The CLI always tries live data first. If that fails and a matching entry exists,
 output begins `STALE cached forecast`, and the CLI retains the live failure's exit
 status and diagnostic. Cached data therefore never turns a network or certificate
 failure into a successful script result. Cancellation does not trigger fallback.
-`xweather` may display cached data while trying to update, with a leading
+`xbelike` may display cached data while trying to update, with a leading
 `Cached / stale` marker and dimmed temperature. A live success clears that marker.
 Location or unit changes discard the old display and only admit matching entries.
 Cached data preserves the five-second manual refresh floor, error/backoff schedule
@@ -147,7 +147,7 @@ failure output. Next deliver and run the isolated window diagnostic:
 ```sh
 maulctl push osx build/os9/WeatherCacheUITest.dsk WeatherCacheUITest.dsk
 maulctl osx 'sh /tmp/deliver-os9.sh /tmp/WeatherCacheUITest.dsk WeatherCacheUITest'
-python3 tools/check-os9-window.py /tmp/weather-cache-shots --app WeatherCacheUITest
+python3 tools/check-os9-window.py /tmp/belike-cache-shots --app WeatherCacheUITest
 ```
 
 Inspect the saved screenshots for the stale label, original fetch age and live
@@ -165,14 +165,14 @@ The file holds either one record or two (448 bytes): primary is the latest downl
 Owner acceptance is pending. The CacheProbe commands above exercise the two-record File Manager path after this change. NetBSD's unit suite exercises expiry and source switching with a fake network; run `make check-maul smoke-maul` serially after Jack boots NetBSD. For a production CLI test with no MET network request, stage an isolated config and a synthetic, future-expiry fixture on the laptop:
 
 ```sh
-mkdir -p /tmp/weather-met152-native
-printf 'providers=met-no\ncache=on\nattempts=1\n' > /tmp/weather-met152-native/rc
-python3 test/cache_fixture.py /tmp/weather-met152-native/rc.cache
+mkdir -p /tmp/belike-met152-native
+printf 'providers=met-no\ncache=on\nattempts=1\n' > /tmp/belike-met152-native/rc
+python3 test/cache_fixture.py /tmp/belike-met152-native/rc.cache
 make TARGET=netbsd-macppc all
-maulctl push nb build/netbsd-macppc/weather met152-weather
-maulctl push nb /tmp/weather-met152-native/rc met152-rc
-maulctl push nb /tmp/weather-met152-native/rc.cache met152-rc.cache
-maulctl nb '/tmp/met152-weather -v -c /tmp/met152-rc -1'
+maulctl push nb build/netbsd-macppc/belike met152-weather
+maulctl push nb /tmp/belike-met152-native/rc met152-rc
+maulctl push nb /tmp/belike-met152-native/rc.cache met152-rc.cache
+maulctl nb '/tmp/met152-belike -v -c /tmp/met152-rc -1'
 ```
 
 Expect exit zero, `MET Norway: using saved forecast until server expiry`, and `[saved; server-valid]` output; this is synthetic diagnostic data, not live weather. Keep logs. Repeat before fixture expiry; the file must remain unchanged. No personal contact is needed. For Classic, run the seed-free CacheProbe first and retain `finished: 0 failures`.

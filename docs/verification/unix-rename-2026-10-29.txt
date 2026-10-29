@@ -1,0 +1,46 @@
+Unix rename (#135), 2026-10-29, baseline main da8bcd5
+
+Collision audit is posted on #135 (2026-10-29). No matches in queried pkgsrc,
+Debian, Fedora, Arch/AUR, Homebrew, npm/PyPI package-name indexes. Ubuntu search
+returned HTTP 500. Not exhaustive executable-content or trademark clearance.
+
+Red: new no-migration/command regression before the rename:
+FAIL Unix names: belike executable missing
+Green after implementation:
+Unix names: version, new rc read/write and no legacy migration passed
+It leaves an invalid old ~/.weatherrc unchanged, writes ~/.belikerc, then reads
+and updates the new rc while preserving units. No forecast/network request.
+
+Initial GUI run exposed a hardcoded old test-driver window title:
+xdrive: no window titled 'Weather'
+Stopped only the owned scenario, updated the driver's default to xbelike and
+re-ran the full suite. Final suite results are recorded on the PR.
+
+Local 32-bit attempt could not build because the laptop lacks multilib headers:
+/usr/include/gnu/stubs.h:7:11: fatal error: gnu/stubs-32.h: No such file or directory
+The hosted 32-bit job installs multilib and is the required execution check;
+do not report the local attempt as a pass.
+
+Linux -> NetBSD/macppc: belike/xbelike and separate search/stale diagnostics
+cross-built; install staging and PLIST generation passed with one combined set:
+bin/belike
+bin/xbelike
+man/man1/belike.1
+man/man1/xbelike.1
+man/man5/belikerc.5
+share/doc/belike/LICENSE
+share/doc/belike/THIRD_PARTY.md
+share/examples/belike/belikerc
+No NetBSD binary ran on Linux or hardware. Actual pkg_create/install acceptance
+remains the owner's #204 work; host package-safety tests use explicit stubs.
+
+Production Weather/WeatherConsole/SeedInstall and OT layout guards cross-built
+on Linux with the release-pinned Retro68 image. OS 9 source/resource/Preferences/
+seed/lock paths and stable cache/seed formats are unchanged. Shared HTTP User-Agent
+now identifies the project as belike; repository and provider URLs are unchanged.
+Internal src/ui/xweather paths, API identifiers and historical verification
+records deliberately retain their old names; they are not command aliases.
+
+Source distribution/reproducibility, host/sanitizer, GUI and hosted checks are
+reported on the PR after completion. No hardware, release/tag, remote install,
+seed operation, entropy collector or Activity Log change is included.

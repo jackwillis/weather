@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 Jack Willis
-// ~/.weatherrc: "key = value" lines, '#' comments. Command-line flags override it.
+// ~/.belikerc: "key = value" lines, '#' comments. Command-line flags override it.
 #pragma once
 #include "log.hpp"
 #include "status.hpp"
@@ -9,7 +9,7 @@
 namespace wx {
 
 struct Config {
-	// Default location: Madison, WI 53703 (Capitol Square). Override in ~/.weatherrc or with -l.
+	// Default location: Madison, WI 53703 (Capitol Square). Override in ~/.belikerc or with -l.
 	long lat_e4 = 430747;
 	long lon_e4 = -893841;
 	char name[48] = "Madison, WI";

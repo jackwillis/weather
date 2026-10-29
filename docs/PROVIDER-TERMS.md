@@ -13,7 +13,7 @@ summary for planning, not legal advice, and the providers' own pages govern.
   distribution would need a commercial plan or another source.
 
 ## MET Norway Locationforecast 2.0 (optional source) — https://api.met.no/doc/TermsOfService
-* Every request identifies the app as `weather/VERSION (contact: https://github.com/jackwillis/weather)` unless the user configures a contact override. New installs try Open-Meteo first, then MET; saving off skips MET.
+* Every request identifies the app as `belike/VERSION (contact: https://github.com/jackwillis/weather)` unless the user configures a contact override. New installs try Open-Meteo first, then MET; saving off skips MET.
 * Data is **CC BY 4.0** (credit, link to the licence, indicate changes).
 * Limit: 20 requests/second per application in aggregate; coordinates must have **at most 4 decimals** (5+ returns 403).
   Weather stores coordinates as fixed-point E4, so it complies by construction.
@@ -44,7 +44,7 @@ Re-read the [API policy](https://www.weather.gov/documentation/services-web-api)
 
 ## Open items
 - [ ] Verify the existing About/Credits pages in shipped X11 and OS 9 builds, including licence wording and native layout. NWS must be added when its provider ships, clearly distinguished as U.S. public-domain government data rather than CC BY 4.0.
-- [x] `man/weather.1` names the CC BY sources, links the licence, describes conversion and separately credits NWS.
+- [x] `man/belike.1` names the CC BY sources, links the licence, describes conversion and separately credits NWS.
 - [x] Conditional requests (`If-Modified-Since`) for MET Norway: #146. Expiry implementation: #152; native verification remains open.
 - [ ] Jack accepts this summary (the issue is labelled `needs-owner`).
 
@@ -62,7 +62,7 @@ that those PRs were unmerged were stale. Source inspection found:
 | X11 Help > About > Credits | Same shared data strings | Same correction; host page bounds tested. Released-package discovery/layout remains #204. |
 | OS 9 About pages | Same shared data strings | Same correction; native screenshot acceptance remains #204. |
 | README | CC BY link and changes; NWS merely linked | Explicit NWS public-domain/no-endorsement statement added. |
-| weather(1) | CC BY names and changes; no licence URL or NWS | Both added. |
+| belike(1) | CC BY names and changes; no licence URL or NWS | Both added. |
 
 Open-Meteo's [current terms](https://open-meteo.com/en/terms) retain CC BY 4.0
 and a non-commercial free endpoint, with 600/minute, 5,000/hour, 10,000/day and

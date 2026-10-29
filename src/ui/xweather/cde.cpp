@@ -9,7 +9,7 @@ namespace cde {
 
 static bool res_color(Display *d, Colormap cm, const char *name, XColor *out)
 {
-	const char *v = XGetDefault(d, "xweather", name);
+	const char *v = XGetDefault(d, "xbelike", name);
 	if (!v) return false;
 	XColor exact;
 	if (!XParseColor(d, cm, v, &exact)) return false;
@@ -31,7 +31,7 @@ static unsigned long scaled(Display *d, Colormap cm, XColor base, int num, int d
 
 static XFontStruct *load_font(Display *d, const char *resource, const char *const *patterns)
 {
-	if (const char *v = XGetDefault(d, "xweather", resource))
+	if (const char *v = XGetDefault(d, "xbelike", resource))
 		if (XFontStruct *f = XLoadQueryFont(d, v)) return f;
 	for (; *patterns; patterns++)
 		if (XFontStruct *f = XLoadQueryFont(d, *patterns)) return f;
@@ -72,7 +72,7 @@ bool Theme::init(Display *d, int scr)
 	normal = load_font(d, "font", nf);
 	bold = load_font(d, "boldFont", bf);
 	big = load_font(d, "bigFont", gf);
-	if (!normal) { fprintf(stderr, "xweather: no usable font (not even 'fixed')\n"); return false; }
+	if (!normal) { fprintf(stderr, "xbelike: no usable font (not even 'fixed')\n"); return false; }
 	if (!bold) bold = normal;
 	if (!big) big = bold;
 	return true;
