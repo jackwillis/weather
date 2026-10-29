@@ -1,0 +1,1 @@
+- Reword the OS 9 Open Transport glue comments to cite Apple's public TN1173 and our own hardware observations (#63). Comments only; no behaviour change.
