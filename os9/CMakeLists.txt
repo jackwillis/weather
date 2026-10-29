@@ -23,7 +23,7 @@ set(WEATHER_COMMON
   ${ROOT}/src/platform/posix/nocxx.cpp
   ${ROOT}/os9/weather.r)
 add_application(Weather ${WEATHER_COMMON} ${ROOT}/src/ui/os9/window.cpp
-  ${ROOT}/src/ui/os9/location.cpp
+  ${ROOT}/src/ui/os9/location.cpp ${ROOT}/src/ui/os9/place_search.cpp
   ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/src/ui/os9/main.cpp)
 add_application(WeatherConsole CONSOLE ${WEATHER_COMMON} ${ROOT}/src/platform/os9/console_main.cpp
   ${ROOT}/src/platform/os9/settings_os9.cpp)
@@ -65,20 +65,37 @@ if(WEATHER_BUILD_DIAGNOSTICS)
   target_include_directories(PreferencesProbe PRIVATE ${ROOT}/src)
   target_compile_options(PreferencesProbe PRIVATE -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
   add_application(WeatherPrefsUITest CONSOLE ${WEATHER_COMMON}
-    ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/location.cpp
+    ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/location.cpp ${ROOT}/src/ui/os9/place_search.cpp
     ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/spike/os9/preferences_ui_probe.cc)
   target_include_directories(WeatherPrefsUITest PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
   target_compile_definitions(WeatherPrefsUITest PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
   target_compile_options(WeatherPrefsUITest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
   target_link_libraries(WeatherPrefsUITest bearssl OpenTransportLib OpenTptInternetLib)
+  foreach(FIRST_TARGET WeatherFirstApplyTest WeatherFirstCancelTest)
+    add_application(${FIRST_TARGET} CONSOLE ${WEATHER_COMMON}
+      ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/location.cpp ${ROOT}/src/ui/os9/place_search.cpp
+      ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/spike/os9/first_location_probe.cc)
+    target_include_directories(${FIRST_TARGET} PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+    target_compile_definitions(${FIRST_TARGET} PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
+    target_compile_options(${FIRST_TARGET} PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
+    target_link_libraries(${FIRST_TARGET} bearssl OpenTransportLib OpenTptInternetLib)
+  endforeach()
+  target_compile_definitions(WeatherFirstCancelTest PRIVATE WEATHER_FIRST_CANCEL=1)
   add_application(WeatherUITest CONSOLE ${WEATHER_COMMON}
     ${ROOT}/src/ui/os9/window.cpp
-  ${ROOT}/src/ui/os9/location.cpp
+  ${ROOT}/src/ui/os9/location.cpp ${ROOT}/src/ui/os9/place_search.cpp
   ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/spike/os9/window_probe.cc)
   target_include_directories(WeatherUITest PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
   target_compile_definitions(WeatherUITest PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
   target_compile_options(WeatherUITest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
   target_link_libraries(WeatherUITest bearssl OpenTransportLib OpenTptInternetLib)
+  add_application(WeatherPlaceSearchTest CONSOLE ${WEATHER_COMMON}
+    ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/location.cpp ${ROOT}/src/ui/os9/place_search.cpp
+    ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/spike/os9/place_search_probe.cc)
+  target_include_directories(WeatherPlaceSearchTest PRIVATE ${ROOT}/src ${ROOT}/third_party/bearssl/inc)
+  target_compile_definitions(WeatherPlaceSearchTest PRIVATE WEATHER_VERSION="${WEATHER_VERSION_STR}")
+  target_compile_options(WeatherPlaceSearchTest PRIVATE -O2 -Wall -Wextra -fno-exceptions -fno-rtti)
+  target_link_libraries(WeatherPlaceSearchTest bearssl OpenTransportLib OpenTptInternetLib)
   add_application(WeatherCacheUITest CONSOLE ${WEATHER_COMMON}
     ${ROOT}/src/ui/os9/window.cpp ${ROOT}/src/ui/os9/location.cpp
     ${ROOT}/src/platform/os9/settings_os9.cpp ${ROOT}/spike/os9/window_probe.cc)

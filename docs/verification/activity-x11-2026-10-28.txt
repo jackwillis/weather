@@ -44,3 +44,12 @@ Remaining #160 scope: OS 9 viewer/event wiring, source-fallback event fan-out,
 native NetBSD/ctwm and OS 9 acceptance, and physical-machine resource measurements.
 History is bounded, memory-only and session-only. Existing diagnostic sinks are
 unchanged. No maul commands or owner acceptance were performed for this change.
+
+Integration follow-up: main advanced to c2bb3c6 (location search #17) during PR
+creation, preventing hosted pull-request checks while conflicts remained.
+Resolved menu enum, GUI test dependencies, bounded quit-aware event pump, and
+location application while preserving main's save-before-apply semantics.
+A sandboxed initial check could not start its TLS fixture (PermissionError,
+0 passed, 1 failed); it is not a green run. Full integration checks rerun with
+local fixture networking permitted; results will be recorded before readiness.
+The cross-build/resource figures above describe the pre-integration viewer tree.

@@ -1,0 +1,60 @@
+Session configuration editor safety: #57 / audit G1 (ctwm and xinitrc)
+
+ctwm undo previously deleted every line after an unmatched BEGIN marker. Both
+editors truncated the original during replacement, and xinitrc undo removed any
+line containing maul-weather. The updated standalone scripts:
+- Validate exact, balanced owned ctwm blocks, refusing nested/incomplete/modified
+  contents before deleting any range. Installation requires both known blocks
+  or neither; undo may remove a valid owned block. Similar comments are untouched.
+- Match only the exact generated xinitrc launch line, preserving unrelated text.
+- Use a private sibling temporary directory, checked snapshot/backup/write and
+  same-filesystem rename, with cleanup on errors/signals. Preserve ordinary file
+  mode/ownership through cp -p as supported by the platform; no ACL guarantee.
+- Refuse symlinked or multiply linked configurations and symlink/nonregular
+  backup paths. Do not use the old predictable RC.new path. Refuse missing install
+  anchors and concurrent content changes detected before replacement.
+
+Both remain standalone because the documented workflow pushes one script to
+maul; no unshipped helper dependency is introduced. New Python tests run on
+private temp copies and cover old-open-descriptor contents, inode replacement,
+mode/backup retention, idempotence, undo, malformed blocks, exact-match removal,
+empty output, failed rename/cleanup, link refusal, missing anchors and an old
+RC.new symlink. Nine test groups (with subcases). A POSIX shell smoke driver
+covers four scenarios and can run unchanged under NetBSD sh/awk.
+
+Red: initial six test groups produced11 failures, including deleted malformed
+block tails, in-place writes and broad marker removal. /tmp/weather-session-red.log.
+Focused green: nine Python test groups and four POSIX smoke checks pass.
+Expected failure diagnostic during fault injection:
+FAILED: cannot atomically replace configuration; configuration left unchanged
+
+Scope at initial commit1288ab3: configuration editor portion of #57. A later
+#85 update handles package/delivery code; see package-delivery-2026-10-26.txt
+for those checks and the remaining native Tiger acceptance limit.
+No system configuration, installed package, privileged command or OS 9 volume
+was changed. Native checks use unprivileged temporary copies only.
+
+Final hardening: validation/transforms read the same private snapshot; compare
+the live file before replacement. A fault-injection case modifies the live
+configuration immediately after validation and verifies that edit survives
+with the operation refused. Nine Python groups now pass.
+The new concurrent-edit test also fails when replayed against the earlier
+validation-before-snapshot flow (operation incorrectly returns0). Evidence:
+/tmp/weather-session-race-red.log. Final snapshot-first flow passes all9 groups.
+
+Final verification
+make check: 517 unit checks, 230242 mutation inputs, 106 CLI checks, 12 local
+real-TLS checks, eight initial script-test groups/four POSIX smoke checks and
+21 serialized GUI checks, plus lint/anchors/provisioning/flags passed.
+make check-san: AddressSanitizer explicitly enabled with UBSan, 517 unit checks,
+230242 mutation inputs and 106 CLI checks passed.
+After the final snapshot refinement, make check-native passed with all9 script
+test groups/four smoke checks and the full non-GUI suite. No further GUI change.
+Logs: /tmp/weather-session-check.log, /tmp/weather-session-san.log and
+/tmp/weather-session-native-final.log.
+
+Actual G4/NetBSD native sh and BSD awk: all4 POSIX smoke scenarios passed against
+private temp copies; own remote tool directory removed on success. No compile
+on maul. /tmp/weather-session-hardware.log; driver:
+/tmp/weather-session-hardware.sh. No root/system config execution, physical
+session restart, Tiger, native OS 9, macOS-host or ACL validation claim.
