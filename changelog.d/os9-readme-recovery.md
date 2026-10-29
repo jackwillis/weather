@@ -1,0 +1,1 @@
+- The Mac OS 9 disk's Read Me now explains what to do about a left-over TLS lock, a damaged seed or a possibly exposed seed, instead of only pointing at a developer document (#199). Docs only; no code or TLS behaviour changes.

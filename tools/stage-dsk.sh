@@ -25,6 +25,26 @@ Open-Meteo.com and MET Norway (CC BY 4.0).
 Using TLS on Mac OS 9 needs a seed provisioned from another computer first.
 No seed is included here. See docs/OS9-SEEDS.md in the source.
 
+If Weather says the TLS seed is locked, missing or damaged:
+
+  Weather TLS Lock left over. Quit Weather, SeedInstall and any probe, in
+  native OS 9 and in Classic. If nothing is running and only the file
+  "Weather TLS Lock" is left (after a crash), delete just that file from the
+  Preferences folder. Your seed is intact. Never delete a lock that a
+  running copy holds, and never delete the seed to clear a lock.
+
+  Seed missing or damaged, or "Weather TLS Next" present. Weather refuses
+  TLS rather than guess. Quit everything that uses the seed, remove only the
+  three Weather TLS files (Seed, Next, Lock) from the Preferences folder, and
+  install a newly generated seed from another computer (docs/OS9-SEEDS.md).
+  Do not copy back an old seed or use another Mac's seed.
+
+  Seed possibly exposed (copied, backed up, shared, or the disk cloned).
+  Removing a lock does not help. Replace the seed with a fresh one made on
+  another computer.
+
+Never turn off certificate or server-name checking to get around an error.
+
 Copyright (c) 2026 Jack Willis.
 EOF
 cp "$in" "$out" || exit 1
