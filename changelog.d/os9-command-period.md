@@ -1,0 +1,1 @@
+- Mac OS 9: Command-period cancels a window fetch without closing the window; Classic/native runtime acceptance remains pending (#168, #204).

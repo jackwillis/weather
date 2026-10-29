@@ -1,0 +1,27 @@
+OS 9 Command-period window cancellation (#168), 2026-10-28
+
+Red: the new host WindowActions regression with Cancel deliberately unimplemented
+reported:
+FAIL test/unittest.cpp:1541: a.key('.',true,c,m,10)
+FAIL test/unittest.cpp:1542: !a.continuing() && !a.quit && m.phase()==Phase::Fetching
+FAIL test/unittest.cpp:1551: a.key('.',true,c,m,30)
+1839 checks, 3 failed
+
+Green: make check and make check-san passed, production and test-hook modes:
+1839 unit checks; 426598 robustness inputs; 119 CLI checks per mode;
+34 connection-budget checks; 28 TLS checks; 95 CDE text checks; 19 field checks;
+55 serialized host GUI checks (full make check). Sanitizers: ASan + UBSan.
+
+A separate copy of the same changed native sources cross-built production Weather,
+WeatherConsole and all WEATHER_BUILD_DIAGNOSTICS=ON targets with Retro68 on Linux.
+Existing net_os9.cpp enum/non-enum conditional warning remains; no new native error.
+
+The diagnostic adds a cancellation stage through the same key dispatcher as
+native keyDown/cmdKey and checks Err::Cancelled through production fetch. The
+host policy checks ignored idle/plain-period/unrelated keys, retained forecast
+and old failed/stale state, normal next-update scheduling, later fetch reset,
+and terminal Quit. No parser input path was added.
+
+Not run: Classic/native OS 9 shortcut, screenshots or physical keyboard acceptance.
+No compilation, delivery, seed change or privileged operation was run on maul.
+This does not close #168's native acceptance gate.
