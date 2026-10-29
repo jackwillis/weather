@@ -158,8 +158,9 @@ void draw_contents()
 	if(model.has_forecast()) {
 		const Forecast &f=model.forecast(); art::picture(c,{16,43,108,96},f.code,!f.is_day);
 		Buf<80> t; t.add_fixed(f.temp_t10,1).add(f.metric?" C":" F");
-		text(143,79,t.c_str(),24,180,model.cached()?Rgb{96,96,96}:Rgb{0,0,0});
-		text(143,103,wmo_text(f.code),12,180);
+		bool old_data=model.stale(net.now(net));   // cached, failed, old or clock-stepped: dim the values (#62)
+		text(143,79,t.c_str(),24,180,old_data?Rgb{96,96,96}:Rgb{0,0,0});
+		text(143,103,wmo_text(f.code),12,180,old_data?Rgb{96,96,96}:Rgb{0,0,0});
 		Buf<80> wind; wind.add("Wind ");
 		if(f.wind_t10==kUnset) wind.add("unavailable");
 		else wind.add_fixed(f.wind_t10,1).add(f.metric?" km/h":" mph");

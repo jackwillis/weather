@@ -1016,7 +1016,21 @@ static void test_model()
 		m.finish(900, fail_dns(), nullptr);
 		CHECK(m.phase() == Phase::Failed && m.has_forecast() && m.forecast().temp_t10 == 548 && m.stale(900));
 		Buf<200> b; m.status_line(b, 930);     // data is from t=0, retry due at 960
-		CHECK(b.view() == sv("Update failed: cannot resolve host name. Showing data from 16 min ago. Next update in 30 s"));
+		CHECK(b.view() == sv("Showing data from 16 min ago. Update failed: cannot resolve host name. Next update in 30 s"));
+	}
+	{ // a long error cannot push the age off the end of the fitted line: the age comes first (#49)
+		Model m(mc, 0);
+		m.tick(0);
+		Forecast f = some_forecast(548);
+		m.finish(0, okay(), &f);
+		CHECK(m.tick(900));
+		m.finish(900, make(Err::CertUntrusted, "certificate is not trusted: the issuer is unknown or the chain is incomplete"), nullptr);
+		Buf<256> b; m.status_line(b, 930);
+		const char *age = strstr(b.c_str(), "16 min ago"), *error = strstr(b.c_str(), "Update failed");
+		CHECK(age && error && age < error && age - b.c_str() < 30);
+		CHECK(m.stale(930));
+		Buf<256> failed_empty; Model none(mc, 0); none.tick(0); none.finish(0, fail_dns(), nullptr); none.status_line(failed_empty, 1);
+		CHECK(strstr(failed_empty.c_str(), "Showing data") == nullptr && strncmp(failed_empty.c_str(), "Update failed", 13) == 0);
 	}
 	{ // a permanent error (bad certificate) is not retried faster than the normal interval
 		Model m(mc, 0);

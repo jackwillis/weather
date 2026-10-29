@@ -210,8 +210,9 @@ void draw_body(Drawable d)
 	}
 	Buf<24> temp;
 	temp.add_fixed(f.temp_t10, 1).add("\260").add(f.metric ? "C" : "F");
-	cde::text(t, d, t.big, x0, 108, temp.view(), g.model.cached() ? t.dim : t.fg);
-	cde::text(t, d, t.bold, x0, 132, wmo_text(f.code), t.fg);
+	bool old_data = g.model.stale(now_s());   // cached, failed, old or clock-stepped: dim the values (#62)
+	cde::text(t, d, t.big, x0, 108, temp.view(), old_data ? t.dim : t.fg);
+	cde::text(t, d, t.bold, x0, 132, wmo_text(f.code), old_data ? t.dim : t.fg);
 	Buf<64> wind;
 	if (f.wind_t10 != kUnset) {
 		wind.add("Wind ").add_fixed(f.wind_t10, 1).add(f.metric ? " km/h" : " mph");
